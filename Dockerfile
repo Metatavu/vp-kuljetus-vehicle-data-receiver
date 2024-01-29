@@ -8,7 +8,7 @@
 # Create a stage for building the application.
 
 ARG RUST_VERSION=1.67.1
-ARG APP_NAME=tcp-server
+ARG APP_NAME=vp-kuljetus-vehicle-data-receiver
 FROM rust:${RUST_VERSION}-slim-bullseye AS build
 ARG APP_NAME
 WORKDIR /app
