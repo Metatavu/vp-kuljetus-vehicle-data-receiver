@@ -55,7 +55,11 @@ async fn main() -> Result<(), Box<dyn Error>>{
     }
 }
 
+/// Writes buffer to socket
 ///
+/// # Arguments
+/// * `socket` - TCP socket
+/// * `buffer` - Buffer to write to socket
 async fn write_all_to_socket(socket: &mut TcpStream, buffer: &Vec<u8>) -> Result<(), Box<dyn Error>> {
     socket.write_all(&buffer)
         .await
