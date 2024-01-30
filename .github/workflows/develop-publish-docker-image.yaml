@@ -40,3 +40,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ steps.image_name.outputs.IMAGE_NAME }}:develop
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Install staging charts
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          repository: Metatavu/vp-kuljetus-transport-management-charts
+          event-type: update-staging
+          token: ${{ secrets.CHARTS_UPDATE_PAT }}
