@@ -1,10 +1,46 @@
+mod test_utils;
+
 use std::error::Error;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::net::SocketAddr;
-use std::io::Write;
+use std::io::{Write};
+use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+
+
+/// Reads string environment variable
+///
+/// Panics if the environment variable is not set.
+///
+/// # Arguments
+/// * `key` - Environment variable key
+///
+/// # Returns
+/// * `String` - Environment variable value
+fn read_string_env_variable(key: &str) -> String {
+    match std::env::var(key) {
+        Ok(value) => value,
+        Err(_) => panic!("{} environment variable not set", key)
+    }
+}
+
+/// Reads boolean environment variable
+///
+/// Panics if the environment variable is not set.
+///
+/// # Arguments
+/// * `key` - Environment variable key
+///
+/// # Returns
+/// * `bool` - Environment variable value
+fn read_bool_env_variable(key: &str) -> bool {
+    match std::env::var(key) {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => panic!("{} environment variable not set", key)
+    }
+}
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -13,17 +49,22 @@ use tokio::net::{TcpListener, TcpStream};
 ///
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>>{
+    env_logger::init();
+    let file_path = read_string_env_variable("LOG_FILE_PATH");
+    let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
+
     let address = "0.0.0.0:8080";
 
     let listener = TcpListener::bind(&address).await?;
 
-    println!("Listening on: {}", address);
+    info!("Listening on: {}", address);
 
     loop {
         let (mut socket, socket_address) = listener.accept().await?;
-
-        println!("New client: [{}]", socket_address);
-
+        let log_file_path = match write_to_file {
+          true => file_path.clone(),
+          false => "".to_string()
+        };
 
         tokio::spawn(async move {
             let mut buffer = vec![0; 4096];
@@ -36,25 +77,82 @@ async fn main() -> Result<(), Box<dyn Error>>{
                 return;
             }
 
-            // TODO: Validate IMEI from backend
             let (valid_imei, imei) = read_imei(&buffer);
+
             if  !valid_imei {
-                socket.write_all(b"\x00").await.expect("Failed to write data to socket");
+                write_all_to_socket(&mut socket, &[0x00]).await.unwrap();
                 socket.shutdown().await.expect("Failed to shutdown socket");
                 return;
             } else {
-                socket.write_all(b"\x01").await.expect("Failed to write data to socket");
+                write_all_to_socket(&mut socket, &[0x01]).await.unwrap();
             }
-            if let Result::Err(err) = handle_valid_connection(socket, &mut buffer, socket_address, imei).await {
-                println!("Error processing connection: {}", err);
+
+            if let Result::Err(err) = handle_valid_connection(
+                socket,
+                &mut buffer,
+                socket_address,
+                imei.unwrap(),
+                log_file_path,
+            ).await {
+                error!("Error processing connection: {}", err);
             };
         });
     }
 }
 
-/// Handles individual TCP connection from Teltonika Telematics device
+/// Writes buffer to socket
 ///
-/// For local development and debugging purposes, this currently stores the data in a file named after the IMEI of the device.
+/// # Arguments
+/// * `socket` - TCP socket
+/// * `buffer` - Buffer to write to socket
+async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<(), Box<dyn Error>> {
+    socket.write_all(&buffer)
+        .await
+        .expect(&format!("Failed to write {:#?} to socket", buffer));
+    debug!("Wrote {:02X?} to socket", buffer);
+    Ok(())
+}
+
+/// Gets file handle for log file
+///
+/// # Arguments
+/// * `imei` - IMEI of the Teltonika Telematics device
+/// * `log_file_path` - Path to log file
+///
+/// # Returns
+/// * `Option<File>` - File handle
+fn get_log_file_handle(imei: &str, log_file_path: &str) -> Option<File> {
+    if cfg!(not(test)) && log_file_path != "" {
+        return Some(
+            OpenOptions::new()
+                .read(true)
+                .create(true)
+                .append(true)
+                .open(
+                    format!("{}/{}.bin", log_file_path, imei)
+                )
+                .expect("Failed to open file")
+        );
+    }
+
+    return None;
+}
+
+/// Write data to log file
+///
+/// # Arguments
+/// * `file_handle` - File handle
+/// * `data` - Data to write to file
+fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
+    if cfg!(test) {
+        return;
+    }
+    if let Some(file) = file_handle {
+        file.write_all(data).expect("Failed to write data to file");
+    }
+}
+
+/// Handles individual TCP connection from Teltonika Telematics device
 ///
 /// # Arguments
 /// * `socket` - TCP socket
@@ -65,9 +163,10 @@ async fn handle_valid_connection(
     mut socket: TcpStream,
     buffer: &mut Vec<u8>,
     socket_address: SocketAddr,
-    imei: Option<String>
+    imei: String,
+    log_file_path: String,
 ) -> Result<(), Box<dyn Error>> {
-    let mut file = OpenOptions::new().read(true).create(true).append(true).open(format!("{}.txt", imei.unwrap())).expect("Failed to open file");
+    let mut file_handle = get_log_file_handle(&imei, &log_file_path);
     loop {
         let n = socket
             .read(buffer)
@@ -81,17 +180,19 @@ async fn handle_valid_connection(
         let first_byte = buffer[0];
 
         if first_byte == 0xFF {
-            println!("Received ping from client {}", socket_address);
+            debug!("Received ping from client {}", socket_address);
             continue;
         }
         let (_, frame) = parser::tcp_frame(&buffer).expect("Failed to parse TCP frame");
         let amount_of_records = frame.records.len();
-        println!("Received {} records from client {}", amount_of_records, socket_address);
-        writeln!(file, "{:#?}", frame).unwrap();
+        debug!("Received {} records from client {}", amount_of_records, socket_address);
+
+        write_data_to_log_file(&mut file_handle, &buffer);
+
         socket.write_i32(amount_of_records as i32).await?;
-        println!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
+        debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
     }
-    println!("Client {} disconnected", socket_address);
+    info!("Client {} disconnected", socket_address);
 
     Ok(())
 }
@@ -107,12 +208,51 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
     let result = nom_teltonika::parser::imei(&buffer);
     match result {
         Ok((_, imei)) => {
-            println!("Connected IMEI: [{:?}]", imei);
+            info!("New client connected with IMEI: [{:?}]", imei);
             return (true, Some(imei));
         },
         Err(_) => {
-            println!("Failed to parse IMEI from buffer {:#?}", buffer);
+            error!("Failed to parse IMEI from buffer {:#?}", buffer);
             return (false, None);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::imei::*;
+    use super::*;
+
+    #[test]
+    fn test_valid_imei() {
+        let generated_imei_1 = get_random_imei_of_length(10);
+        let generated_imei_2 = get_random_imei_of_length(15);
+        let imei_packet_1 = build_valid_imei_packet(&generated_imei_1);
+        let imei_packet_2 = build_valid_imei_packet(&generated_imei_2);
+        let read_imei_result_1 = read_imei(&imei_packet_1);
+        let read_imei_result_2 = read_imei(&imei_packet_2);
+
+        let is_first_imei_valid = read_imei_result_1.0;
+        let is_second_imei_valid = read_imei_result_2.0;
+        let parsed_first_imei = read_imei_result_1.1.unwrap();
+        let parsed_second_imei = read_imei_result_2.1.unwrap();
+
+        assert_eq!(is_first_imei_valid, true);
+        assert_eq!(is_second_imei_valid, true);
+        assert_eq!(&parsed_first_imei, &generated_imei_1.clone());
+        assert_eq!(&parsed_second_imei, &generated_imei_2.clone());
+    }
+
+    #[test]
+    fn test_invalid_imei() {
+        let generated_imei = get_random_imei_of_length(15);
+        let imei_packet = build_invalid_imei_packet(&generated_imei);
+        let read_imei_result = read_imei(&imei_packet);
+
+        let is_imei_valid = read_imei_result.0;
+        let parsed_imei = read_imei_result.1;
+
+        assert_eq!(is_imei_valid, false);
+        assert_eq!(parsed_imei, None);
     }
 }
