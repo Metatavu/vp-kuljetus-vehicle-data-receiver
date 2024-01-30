@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
                 socket.shutdown().await.expect("Failed to shutdown socket");
                 return;
             } else {
-                write_all_to_socket(&mut socket, &[0x1]).await.unwrap();
+                write_all_to_socket(&mut socket, &[0x01]).await.unwrap();
             }
 
             if let Result::Err(err) = handle_valid_connection(socket, &mut buffer, socket_address, imei).await {
@@ -66,6 +66,7 @@ async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<()
     socket.write_all(&buffer)
         .await
         .expect(&format!("Failed to write {:#?} to socket", buffer));
+    debug!("Wrote {:02X?} to socket", buffer);
     Ok(())
 }
 
