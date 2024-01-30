@@ -154,8 +154,6 @@ fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
 
 /// Handles individual TCP connection from Teltonika Telematics device
 ///
-/// For local development and debugging purposes, this currently stores the data in a file named after the IMEI of the device.
-///
 /// # Arguments
 /// * `socket` - TCP socket
 /// * `buffer` - Buffer for reading data from socket
