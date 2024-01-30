@@ -1,3 +1,5 @@
+mod test_utils;
+
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
@@ -41,11 +43,11 @@ async fn main() -> Result<(), Box<dyn Error>>{
             let (valid_imei, imei) = read_imei(&buffer);
 
             if  !valid_imei {
-                write_all_to_socket(&mut socket, &b"\x00".to_vec()).await.unwrap();
+                write_all_to_socket(&mut socket, &[0x00]).await.unwrap();
                 socket.shutdown().await.expect("Failed to shutdown socket");
                 return;
             } else {
-                write_all_to_socket(&mut socket, &b"\x01".to_vec()).await.unwrap();
+                write_all_to_socket(&mut socket, &[0x1]).await.unwrap();
             }
 
             if let Result::Err(err) = handle_valid_connection(socket, &mut buffer, socket_address, imei).await {
@@ -60,7 +62,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
 /// # Arguments
 /// * `socket` - TCP socket
 /// * `buffer` - Buffer to write to socket
-async fn write_all_to_socket(socket: &mut TcpStream, buffer: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<(), Box<dyn Error>> {
     socket.write_all(&buffer)
         .await
         .expect(&format!("Failed to write {:#?} to socket", buffer));
@@ -82,7 +84,8 @@ async fn handle_valid_connection(
     socket_address: SocketAddr,
     imei: Option<String>
 ) -> Result<(), Box<dyn Error>> {
-    let mut file = OpenOptions::new().read(true).create(true).append(true).open(format!("{}.txt", imei.unwrap())).expect("Failed to open file");
+    // Uncomment line below to enable writing to file
+    // let mut file = OpenOptions::new().read(true).create(true).append(true).open(format!("{}.txt", imei.unwrap())).expect("Failed to open file");
     loop {
         let n = socket
             .read(buffer)
@@ -102,7 +105,8 @@ async fn handle_valid_connection(
         let (_, frame) = parser::tcp_frame(&buffer).expect("Failed to parse TCP frame");
         let amount_of_records = frame.records.len();
         debug!("Received {} records from client {}", amount_of_records, socket_address);
-        writeln!(file, "{:#?}", frame).unwrap();
+        // Uncomment line below to enable writing to file
+        // writeln!(file, "{:#?}", frame).unwrap();
         socket.write_i32(amount_of_records as i32).await?;
         debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
     }
@@ -134,7 +138,8 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 
 #[cfg(test)]
 mod tests {
-    use rand::{distributions::Alphanumeric, Rng};
+    use crate::test_utils::imei::*;
+
     use super::*;
 
     #[test]
@@ -168,26 +173,5 @@ mod tests {
 
         assert_eq!(is_imei_valid, false);
         assert_eq!(parsed_imei, None);
-    }
-
-    fn build_valid_imei_packet(imei: &str) -> Vec<u8> {
-        let length = imei.len() as i16;
-        let mut imei_byte_array = length.to_be_bytes().to_vec();
-
-        imei_byte_array.append(&mut imei.as_bytes().to_vec());
-
-        return imei_byte_array;
-    }
-
-    fn build_invalid_imei_packet(imei: &str) -> Vec<u8> {
-        return imei.as_bytes().to_vec();
-    }
-
-    fn get_random_imei_of_length(length: i16) -> String {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(length as usize)
-            .map(char::from)
-            .collect()
     }
 }
