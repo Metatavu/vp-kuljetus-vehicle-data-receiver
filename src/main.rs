@@ -1,7 +1,7 @@
 mod test_utils;
 
 use std::error::Error;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::net::SocketAddr;
 use std::io::Write;
 use log::{debug, error, info};
@@ -25,9 +25,6 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
     loop {
         let (mut socket, socket_address) = listener.accept().await?;
-
-        info!("New client: [{}]", socket_address);
-
 
         tokio::spawn(async move {
             let mut buffer = vec![0; 4096];
@@ -85,8 +82,17 @@ async fn handle_valid_connection(
     socket_address: SocketAddr,
     imei: Option<String>
 ) -> Result<(), Box<dyn Error>> {
-    // Uncomment line below to enable writing to file
-    // let mut file = OpenOptions::new().read(true).create(true).append(true).open(format!("{}.txt", imei.unwrap())).expect("Failed to open file");
+    let mut file_handle: Option<File> = None;
+    if cfg!(debug_assertions) {
+        file_handle = Some(
+            OpenOptions::new()
+                .read(true)
+                .create(true)
+                .append(true)
+                .open(format!("{}.txt", imei.unwrap()))
+                .expect("Failed to open file")
+        );
+    }
     loop {
         let n = socket
             .read(buffer)
@@ -106,8 +112,13 @@ async fn handle_valid_connection(
         let (_, frame) = parser::tcp_frame(&buffer).expect("Failed to parse TCP frame");
         let amount_of_records = frame.records.len();
         debug!("Received {} records from client {}", amount_of_records, socket_address);
-        // Uncomment line below to enable writing to file
-        // writeln!(file, "{:#?}", frame).unwrap();
+
+        if cfg!(debug_assertions) {
+            debug!("Writing to file...");
+            if let Some(file) = &mut file_handle {
+                writeln!(file, "{:#?}", frame).unwrap();
+            }
+        }
         socket.write_i32(amount_of_records as i32).await?;
         debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
     }
@@ -127,7 +138,7 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
     let result = nom_teltonika::parser::imei(&buffer);
     match result {
         Ok((_, imei)) => {
-            info!("Parsed IMEI: [{:?}]", imei);
+            info!("New client connected with IMEI: [{:?}]", imei);
             return (true, Some(imei));
         },
         Err(_) => {
@@ -140,7 +151,6 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 #[cfg(test)]
 mod tests {
     use crate::test_utils::imei::*;
-
     use super::*;
 
     #[test]
