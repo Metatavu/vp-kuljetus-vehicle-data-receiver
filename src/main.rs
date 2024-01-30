@@ -3,11 +3,44 @@ mod test_utils;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::net::SocketAddr;
-use std::io::Write;
+use std::io::{Write};
 use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+
+
+/// Reads string environment variable
+///
+/// Panics if the environment variable is not set.
+///
+/// # Arguments
+/// * `key` - Environment variable key
+///
+/// # Returns
+/// * `String` - Environment variable value
+fn read_string_env_variable(key: &str) -> String {
+    match std::env::var(key) {
+        Ok(value) => value,
+        Err(_) => panic!("{} environment variable not set", key)
+    }
+}
+
+/// Reads boolean environment variable
+///
+/// Panics if the environment variable is not set.
+///
+/// # Arguments
+/// * `key` - Environment variable key
+///
+/// # Returns
+/// * `bool` - Environment variable value
+fn read_bool_env_variable(key: &str) -> bool {
+    match std::env::var(key) {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => panic!("{} environment variable not set", key)
+    }
+}
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -17,6 +50,9 @@ use tokio::net::{TcpListener, TcpStream};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>>{
     env_logger::init();
+    let file_path = read_string_env_variable("LOG_FILE_PATH");
+    let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
+
     let address = "0.0.0.0:8080";
 
     let listener = TcpListener::bind(&address).await?;
@@ -25,6 +61,10 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
     loop {
         let (mut socket, socket_address) = listener.accept().await?;
+        let log_file_path = match write_to_file {
+          true => file_path.clone(),
+          false => "".to_string()
+        };
 
         tokio::spawn(async move {
             let mut buffer = vec![0; 4096];
@@ -47,7 +87,13 @@ async fn main() -> Result<(), Box<dyn Error>>{
                 write_all_to_socket(&mut socket, &[0x01]).await.unwrap();
             }
 
-            if let Result::Err(err) = handle_valid_connection(socket, &mut buffer, socket_address, imei).await {
+            if let Result::Err(err) = handle_valid_connection(
+                socket,
+                &mut buffer,
+                socket_address,
+                imei.unwrap(),
+                log_file_path,
+            ).await {
                 error!("Error processing connection: {}", err);
             };
         });
@@ -67,6 +113,45 @@ async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<()
     Ok(())
 }
 
+/// Gets file handle for log file
+///
+/// # Arguments
+/// * `imei` - IMEI of the Teltonika Telematics device
+/// * `log_file_path` - Path to log file
+///
+/// # Returns
+/// * `Option<File>` - File handle
+fn get_log_file_handle(imei: &str, log_file_path: &str) -> Option<File> {
+    if cfg!(not(test)) && log_file_path != "" {
+        return Some(
+            OpenOptions::new()
+                .read(true)
+                .create(true)
+                .append(true)
+                .open(
+                    format!("{}/{}.bin", log_file_path, imei)
+                )
+                .expect("Failed to open file")
+        );
+    }
+
+    return None;
+}
+
+/// Write data to log file
+///
+/// # Arguments
+/// * `file_handle` - File handle
+/// * `data` - Data to write to file
+fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
+    if cfg!(test) {
+        return;
+    }
+    if let Some(file) = file_handle {
+        file.write_all(data).expect("Failed to write data to file");
+    }
+}
+
 /// Handles individual TCP connection from Teltonika Telematics device
 ///
 /// For local development and debugging purposes, this currently stores the data in a file named after the IMEI of the device.
@@ -80,19 +165,10 @@ async fn handle_valid_connection(
     mut socket: TcpStream,
     buffer: &mut Vec<u8>,
     socket_address: SocketAddr,
-    imei: Option<String>
+    imei: String,
+    log_file_path: String,
 ) -> Result<(), Box<dyn Error>> {
-    let mut file_handle: Option<File> = None;
-    if cfg!(debug_assertions) {
-        file_handle = Some(
-            OpenOptions::new()
-                .read(true)
-                .create(true)
-                .append(true)
-                .open(format!("{}.txt", imei.unwrap()))
-                .expect("Failed to open file")
-        );
-    }
+    let mut file_handle = get_log_file_handle(&imei, &log_file_path);
     loop {
         let n = socket
             .read(buffer)
@@ -113,12 +189,8 @@ async fn handle_valid_connection(
         let amount_of_records = frame.records.len();
         debug!("Received {} records from client {}", amount_of_records, socket_address);
 
-        if cfg!(debug_assertions) {
-            debug!("Writing to file...");
-            if let Some(file) = &mut file_handle {
-                writeln!(file, "{:#?}", frame).unwrap();
-            }
-        }
+        write_data_to_log_file(&mut file_handle, &buffer);
+
         socket.write_i32(amount_of_records as i32).await?;
         debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
     }
