@@ -220,7 +220,10 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::imei::*;
+    use nom_teltonika::{AVLEventIO, Priority};
+    use crate::test_utils::{
+        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
+    };
     use super::*;
 
     #[test]
@@ -254,5 +257,42 @@ mod tests {
 
         assert_eq!(is_imei_valid, false);
         assert_eq!(parsed_imei, None);
+    }
+
+    #[test]
+    fn test_valid_packet() {
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::Panic)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 10,
+                    value: nom_teltonika::AVLEventIOValue::U8(10),
+                }
+            ])
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .add_record(record)
+            .build()
+            .to_bytes();
+
+        let example_packet_str = "000000000000003608010000016B40D8EA30010000000000000000000000000000000105021503010101425E0F01F10000601A014E0000000000000000010000C7CF";
+        let example_packet = str_to_bytes(example_packet_str);
+
+        let parsed_built_packet = parser::tcp_frame(&packet);
+        let parsed_example_packet = parser::tcp_frame(&example_packet);
+
+        assert!(parsed_built_packet.is_ok());
+        assert!(parsed_example_packet.is_ok());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_packet() {
+        // This packet is missing the preamble
+        let example_packet_str = "3608010000016B40D8EA30010000000000000000000000000000000105021503010101425E0F01F10000601A014E0000000000000000010000C7CF";
+        let example_packet = str_to_bytes(example_packet_str);
+        let parsed_example_packet = parser::tcp_frame(&example_packet);
+        // This should panic because the packet is missing the preamble
+        parsed_example_packet.unwrap();
     }
 }
