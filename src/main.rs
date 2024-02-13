@@ -1,9 +1,10 @@
 mod test_utils;
 
 use std::error::Error;
-use std::fs::{File, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::net::SocketAddr;
-use std::io::{Write};
+use std::io::Write;
+use chrono::{Datelike, Utc};
 use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -123,13 +124,16 @@ async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<()
 /// * `Option<File>` - File handle
 fn get_log_file_handle(imei: &str, log_file_path: &str) -> Option<File> {
     if cfg!(not(test)) && log_file_path != "" {
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let parent_path = std::path::Path::new(log_file_path).join(imei);
+        create_dir_all(&parent_path).expect(&format!("Failed to create log file directory `{:#?}`", &parent_path));
         return Some(
             OpenOptions::new()
                 .read(true)
                 .create(true)
                 .append(true)
                 .open(
-                    format!("{}/{}.bin", log_file_path, imei)
+                    parent_path.join(format!("{}.bin", today))
                 )
                 .expect("Failed to open file")
         );
@@ -166,8 +170,13 @@ async fn handle_valid_connection(
     imei: String,
     log_file_path: String,
 ) -> Result<(), Box<dyn Error>> {
+    let start_of_connection = Utc::now();
     let mut file_handle = get_log_file_handle(&imei, &log_file_path);
     loop {
+        let start_of_loop = Utc::now();
+        if start_of_loop.day() != start_of_connection.day() {
+            file_handle = get_log_file_handle(&imei, &log_file_path);
+        }
         let n = socket
             .read(buffer)
             .await
