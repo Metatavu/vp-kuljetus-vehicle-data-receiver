@@ -124,7 +124,7 @@ async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<()
 /// * `Option<File>` - File handle
 fn get_log_file_handle(imei: &str, log_file_path: &str) -> Option<File> {
     if cfg!(not(test)) && log_file_path != "" {
-        let today = Utc::now().format("%d-%m-%Y").to_string();
+        let today = Utc::now().format("%Y-%m-%d").to_string();
         let parent_path = std::path::Path::new(log_file_path).join(imei);
         create_dir_all(&parent_path).expect(&format!("Failed to create log file directory `{:#?}`", &parent_path));
         return Some(
