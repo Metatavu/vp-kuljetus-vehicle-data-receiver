@@ -9,7 +9,9 @@ use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-
+use vehicle_management_service::request::ReceiveTelematicDataRequired;
+use vehicle_management_service::VehicleManagementServiceClient;
+use serde::{Serialize, Deserialize};
 
 /// Reads string environment variable
 ///
@@ -155,7 +157,15 @@ fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
         file.write_all(data).expect("Failed to write data to file");
     }
 }
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OptionalReceiveTelematicDataRequest {
+    pub imei: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub speed: Option<f64>,
+    pub timestamp: Option<i64>,
+    pub vin: Option<String>,
+}
 /// Handles individual TCP connection from Teltonika Telematics device
 ///
 /// # Arguments
@@ -198,6 +208,12 @@ async fn handle_valid_connection(
 
         write_data_to_log_file(&mut file_handle, &buffer);
 
+        // Read current data buffer from disk
+
+        // Append new telematics data to data buffer on disk
+
+        // If buffer is ready to be sent, send it to the backend
+
         socket.write_i32(amount_of_records as i32).await?;
         debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
     }
@@ -225,6 +241,17 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
             return (false, None);
         }
     }
+}
+
+/// Sends a [`ReceiveTelematicDataRequired`] to backend
+async fn send_telematic_data(telematic_data: ReceiveTelematicDataRequired<'_>) {
+    let api_key = read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
+    let client = VehicleManagementServiceClient::with_auth(vehicle_management_service::VehicleManagementServiceAuth::ApiKeyAuth { x_api_key: api_key });
+
+    client
+        .receive_telematic_data(telematic_data)
+        .await
+        .unwrap();
 }
 
 #[cfg(test)]
