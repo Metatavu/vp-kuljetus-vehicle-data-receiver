@@ -1,4 +1,5 @@
 mod test_utils;
+mod teltonika_handler;
 
 use std::error::Error;
 use std::fs::{create_dir_all, File, OpenOptions};
@@ -9,9 +10,8 @@ use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use vehicle_management_service::request::ReceiveTelematicDataRequired;
-use vehicle_management_service::VehicleManagementServiceClient;
-use serde::{Serialize, Deserialize};
+
+use crate::teltonika_handler::TeltonikaRecordsHandler;
 
 /// Reads string environment variable
 ///
@@ -157,15 +157,7 @@ fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
         file.write_all(data).expect("Failed to write data to file");
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OptionalReceiveTelematicDataRequest {
-    pub imei: Option<String>,
-    pub latitude: Option<f64>,
-    pub longitude: Option<f64>,
-    pub speed: Option<f64>,
-    pub timestamp: Option<i64>,
-    pub vin: Option<String>,
-}
+
 /// Handles individual TCP connection from Teltonika Telematics device
 ///
 /// # Arguments
@@ -180,8 +172,12 @@ async fn handle_valid_connection(
     imei: String,
     log_file_path: String,
 ) -> Result<(), Box<dyn Error>> {
+    let teltonika_records_handler = TeltonikaRecordsHandler::new();
     let start_of_connection = Utc::now();
+
     let mut file_handle = get_log_file_handle(&imei, &log_file_path);
+    let mut truck_vin: Option<String> = None;
+
     loop {
         let start_of_loop = Utc::now();
         if start_of_loop.day() != start_of_connection.day() {
@@ -204,15 +200,19 @@ async fn handle_valid_connection(
         }
         let (_, frame) = parser::tcp_frame(&buffer).expect("Failed to parse TCP frame");
         let amount_of_records = frame.records.len();
-        debug!("Received {} records from client {}", amount_of_records, socket_address);
+
+        // If the truck VIN is not set, try to get it from the records
+        if let None = truck_vin {
+            truck_vin = teltonika_records_handler.get_truck_vin_from_records(frame.records);
+        }
+
+        if let Some(vin) = &truck_vin {
+            debug!("Received {:02X} records from VIN {} with IMEI {}", amount_of_records, vin, imei);
+        } else {
+            debug!("Received {:02X} records from unknown VIN with IMEI {}", amount_of_records, imei);
+        }
 
         write_data_to_log_file(&mut file_handle, &buffer);
-
-        // Read current data buffer from disk
-
-        // Append new telematics data to data buffer on disk
-
-        // If buffer is ready to be sent, send it to the backend
 
         socket.write_i32(amount_of_records as i32).await?;
         debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
@@ -241,17 +241,6 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
             return (false, None);
         }
     }
-}
-
-/// Sends a [`ReceiveTelematicDataRequired`] to backend
-async fn send_telematic_data(telematic_data: ReceiveTelematicDataRequired<'_>) {
-    let api_key = read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
-    let client = VehicleManagementServiceClient::with_auth(vehicle_management_service::VehicleManagementServiceAuth::ApiKeyAuth { x_api_key: api_key });
-
-    client
-        .receive_telematic_data(telematic_data)
-        .await
-        .unwrap();
 }
 
 #[cfg(test)]
@@ -330,5 +319,109 @@ mod tests {
         let parsed_example_packet = parser::tcp_frame(&example_packet);
         // This should panic because the packet is missing the preamble
         parsed_example_packet.unwrap();
+    }
+
+    #[test]
+    fn test_missing_truck_vin() {
+        let record_handler = TeltonikaRecordsHandler::new();
+        let record_without_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                },
+                AVLEventIO {
+                    id: 1,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+                AVLEventIO {
+                    id: 200,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+            ])
+            .build();
+        let packet_with_record_without_vin = AVLFrameBuilder::new()
+            .add_record(record_without_vin)
+            .build();
+
+        let missing_vin = record_handler.get_truck_vin_from_records(packet_with_record_without_vin.records);
+
+        assert_eq!(missing_vin, None);
+    }
+
+    #[test]
+    fn test_get_truck_vin() {
+        let record_handler = TeltonikaRecordsHandler::new();
+        let record_with_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let packet_with_record_with_vin = AVLFrameBuilder::new()
+            .add_record(record_with_vin)
+            .build();
+
+        let vin = record_handler.get_truck_vin_from_records(packet_with_record_with_vin.records);
+
+        assert_eq!("W1T96302X10704959", vin.unwrap());
+    }
+
+    #[test]
+    fn test_get_truck_vin_with_multiple_vin_records() {
+        let record_handler = TeltonikaRecordsHandler::new();
+        let record_with_vin_1 = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let record_with_vin_2 = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let packet_with_multiple_records_with_vin = AVLFrameBuilder::new()
+            .with_records([record_with_vin_2].to_vec())
+            .build();
+
+        let vin = record_handler.get_truck_vin_from_records(packet_with_multiple_records_with_vin.records);
+
+        assert_eq!("W1T96302X10704959", vin.unwrap());
     }
 }
