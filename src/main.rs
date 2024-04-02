@@ -289,7 +289,9 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 
 #[cfg(test)]
 mod tests {
+    use httpmock::{Method::GET, MockServer};
     use nom_teltonika::{AVLEventIO, Priority};
+    use vehicle_management_service::model::PublicTruck;
     use crate::test_utils::{
         avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
     };
@@ -467,5 +469,47 @@ mod tests {
         let vin = record_handler.get_truck_vin_from_records(packet_with_multiple_records_with_vin.records);
 
         assert_eq!("W1T96302X10704959", vin.unwrap());
+    }
+
+    #[tokio::test]
+    async fn get_truck_id_with_valid_vin() {
+        start_vehicle_management_mock();
+        let vin = Some(String::from("W1T96302X10704959"));
+        let truck_id = get_truck_id(&vin).await;
+
+        assert!(truck_id.is_some());
+        assert_eq!("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C", truck_id.unwrap());
+    }
+
+    #[tokio::test]
+    async fn get_truck_id_with_invalid_vin() {
+        start_vehicle_management_mock();
+        let vin = Some(String::from("invalid-vin"));
+        let truck_id = get_truck_id(&vin).await;
+
+        assert!(truck_id.is_none());
+    }
+
+    fn start_vehicle_management_mock() {
+        let mock_server = MockServer::start();
+        let mut server_address = String::from("http://");
+        server_address.push_str(mock_server.address().to_string().as_str());
+
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_BASE_URL", &server_address);
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+
+        let _public_trucks_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/vehicle-management/v1/publicTrucks")
+                .header("X-API-KEY", "API_KEY");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&[PublicTruck{
+                    id: Some(String::from("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C")),
+                    name: Some(String::from("1")),
+                    plate_number: String::from("ABC-123"),
+                    vin: String::from("W1T96302X10704959"),
+                }]);
+        });
     }
 }
