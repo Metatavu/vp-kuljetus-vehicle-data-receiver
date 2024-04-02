@@ -96,6 +96,11 @@ impl TeltonikaRecordsHandler {
     self.truck_id = truck_id;
   }
 
+  /// Gets the cache path
+  pub fn get_cache_path(&self) -> &Path {
+    return self.cache_base_path.as_ref();
+  }
+
   /// Gets the truck VIN from a list of Teltonika [AVLRecord]s.
   ///
   /// This method will iterate over the records and find the VIN parts. If all three parts are found, they will be combined into a single VIN according to Teltonika specification.

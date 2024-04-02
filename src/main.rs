@@ -277,6 +277,8 @@ mod tests {
     use crate::test_utils::{
         avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
     };
+    use self::telematics_cache::{cacheable_truck_speed::CacheableTruckSpeed, Cacheable};
+
     use super::*;
 
     #[test]
@@ -518,6 +520,13 @@ mod tests {
             .build();
 
         record_handler.handle_records(packet.records);
+
+        let base_cache_path = record_handler.get_cache_path();
+        let speeds_cache = CacheableTruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+        let first_cached_speed = speeds_cache.first();
+
+        assert_eq!(1, speeds_cache.len());
+        assert_eq!(10.0, first_cached_speed.unwrap().speed);
     }
 
     /// Gets a TeltonikaRecordsHandler for testing

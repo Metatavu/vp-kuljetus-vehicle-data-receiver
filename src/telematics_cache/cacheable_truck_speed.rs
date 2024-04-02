@@ -5,8 +5,8 @@ use super::Cacheable;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CacheableTruckSpeed {
-  speed: f32,
-  timestamp: i64,
+  pub speed: f32,
+  pub timestamp: i64,
 }
 
 impl Cacheable for CacheableTruckSpeed {
