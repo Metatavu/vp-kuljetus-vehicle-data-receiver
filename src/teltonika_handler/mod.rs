@@ -4,7 +4,7 @@ use std::path::Path;
 
 use nom_teltonika::{AVLEventIOValue, AVLRecord, AVLEventIO};
 
-struct TeltonikaEventHandler {
+pub struct TeltonikaEventHandler {
   event_id: u16,
   handler: fn(AVLEventIO, i64, Option<String>, Box<Path>),
   purge: fn(String, Box<Path>),
