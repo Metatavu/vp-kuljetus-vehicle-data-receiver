@@ -1,7 +1,7 @@
 [package]
 name = "vehicle-management-service"
 edition = "2021"
-version = "0.1.0"
+version = "0.2.0"
 homepage = ""
 documentation = "https://docs.rs/vehicle-management-service"
 readme = "README.md"

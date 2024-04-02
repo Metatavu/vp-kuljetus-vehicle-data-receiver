@@ -31,6 +31,8 @@ impl AVLPacketToBytes for AVLFrame {
     for _ in &self.records {
         number_of_data = number_of_data + 1;
     }
+    let vec2: [u8; 1] = [1];
+    let vec: [u8; 1] = [1];
 
     bytes.append(&mut AVL_PACKET_PREAMBLE.to_vec());
     bytes_for_crc.append(&mut AVL_PACKET_CODEC8.to_vec());

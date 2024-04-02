@@ -4,25 +4,29 @@ use crate::FluentRequest;
 use serde::{Serialize, Deserialize};
 use httpclient::InMemoryResponseExt;
 use crate::VehicleManagementServiceClient;
-/**You should use this struct via [`VehicleManagementServiceClient::delete_towable`].
+/**You should use this struct via [`VehicleManagementServiceClient::create_truck_speed`].
 
 On request success, this will return a [`()`].*/
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeleteTowableRequest {
-    pub towable_id: String,
+pub struct CreateTruckSpeedRequest {
+    pub id: i64,
+    pub speed: f64,
+    pub truck_id: String,
 }
-impl DeleteTowableRequest {}
-impl FluentRequest<'_, DeleteTowableRequest> {}
-impl<'a> ::std::future::IntoFuture for FluentRequest<'a, DeleteTowableRequest> {
+impl CreateTruckSpeedRequest {}
+impl FluentRequest<'_, CreateTruckSpeedRequest> {}
+impl<'a> ::std::future::IntoFuture for FluentRequest<'a, CreateTruckSpeedRequest> {
     type Output = httpclient::InMemoryResult<()>;
     type IntoFuture = ::futures::future::BoxFuture<'a, Self::Output>;
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
             let url = &format!(
-                "/v1/towables/{towable_id}", towable_id = self.params.towable_id
+                "/vehicle-management/v1/trucks/{truck_id}/speeds", truck_id = self.params
+                .truck_id
             );
-            let mut r = self.client.client.delete(url);
-            r = r.set_query(self.params);
+            let mut r = self.client.client.post(url);
+            r = r.json(json!({ "id" : self.params.id }));
+            r = r.json(json!({ "speed" : self.params.speed }));
             r = self.client.authenticate(r);
             let res = r.await?;
             res.json().map_err(Into::into)

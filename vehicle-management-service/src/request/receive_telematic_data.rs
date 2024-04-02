@@ -32,7 +32,9 @@ impl<'a> ::std::future::IntoFuture for FluentRequest<'a, ReceiveTelematicDataReq
     type IntoFuture = ::futures::future::BoxFuture<'a, Self::Output>;
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
-            let url = &format!("/v1/telematics/{vin}", vin = self.params.vin);
+            let url = &format!(
+                "/vehicle-management/v1/telematics/{vin}", vin = self.params.vin
+            );
             let mut r = self.client.client.post(url);
             r = r.json(json!({ "imei" : self.params.imei }));
             r = r.json(json!({ "latitude" : self.params.latitude }));

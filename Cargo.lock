@@ -1168,7 +1168,7 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "vehicle-management-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "chrono",
@@ -1186,14 +1186,18 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "vp-kuljetus-vehicle-data-receiver"
-version = "0.1.0"
+version = "0.7.0"
 dependencies = [
+ "base64",
  "chrono",
  "env_logger",
+ "futures",
+ "httpclient",
  "log",
  "nom-teltonika",
  "rand",
  "serde",
+ "serde_derive",
  "serde_json",
  "tokio",
  "vehicle-management-service",

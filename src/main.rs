@@ -1,4 +1,6 @@
 mod test_utils;
+mod telematics_cache;
+mod teltonika_event_handler;
 
 use std::error::Error;
 use std::fs::{create_dir_all, File, OpenOptions};
@@ -9,8 +11,6 @@ use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use vehicle_management_service::request::ReceiveTelematicDataRequired;
-use vehicle_management_service::VehicleManagementServiceClient;
 use serde::{Serialize, Deserialize};
 
 /// Reads string environment variable
@@ -55,6 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
     env_logger::init();
     let file_path = read_string_env_variable("LOG_FILE_PATH");
     let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
+    let telematics_api_key = read_string_env_variable("TELEMATICS_API_KEY");
 
     let address = "0.0.0.0:8080";
 
@@ -64,6 +65,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
     loop {
         let (mut socket, socket_address) = listener.accept().await?;
+        let api_key = telematics_api_key.clone();
         let log_file_path = match write_to_file {
           true => file_path.clone(),
           false => "".to_string()
@@ -96,6 +98,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
                 socket_address,
                 imei.unwrap(),
                 log_file_path,
+                api_key,
             ).await {
                 error!("Error processing connection: {}", err);
             };
@@ -173,13 +176,19 @@ pub struct OptionalReceiveTelematicDataRequest {
 /// * `buffer` - Buffer for reading data from socket
 /// * `socket_address` - Socket address of the client
 /// * `imei` - IMEI of the Teltonika Telematics device
+/// * `log_file_path` - Path to log file
+/// * `telematics_api_key` - API key for the VP-Kuljetus Vehicle Management Service
 async fn handle_valid_connection(
     mut socket: TcpStream,
     buffer: &mut Vec<u8>,
     socket_address: SocketAddr,
     imei: String,
     log_file_path: String,
+    telematics_api_key: String,
 ) -> Result<(), Box<dyn Error>> {
+    let mut truck_id: Option<String> = None;
+    let mut truck_vin: Option<String> = None;
+
     let start_of_connection = Utc::now();
     let mut file_handle = get_log_file_handle(&imei, &log_file_path);
     loop {
@@ -207,6 +216,12 @@ async fn handle_valid_connection(
         debug!("Received {} records from client {}", amount_of_records, socket_address);
 
         write_data_to_log_file(&mut file_handle, &buffer);
+
+        frame.records
+            .iter()
+            .for_each(|record| {
+                // handle_record(record, truck_id.clone());
+            });
 
         // Read current data buffer from disk
 
@@ -243,23 +258,14 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
     }
 }
 
-/// Sends a [`ReceiveTelematicDataRequired`] to backend
-async fn send_telematic_data(telematic_data: ReceiveTelematicDataRequired<'_>) {
-    let api_key = read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
-    let client = VehicleManagementServiceClient::with_auth(vehicle_management_service::VehicleManagementServiceAuth::ApiKeyAuth { x_api_key: api_key });
-
-    client
-        .receive_telematic_data(telematic_data)
-        .await
-        .unwrap();
-}
-
 #[cfg(test)]
 mod tests {
     use nom_teltonika::{AVLEventIO, Priority};
     use crate::test_utils::{
         avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
     };
+    use self::teltonika_event_handler::TeltonikaRecordsHandler;
+
     use super::*;
 
     #[test]
@@ -330,5 +336,56 @@ mod tests {
         let parsed_example_packet = parser::tcp_frame(&example_packet);
         // This should panic because the packet is missing the preamble
         parsed_example_packet.unwrap();
+    }
+
+    #[test]
+    fn test_get_truck_vin_from_records() {
+        let record_handler = TeltonikaRecordsHandler::new("./".to_string());
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::Panic)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                },
+                AVLEventIO {
+                    id: 1,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+                AVLEventIO {
+                    id: 200,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+            ])
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .add_record(record)
+            .build();
+        let record_with_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::Panic)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let packet_with_vin_record = AVLFrameBuilder::new()
+            .add_record(record_with_vin)
+            .build();
+
+        let missing_vin = record_handler.get_truck_vin_from_records(packet.records);
+        assert_eq!(missing_vin, None);
+
+        let vin = record_handler.get_truck_vin_from_records(packet_with_vin_record.records);
+        println!("{:?}", vin);
     }
 }
