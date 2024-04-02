@@ -3,8 +3,8 @@ use crate::model::*;
 use crate::FluentRequest;
 use serde::{Serialize, Deserialize};
 use httpclient::InMemoryResponseExt;
-use crate::VehicleManagementServiceClient;
-/**You should use this struct via [`VehicleManagementServiceClient::update_driver_card`].
+use crate::VehicleManagementServiceClientClient;
+/**You should use this struct via [`VehicleManagementServiceClientClient::update_driver_card`].
 
 On request success, this will return a [`DriverCard`].*/
 #[derive(Debug, Clone, Serialize, Deserialize)]

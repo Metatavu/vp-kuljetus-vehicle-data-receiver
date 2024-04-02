@@ -3,8 +3,8 @@ use crate::model::*;
 use crate::FluentRequest;
 use serde::{Serialize, Deserialize};
 use httpclient::InMemoryResponseExt;
-use crate::VehicleManagementServiceClient;
-/**You should use this struct via [`VehicleManagementServiceClient::list_public_trucks`].
+use crate::VehicleManagementServiceClientClient;
+/**You should use this struct via [`VehicleManagementServiceClientClient::list_public_trucks`].
 
 On request success, this will return a [`Vec<PublicTruck>`].*/
 #[derive(Debug, Clone, Serialize, Deserialize)]

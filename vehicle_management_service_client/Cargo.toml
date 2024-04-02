@@ -1,9 +1,9 @@
 [package]
-name = "vehicle-management-service"
+name = "vehicle-management-service-client"
 edition = "2021"
-version = "0.1.0"
+version = "0.2.0"
 homepage = ""
-documentation = "https://docs.rs/vehicle-management-service"
+documentation = "https://docs.rs/vehicle-management-service-client"
 readme = "README.md"
 license = "MIT"
 repository = ""

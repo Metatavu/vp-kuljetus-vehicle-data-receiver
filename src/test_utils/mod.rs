@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 #[cfg(test)]
 pub mod avl_record_builder;
 #[cfg(test)]
