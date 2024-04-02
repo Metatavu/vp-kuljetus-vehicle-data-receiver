@@ -1,4 +1,5 @@
 ## VP-Kuljetus Vehicle Data Receiver
 
 ### Generate Vehicle Management Service Client from OpenAPI
-`libninja gen --lang rust -o . vehicle-management-service vp-kuljetus-transport-management-specs/services/vehicle-management-services.yaml`
+1. Install `libninja` with `cargo install --git https://github.com/kurtbuilds/libninja`
+2. Generate client from project root with `sh generate-client.sh`

@@ -3,13 +3,13 @@ mod teltonika_handler;
 
 use std::error::Error;
 use std::fs::{create_dir_all, File, OpenOptions};
-use std::net::SocketAddr;
 use std::io::Write;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info};
 use nom_teltonika::parser;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use vehicle_management_service::{VehicleManagementServiceAuth, VehicleManagementServiceClient};
 
 use crate::teltonika_handler::TeltonikaRecordsHandler;
 
@@ -56,6 +56,12 @@ async fn main() -> Result<(), Box<dyn Error>>{
     let file_path = read_string_env_variable("LOG_FILE_PATH");
     let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
 
+    // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
+    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
+
+    // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
+    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_BASE_URL");
+
     let address = "0.0.0.0:8080";
 
     let listener = TcpListener::bind(&address).await?;
@@ -63,7 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
     info!("Listening on: {}", address);
 
     loop {
-        let (mut socket, socket_address) = listener.accept().await?;
+        let (mut socket, _) = listener.accept().await?;
         let log_file_path = match write_to_file {
           true => file_path.clone(),
           false => "".to_string()
@@ -93,7 +99,6 @@ async fn main() -> Result<(), Box<dyn Error>>{
             if let Result::Err(err) = handle_valid_connection(
                 socket,
                 &mut buffer,
-                socket_address,
                 imei.unwrap(),
                 log_file_path,
             ).await {
@@ -158,17 +163,45 @@ fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
     }
 }
 
+/// Gets Truck ID from the VP-Kuljetus Vehicle Management Service
+/// If the Truck ID is not found, None is returned
+///
+/// # Arguments
+/// * `vin` - VIN of the truck
+///
+/// # Returns
+/// * `Option<String>` - Truck ID
+async fn get_truck_id(vin: &Option<String>) -> Option<String> {
+    if vin.is_none() {
+        return None;
+    }
+
+    let vehicle_management_service_api_key = read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
+
+    let vehicle_management_service_client = VehicleManagementServiceClient::with_auth(
+        VehicleManagementServiceAuth::ApiKeyAuth { x_api_key: vehicle_management_service_api_key }
+    );
+    let trucks = vehicle_management_service_client.list_public_trucks().await.expect("Failed to list public trucks");
+
+    for truck in trucks {
+        if truck.vin == vin.clone().unwrap() {
+            return truck.id;
+        }
+    }
+
+    return None;
+}
+
 /// Handles individual TCP connection from Teltonika Telematics device
 ///
 /// # Arguments
 /// * `socket` - TCP socket
 /// * `buffer` - Buffer for reading data from socket
-/// * `socket_address` - Socket address of the client
 /// * `imei` - IMEI of the Teltonika Telematics device
+/// * `log_file_path` - Path to log file
 async fn handle_valid_connection(
     mut socket: TcpStream,
     buffer: &mut Vec<u8>,
-    socket_address: SocketAddr,
     imei: String,
     log_file_path: String,
 ) -> Result<(), Box<dyn Error>> {
@@ -177,6 +210,7 @@ async fn handle_valid_connection(
 
     let mut file_handle = get_log_file_handle(&imei, &log_file_path);
     let mut truck_vin: Option<String> = None;
+    let mut truck_id: Option<String> = None;
 
     loop {
         let start_of_loop = Utc::now();
@@ -195,15 +229,20 @@ async fn handle_valid_connection(
         let first_byte = buffer[0];
 
         if first_byte == 0xFF {
-            debug!("Received ping from client {}", socket_address);
+            debug!("Received ping from IMEI {}", imei);
             continue;
         }
         let (_, frame) = parser::tcp_frame(&buffer).expect("Failed to parse TCP frame");
         let amount_of_records = frame.records.len();
 
         // If the truck VIN is not set, try to get it from the records
-        if let None = truck_vin {
+        if let None = &truck_vin {
             truck_vin = teltonika_records_handler.get_truck_vin_from_records(frame.records);
+        }
+
+        // If the truck ID is not set, try to get it from the VP-Kuljetus Vehicle Management Service
+        if let None = truck_id {
+            truck_id = get_truck_id(&truck_vin).await;
         }
 
         if let Some(vin) = &truck_vin {
@@ -215,9 +254,14 @@ async fn handle_valid_connection(
         write_data_to_log_file(&mut file_handle, &buffer);
 
         socket.write_i32(amount_of_records as i32).await?;
-        debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
+
+        if let Some(vin) = &truck_vin {
+            debug!("Sent {:02X} records to VIN {} with IMEI {}", amount_of_records as i32, vin, imei);
+        } else {
+            debug!("Sent {:02X} records to unknown VIN with IMEI {}", amount_of_records as i32, imei);
+        }
     }
-    info!("Client {} disconnected", socket_address);
+    info!("Client with IMEI {} disconnected", imei);
 
     Ok(())
 }
@@ -245,7 +289,9 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 
 #[cfg(test)]
 mod tests {
+    use httpmock::{Method::GET, MockServer};
     use nom_teltonika::{AVLEventIO, Priority};
+    use vehicle_management_service::model::PublicTruck;
     use crate::test_utils::{
         avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
     };
@@ -452,5 +498,47 @@ mod tests {
         let vin = record_handler.get_truck_vin_from_records(packet_with_multiple_records_with_vin.records);
 
         assert_eq!("W1T96302X10704959", vin.unwrap());
+    }
+
+    #[tokio::test]
+    async fn get_truck_id_with_valid_vin() {
+        start_vehicle_management_mock();
+        let vin = Some(String::from("W1T96302X10704959"));
+        let truck_id = get_truck_id(&vin).await;
+
+        assert!(truck_id.is_some());
+        assert_eq!("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C", truck_id.unwrap());
+    }
+
+    #[tokio::test]
+    async fn get_truck_id_with_invalid_vin() {
+        start_vehicle_management_mock();
+        let vin = Some(String::from("invalid-vin"));
+        let truck_id = get_truck_id(&vin).await;
+
+        assert!(truck_id.is_none());
+    }
+
+    fn start_vehicle_management_mock() {
+        let mock_server = MockServer::start();
+        let mut server_address = String::from("http://");
+        server_address.push_str(mock_server.address().to_string().as_str());
+
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_BASE_URL", &server_address);
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+
+        let _public_trucks_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/vehicle-management/v1/publicTrucks")
+                .header("X-API-KEY", "API_KEY");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&[PublicTruck{
+                    id: Some(String::from("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C")),
+                    name: Some(String::from("1")),
+                    plate_number: String::from("ABC-123"),
+                    vin: String::from("W1T96302X10704959"),
+                }]);
+        });
     }
 }
