@@ -417,7 +417,7 @@ mod tests {
             ])
             .build();
         let packet_with_multiple_records_with_vin = AVLFrameBuilder::new()
-            .with_records([record_with_vin_2].to_vec())
+            .with_records([record_with_vin_1, record_with_vin_2].to_vec())
             .build();
 
         let vin = record_handler.get_truck_vin_from_records(packet_with_multiple_records_with_vin.records);
