@@ -13,4 +13,8 @@ nom-teltonika = { version = "0.1.4", features = ["serde", "tokio"] }
 tokio = { version = "1.33.0", features = ["full", "tracing"] }
 
 [dev-dependencies]
+httpmock = "0.7.0"
 rand = "0.8.5"
+
+[dependencies.vehicle-management-service]
+path = "./vehicle-management-service"
