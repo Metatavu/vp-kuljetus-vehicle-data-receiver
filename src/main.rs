@@ -397,6 +397,35 @@ mod tests {
     }
 
     #[test]
+    fn test_partly_missing_truck_vin() {
+        let record_handler = TeltonikaRecordsHandler::new();
+        let record_without_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 200,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+            ])
+            .build();
+        let packet_with_record_without_vin = AVLFrameBuilder::new()
+            .add_record(record_without_vin)
+            .build();
+
+        let missing_vin = record_handler.get_truck_vin_from_records(packet_with_record_without_vin.records);
+
+        assert_eq!(missing_vin, None);
+    }
+
+    #[test]
     fn test_get_truck_vin() {
         let record_handler = TeltonikaRecordsHandler::new();
         let record_with_vin = AVLRecordBuilder::new()
