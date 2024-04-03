@@ -1,4 +1,7 @@
+use http::Response;
+use httpclient::InMemoryBody;
 use vehicle_management_service_client::{
+  Error,
   VehicleManagementServiceClientAuth as VehicleManagementServiceAuth,
   VehicleManagementServiceClientClient as VehicleManagementServiceClient
 };
@@ -33,6 +36,17 @@ impl VehicleManagementService {
     }
 
     return None;
+  }
+
+  /// Sends truck speed event
+  ///
+  /// # Arguments
+  /// * `truck_id` - ID of the truck
+  /// * `timestamp` - Timestamp of the event
+  /// * `speed` - Speed of the truck
+  pub async fn send_truck_speed(truck_id: String, timestamp: i64, speed: f64) -> Result<(), Error<Response<InMemoryBody>>> {
+    Self::get_vehicle_management_service_client()
+      .create_truck_speed(speed, timestamp, &truck_id).await
   }
 
   /// Gets authenticated Vehicle Management Service client

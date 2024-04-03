@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 chrono = "0.4.33"
 env_logger = "0.10.0"
+http = "0.2.11"
+httpclient = "0.20.6"
 log = "0.4.20"
 nom-teltonika = { version = "0.1.4", features = ["serde", "tokio"] }
 serde = "1.0.197"

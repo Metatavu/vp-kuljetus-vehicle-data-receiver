@@ -1,37 +1,45 @@
-use std::path::Path;
+use http::Response;
+use httpclient::InMemoryBody;
+use vehicle_management_service_client::Error;
+use vehicle_management_service_client::request::CreateTruckSpeedRequest;
+use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
+use crate::telematics_cache::Cacheable;
+use crate::vehicle_management_service::VehicleManagementService;
 
-use log::debug;
-use nom_teltonika::AVLEventIO;
+pub struct SpeedEventHandler {}
 
-use super::TeltonikaEventHandler;
-use crate::telematics_cache::{cacheable_truck_speed::CacheableTruckSpeed, Cacheable};
-
-pub const SPEED_EVENT_HANDLER: TeltonikaEventHandler = TeltonikaEventHandler {
-  event_id: 191,
-  handler: handle_speed_event,
-  purge: purge_speed_events_cache,
-};
-
-fn handle_speed_event(event: AVLEventIO, timestamp: i64, truck_id: Option<String>, base_cache_path: Box<Path>) {
-  if let Some(truck_id) =  truck_id {
-    debug!("Handling speed event for truck: {}", truck_id);
-  } else {
-    debug!("Caching speed event for yet unknown truck");
-    let cache_result = CacheableTruckSpeed::from_teltonika_event(&event.value, timestamp)
-      .expect("Error parsing speed event")
-      .write_to_file(base_cache_path.to_owned().to_str().unwrap());
-    if let Err(e) = cache_result {
-      panic!("Error caching speed event: {:?}", e);
-    }
-  };
-}
-
-fn purge_speed_events_cache(_truck_id: String, base_cache_path: Box<Path>) {
-  let cache = CacheableTruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
-
-  for _cached_truck_speed in cache.iter() {
-    // TODO: Send these to backend in next PR
+impl TeltonikaEventHandler<CreateTruckSpeedRequest> for SpeedEventHandler {
+  fn get_event_id(&self) -> u16 {
+    191
   }
 
-  CacheableTruckSpeed::clear_cache(base_cache_path.to_owned().to_str().unwrap());
+  async fn send_event(&self, event_data: CreateTruckSpeedRequest, truck_id: String) -> Result<(), Error<Response<InMemoryBody>>> {
+    VehicleManagementService::send_truck_speed(truck_id, event_data.timestamp, event_data.speed).await
+  }
+
+  fn process_event_data(&self, event: &nom_teltonika::AVLEventIOValue, truck_id: String, timestamp: i64) -> CreateTruckSpeedRequest {
+      CreateTruckSpeedRequest {
+          id: None,
+          speed: avl_event_io_value_to_u64(event) as f64,
+          timestamp,
+          truck_id,
+
+      }
+  }
+}
+
+impl Cacheable for CreateTruckSpeedRequest {
+
+  const FILE_PATH: &'static str = "truck_speed_cache.json";
+
+  fn from_teltonika_event(value: &nom_teltonika::AVLEventIOValue, timestamp: i64) -> Option<Self> {
+    let speed = match value {
+      nom_teltonika::AVLEventIOValue::U16(val) => Some(val.clone() as f64),
+      _ => None
+    };
+    if speed.is_none() {
+      return None
+    };
+    Some(CreateTruckSpeedRequest { id: None, speed: speed.unwrap(), timestamp, truck_id: "".to_string() })
+  }
 }
