@@ -91,6 +91,7 @@ Lists public info about each truck.*/
             params: request::ListPublicTrucksRequest {
                 first: None,
                 max: None,
+                vin: None,
             },
         }
     }
@@ -123,6 +124,25 @@ Deletes single truck driver card. Cards are deleted when they are removed from t
             params: request::DeleteTruckDriverCardRequest {
                 driver_card_id: driver_card_id.to_owned(),
                 truck_id: truck_id.to_owned(),
+            },
+        }
+    }
+    /**Create truck location
+
+Create new truck location. Used by vehicle data receiver to send truck location data.*/
+    pub fn create_truck_location(
+        &self,
+        args: request::CreateTruckLocationRequired,
+    ) -> FluentRequest<'_, request::CreateTruckLocationRequest> {
+        FluentRequest {
+            client: self,
+            params: request::CreateTruckLocationRequest {
+                heading: args.heading,
+                id: None,
+                latitude: args.latitude,
+                longitude: args.longitude,
+                timestamp: args.timestamp,
+                truck_id: args.truck_id.to_owned(),
             },
         }
     }

@@ -11,6 +11,7 @@ On request success, this will return a [`Vec<PublicTruck>`].*/
 pub struct ListPublicTrucksRequest {
     pub first: Option<i64>,
     pub max: Option<i64>,
+    pub vin: Option<String>,
 }
 impl ListPublicTrucksRequest {}
 impl FluentRequest<'_, ListPublicTrucksRequest> {
@@ -22,6 +23,11 @@ impl FluentRequest<'_, ListPublicTrucksRequest> {
     ///Set the value of the max field.
     pub fn max(mut self, max: i64) -> Self {
         self.params.max = Some(max);
+        self
+    }
+    ///Set the value of the vin field.
+    pub fn vin(mut self, vin: &str) -> Self {
+        self.params.vin = Some(vin.to_owned());
         self
     }
 }

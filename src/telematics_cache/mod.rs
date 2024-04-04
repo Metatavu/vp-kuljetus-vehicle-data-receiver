@@ -1,5 +1,5 @@
 use std::{fs::create_dir_all, io::{BufReader, Write}, path::Path};
-use nom_teltonika::AVLEventIOValue;
+use nom_teltonika::{AVLEventIOValue, AVLRecord};
 use serde::{Deserialize, Serialize};
 
 /// Base trait for all cacheable telematics data
@@ -9,6 +9,8 @@ pub trait Cacheable {
   const FILE_PATH: &'static str;
 
   fn from_teltonika_event(value: &AVLEventIOValue, timestamp: i64) -> Option<Self> where Self: Sized;
+
+  fn from_teltonika_record(record: &AVLRecord) -> Option<Self> where Self: Sized;
 
   /// Gets the file handle for the cache file
   ///

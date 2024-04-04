@@ -10,10 +10,13 @@ pub mod avl_record_builder {
   /// [`nom_teltonika::AVLRecord`] contains some determined field(s) that are not included in the actual packets and
   /// they are added as [`None`] here.
   pub struct AVLRecordBuilder {
-      timestamp: Option<DateTime<Utc>>,
-      priority: Option<Priority>,
-      trigger_event_id: Option<u16>,
-      io_events: Vec<AVLEventIO>,
+    timestamp: Option<DateTime<Utc>>,
+    priority: Option<Priority>,
+    trigger_event_id: Option<u16>,
+    io_events: Vec<AVLEventIO>,
+    longitude: Option<f64>,
+    latitude: Option<f64>,
+    angle: Option<u16>,
   }
 
   impl AVLRecordBuilder {
@@ -24,6 +27,9 @@ pub mod avl_record_builder {
             priority: Some(Priority::Low),
             trigger_event_id: None,
             io_events: vec![],
+            longitude: None,
+            latitude: None,
+            angle: None,
         }
     }
 
@@ -32,16 +38,34 @@ pub mod avl_record_builder {
         AVLRecord {
             timestamp: self.timestamp.unwrap(),
             priority: self.priority.unwrap(),
-            longitude: 0.0,
-            latitude: 0.0,
+            longitude: self.longitude.unwrap_or(0.0),
+            latitude: self.latitude.unwrap_or(0.0),
             altitude: 0,
-            angle: 0,
+            angle: self.angle.unwrap_or(0),
             satellites: 0,
             speed: 0,
             trigger_event_id: self.trigger_event_id.unwrap_or(0),
             generation_type: None,
             io_events: self.io_events
         }
+    }
+
+    /// Sets the longitude of the [`AVLRecord`]
+    pub fn with_longitude(mut self, longitude: f64) -> AVLRecordBuilder {
+        self.longitude = Some(longitude);
+        return self;
+    }
+
+    /// Sets the latitude of the [`AVLRecord`]
+    pub fn with_latitude(mut self, latitude: f64) -> AVLRecordBuilder {
+        self.latitude = Some(latitude);
+        return self;
+    }
+
+    /// Sets the angle of the [`AVLRecord`]
+    pub fn with_angle(mut self, angle: u16) -> AVLRecordBuilder {
+        self.angle = Some(angle);
+        return self;
     }
 
     /// Sets the timestamp of the [`AVLRecord`]

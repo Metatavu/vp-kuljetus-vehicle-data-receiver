@@ -42,4 +42,8 @@ impl Cacheable for CreateTruckSpeedRequest {
     };
     Some(CreateTruckSpeedRequest { id: None, speed: speed.unwrap(), timestamp, truck_id: "".to_string() })
   }
+
+  fn from_teltonika_record(_record: &nom_teltonika::AVLRecord) -> Option<Self> {
+    None
+  }
 }

@@ -270,12 +270,10 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 
 #[cfg(test)]
 mod tests {
-    use httpmock::{Method::{GET, POST}, MockServer, Regex};
     use nom_teltonika::{AVLEventIO, Priority};
-    use tempfile::tempdir;
-    use vehicle_management_service_client::{model::PublicTruck, request::CreateTruckSpeedRequest};
+    use vehicle_management_service_client::request::{CreateTruckLocationRequest, CreateTruckSpeedRequest};
     use crate::test_utils::{
-        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
+        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::{get_teltonika_records_handler, start_vehicle_management_mock, str_to_bytes}
     };
     use self::telematics_cache::Cacheable;
 
@@ -504,32 +502,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cache_speed_event() {
-        let record_handler = get_teltonika_records_handler(None);
-        let record = AVLRecordBuilder::new()
-            .with_priority(Priority::High)
-            .with_io_events(vec![
-                AVLEventIO {
-                    id: 191,
-                    value: nom_teltonika::AVLEventIOValue::U16(10),
-                },
-            ])
-            .build();
-        let packet = AVLFrameBuilder::new()
-            .add_record(record)
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        let base_cache_path = record_handler.get_base_cache_path();
-        let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
-        let first_cached_speed = speeds_cache.first();
-
-        assert_eq!(1, speeds_cache.len());
-        assert_eq!(10.0, first_cached_speed.unwrap().speed);
-    }
-
-    #[tokio::test]
     async fn test_send_cached_event() {
         start_vehicle_management_mock();
         let mut record_handler = get_teltonika_records_handler(None);
@@ -565,46 +537,48 @@ mod tests {
         }
     }
 
-    /// Gets a TeltonikaRecordsHandler for testing
-    ///
-    /// Uses a temporary directory for the cache
-    fn get_teltonika_records_handler(truck_id: Option<String>) -> TeltonikaRecordsHandler {
-        let test_cache_dir = tempdir().unwrap();
-        let test_cache_path = test_cache_dir.path();
+    #[tokio::test]
+    async fn test_record_location_handling() {
+        start_vehicle_management_mock();
+        let mut record_handler = get_teltonika_records_handler(None);
+        let record_1 = AVLRecordBuilder::new()
+            .with_longitude(61.68779453479687)
+            .with_latitude(27.272970302823353)
+            .with_angle(810)
+            .build();
+        let record_2 = AVLRecordBuilder::new()
+            .with_longitude(27.272970302823353)
+            .with_latitude(61.68779453479687)
+            .with_angle(180)
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record_1, record_2].to_vec())
+            .build();
 
-        return TeltonikaRecordsHandler::new( test_cache_path, truck_id);
-    }
+        record_handler.handle_records(packet.records).await;
 
-    /// Starts a mock server for the Vehicle Management Service
-    fn start_vehicle_management_mock() {
-        let mock_server = MockServer::start();
-        let mut server_address = String::from("http://");
-        server_address.push_str(mock_server.address().to_string().as_str());
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let locations_cache = CreateTruckLocationRequest::read_from_file(base_cache_path.to_str().unwrap());
 
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL", &server_address);
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+            let location_1 = locations_cache.iter().find(|location| location.heading == 810.0).unwrap();
+            let location_2 = locations_cache.iter().find(|location| location.heading == 180.0).unwrap();
 
-        let _public_trucks_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/vehicle-management/v1/publicTrucks")
-                .header("X-API-KEY", "API_KEY");
-            then.status(200)
-                .header("Content-Type", "application/json")
-                .json_body_obj(&[PublicTruck{
-                    id: Some(String::from("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C")),
-                    name: Some(String::from("1")),
-                    plate_number: String::from("ABC-123"),
-                    vin: String::from("W1T96302X10704959"),
-                }]);
-        });
-
-        let _create_truck_speed_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
-                .header("X-API-KEY", "API_KEY");
-            then.status(201)
-                .header("Content-Type", "application/json")
-                .json_body_obj(&());
-        });
+            assert!(locations_cache.iter().all(|location| location.truck_id == ""));
+            assert_eq!(2, locations_cache.len());
+            assert_eq!(61.68779453479687, location_1.longitude);
+            assert_eq!(27.272970302823353, location_1.latitude);
+            assert_eq!(810.0, location_1.heading);
+            assert_eq!(27.272970302823353, location_2.longitude);
+            assert_eq!(61.68779453479687, location_2.latitude);
+            assert_eq!(180.0, location_2.heading);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let locations_cache = CreateTruckLocationRequest::read_from_file(base_cache_path.to_str().unwrap());
+            assert_eq!(0, locations_cache.len());
+        }
     }
 }
