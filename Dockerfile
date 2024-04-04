@@ -56,6 +56,9 @@ RUN adduser \
     --no-create-home \
     --uid "${UID}" \
     appuser
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && update-ca-certificates
+
 USER appuser
 
 # Copy the executable from the "build" stage.
