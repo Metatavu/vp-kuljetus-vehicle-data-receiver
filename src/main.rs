@@ -262,7 +262,7 @@ fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
             return (true, Some(imei));
         },
         Err(_) => {
-            error!("Failed to parse IMEI from buffer {:#?}", buffer);
+            error!("Failed to parse IMEI from buffer");
             return (false, None);
         }
     }
