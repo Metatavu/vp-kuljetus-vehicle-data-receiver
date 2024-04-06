@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Module containing utilities testing building AVL Frames sent by Teltonika Telematics devices for testing purposes
 use nom_teltonika::{Codec, AVLRecord, AVLFrame};
 

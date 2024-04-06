@@ -3,8 +3,8 @@ use crate::model::*;
 use crate::FluentRequest;
 use serde::{Serialize, Deserialize};
 use httpclient::InMemoryResponseExt;
-use crate::VehicleManagementServiceClient;
-/**You should use this struct via [`VehicleManagementServiceClient::receive_telematic_data`].
+use crate::VehicleManagementServiceClientClient;
+/**You should use this struct via [`VehicleManagementServiceClientClient::receive_telematic_data`].
 
 On request success, this will return a [`()`].*/
 #[derive(Debug, Clone, Serialize, Deserialize)]

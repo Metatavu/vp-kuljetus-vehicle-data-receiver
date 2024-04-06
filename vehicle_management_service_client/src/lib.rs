@@ -1,4 +1,4 @@
-//! [`VehicleManagementServiceClient`](struct.VehicleManagementServiceClient.html) is the main entry point for this library.
+//! [`VehicleManagementServiceClientClient`](struct.VehicleManagementServiceClientClient.html) is the main entry point for this library.
 //!
 //! Library created with [`libninja`](https://www.libninja.com).
 #![allow(non_camel_case_types)]
@@ -14,9 +14,9 @@ static SHARED_HTTPCLIENT: OnceLock<httpclient::Client> = OnceLock::new();
 pub fn default_http_client() -> httpclient::Client {
     httpclient::Client::new()
         .base_url(
-            std::env::var("VEHICLE_MANAGEMENT_SERVICE_BASE_URL")
+            std::env::var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL")
                 .expect(
-                    "Missing environment variable VEHICLE_MANAGEMENT_SERVICE_BASE_URL",
+                    "Missing environment variable VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL",
                 )
                 .as_str(),
         )
@@ -38,21 +38,21 @@ fn shared_http_client() -> Cow<'static, httpclient::Client> {
 }
 #[derive(Clone)]
 pub struct FluentRequest<'a, T> {
-    pub(crate) client: &'a VehicleManagementServiceClient,
+    pub(crate) client: &'a VehicleManagementServiceClientClient,
     pub params: T,
 }
-pub struct VehicleManagementServiceClient {
+pub struct VehicleManagementServiceClientClient {
     client: Cow<'static, httpclient::Client>,
-    authentication: VehicleManagementServiceAuth,
+    authentication: VehicleManagementServiceClientAuth,
 }
-impl VehicleManagementServiceClient {
+impl VehicleManagementServiceClientClient {
     pub fn from_env() -> Self {
         Self {
             client: shared_http_client(),
-            authentication: VehicleManagementServiceAuth::from_env(),
+            authentication: VehicleManagementServiceClientAuth::from_env(),
         }
     }
-    pub fn with_auth(authentication: VehicleManagementServiceAuth) -> Self {
+    pub fn with_auth(authentication: VehicleManagementServiceClientAuth) -> Self {
         Self {
             client: shared_http_client(),
             authentication,
@@ -60,7 +60,7 @@ impl VehicleManagementServiceClient {
     }
     pub fn new_with(
         client: httpclient::Client,
-        authentication: VehicleManagementServiceAuth,
+        authentication: VehicleManagementServiceClientAuth,
     ) -> Self {
         Self {
             client: Cow::Owned(client),
@@ -68,13 +68,13 @@ impl VehicleManagementServiceClient {
         }
     }
 }
-impl VehicleManagementServiceClient {
+impl VehicleManagementServiceClientClient {
     pub(crate) fn authenticate<'a>(
         &self,
         mut r: httpclient::RequestBuilder<'a>,
     ) -> httpclient::RequestBuilder<'a> {
         match &self.authentication {
-            VehicleManagementServiceAuth::ApiKeyAuth { x_api_key } => {
+            VehicleManagementServiceClientAuth::ApiKeyAuth { x_api_key } => {
                 r = r.header("X-API-Key", x_api_key);
             }
         }
@@ -127,15 +127,15 @@ Lists public info about each truck.*/
         }
     }
 }
-pub enum VehicleManagementServiceAuth {
+pub enum VehicleManagementServiceClientAuth {
     ApiKeyAuth { x_api_key: String },
 }
-impl VehicleManagementServiceAuth {
+impl VehicleManagementServiceClientAuth {
     pub fn from_env() -> Self {
         Self::ApiKeyAuth {
-            x_api_key: std::env::var("VEHICLE_MANAGEMENT_SERVICE_X_API_KEY")
+            x_api_key: std::env::var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_X_API_KEY")
                 .expect(
-                    "Environment variable VEHICLE_MANAGEMENT_SERVICE_X_API_KEY is not set.",
+                    "Environment variable VEHICLE_MANAGEMENT_SERVICE_CLIENT_X_API_KEY is not set.",
                 ),
         }
     }
