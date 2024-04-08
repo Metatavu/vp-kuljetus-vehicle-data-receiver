@@ -7,6 +7,7 @@ use std::error::Error;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
+use base64::Engine;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info};
 use nom_teltonika::parser;
@@ -79,7 +80,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
         };
 
         tokio::spawn(async move {
-            let mut buffer = vec![0; 4096];
+            let mut buffer = vec![];
             let n = socket
                 .read(&mut buffer)
                 .await
@@ -160,7 +161,8 @@ fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
         return;
     }
     if let Some(file) = file_handle {
-        file.write_all(data).expect("Failed to write data to file");
+        let encoded = base64::prelude::BASE64_STANDARD.encode(data) + "\n";
+        file.write_all(encoded.as_bytes()).expect("Failed to write data to file");
     }
 }
 
