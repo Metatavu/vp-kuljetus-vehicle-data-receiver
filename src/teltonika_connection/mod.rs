@@ -92,7 +92,7 @@ impl TeltonikaConnection {
             truck_vin = teltonika_records_handler.get_truck_vin_from_records(&frame.records);
           }
 
-          if let None = truck_id {
+          if truck_id.is_none() && truck_vin.is_some() {
             truck_id = VehicleManagementService::get_truck_id_by_vin(&truck_vin).await;
             debug!("Found Truck ID [{}] for VIN [{}]", truck_id.clone().unwrap(), truck_vin.clone().unwrap());
             teltonika_records_handler.set_truck_id(truck_id.clone());

@@ -388,7 +388,7 @@ mod tests {
         server_address.push_str(mock_server.address().to_string().as_str());
 
         std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL", &server_address);
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_API_KEY", "API_KEY");
 
         let _public_trucks_mock = mock_server.mock(|when, then| {
             when.method(GET)
