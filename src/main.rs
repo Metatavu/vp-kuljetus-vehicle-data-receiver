@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
     // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
     read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL");
 
-    let address = "127.0.0.1:8080";
+    let address = "0.0.0.0:8080";
 
     let listener = TcpListener::bind(&address).await?;
 
