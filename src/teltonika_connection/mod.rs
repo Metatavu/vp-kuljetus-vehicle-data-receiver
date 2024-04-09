@@ -52,8 +52,8 @@ impl TeltonikaConnection {
         self.imei = Some(imei.to_owned());
         Ok(())
       },
-      Err(_) => {
-        error!("Failed to parse IMEI from client");
+      Err(err) => {
+        error!("Failed to parse IMEI from client: {}", err);
         self.teltonika_stream.write_imei_denial_async().await.expect("Failed to write IMEI denial");
         self.get_socket().shutdown().await.expect("Failed to shutdown socket");
         Err(())
