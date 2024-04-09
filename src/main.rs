@@ -66,7 +66,8 @@ async fn main() -> Result<(), Box<dyn Error>>{
     info!("Listening on: {}", address);
 
     loop {
-        let (socket, _) = listener.accept().await?;
+        let (socket, socket_addr) = listener.accept().await?;
+        info!("New connection from: {}", socket_addr);
         let base_file_path = match write_to_file {
           true => file_path.clone(),
           false => "".to_string()

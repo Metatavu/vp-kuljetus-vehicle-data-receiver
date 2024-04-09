@@ -3,7 +3,7 @@ use base64::Engine;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info};
 use nom_teltonika::TeltonikaStream;
-use tokio::{io::AsyncWriteExt, net::TcpStream};
+use tokio::net::TcpStream;
 
 use crate::teltonika_handler::TeltonikaRecordsHandler;
 use crate::vehicle_management_service::VehicleManagementService;
