@@ -1168,9 +1168,9 @@ dependencies = [
 
 [[package]]
 name = "nom-teltonika"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c21f7789f86c4945c3c39b5305807f8cfda70ef981d6d58a822ce8c9f89a346"
+checksum = "14c554e89492598422f830e18d48203f6d8c54a5db81d18d57dfa6618ccde005"
 dependencies = [
  "chrono",
  "log",
