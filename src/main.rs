@@ -256,7 +256,7 @@ mod tests {
 
         let vin = record_handler.get_truck_vin_from_records(&packet_with_record_with_vin.records);
 
-        assert_eq!("W1T9602X10704959", vin.unwrap());
+        assert_eq!("W1T96302X10704959", vin.unwrap());
     }
 
     #[test]
