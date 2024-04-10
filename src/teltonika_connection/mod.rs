@@ -52,10 +52,16 @@ impl TeltonikaConnection {
         self.imei = Some(imei.to_owned());
         Ok(())
       },
-      Err(err) => {
-        error!("Failed to parse IMEI from client: {}", err);
-        self.teltonika_stream.write_imei_denial_async().await.expect("Failed to write IMEI denial");
-        Err(())
+      Err(err) => match err.kind() {
+        std::io::ErrorKind::InvalidData => {
+          error!("Failed to parse IMEI from client: {}", err);
+          self.teltonika_stream.write_imei_denial_async().await.expect("Failed to write IMEI denial");
+          Err(())
+        },
+        _ => {
+          // This is thrown when client connects with empty payload and disconnects immediately after. Performed by health checks and we want to swallow it quietly without bloating the logs.
+          Err(())
+        }
       }
     }
   }
@@ -107,12 +113,22 @@ impl TeltonikaConnection {
 
           self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
         },
-        Err(_) => {
-          info!("Client with IMEI [{}] disconnected", self.imei.as_ref().unwrap());
-          break;
+        Err(err) =>  match err.kind() {
+          std::io::ErrorKind::ConnectionReset => {
+            info!("Client with IMEI [{}] disconnected", self.imei.as_ref().unwrap());
+            break;
+          },
+          std::io::ErrorKind::InvalidData => {
+            error!("Failed to parse frame from client with IMEI [{}]: {}", self.imei.as_ref().unwrap(), err);
+          },
+          _ => {
+            error!("Unknown error when parsing frame from client with IMEI [{}]: {}", self.imei.as_ref().unwrap(), err);
+            break;
+          }
+        }
       }
     }
-    }
+
     Ok(())
   }
 
