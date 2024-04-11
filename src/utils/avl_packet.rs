@@ -147,7 +147,7 @@ impl AVLPacketToBytes for AVLEventIO {
 /// * `bytes` - Vector of bytes to which the GPS element will be appended
 /// * `record` - AVL record containing the GPS element
 fn gps_element_to_bytes(bytes:&mut Vec<u8>, record: &AVLRecord) {
-  let timestamp = record.timestamp.timestamp().to_be_bytes().to_vec();
+  let timestamp = record.timestamp.timestamp_millis().to_be_bytes().to_vec();
   let priority = record.priority.to_bytes();
   let longitude = (record.longitude as i32).to_be_bytes();
   let latitude = (record.latitude as i32).to_be_bytes();

@@ -305,6 +305,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
+name = "base64"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9475866fec1451be56a3c2400fd081ff546538961565ccb5b7142cbd22bc7a51"
+
+[[package]]
 name = "basic-cookies"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -852,7 +858,7 @@ dependencies = [
  "async-object-pool",
  "async-std",
  "async-trait",
- "base64",
+ "base64 0.21.7",
  "basic-cookies",
  "crossbeam-utils",
  "form_urlencoded",
@@ -1162,9 +1168,9 @@ dependencies = [
 
 [[package]]
 name = "nom-teltonika"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c21f7789f86c4945c3c39b5305807f8cfda70ef981d6d58a822ce8c9f89a346"
+checksum = "14c554e89492598422f830e18d48203f6d8c54a5db81d18d57dfa6618ccde005"
 dependencies = [
  "chrono",
  "log",
@@ -1526,7 +1532,7 @@ version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
 dependencies = [
- "base64",
+ "base64 0.21.7",
 ]
 
 [[package]]
@@ -2017,7 +2023,7 @@ checksum = "74797339c3b98616c009c7c3eb53a0ce41e85c8ec66bd3db96ed132d20cfdee8"
 name = "vehicle-management-service-client"
 version = "0.2.0"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "chrono",
  "futures",
  "httpclient",
@@ -2035,6 +2041,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 name = "vp-kuljetus-vehicle-data-receiver"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.0",
  "chrono",
  "env_logger",
  "http",

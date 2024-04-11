@@ -51,7 +51,7 @@ impl VehicleManagementService {
 
   /// Gets authenticated Vehicle Management Service client
   fn get_vehicle_management_service_client() -> VehicleManagementServiceClient {
-      let vehicle_management_service_api_key = read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
+      let vehicle_management_service_api_key = read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_CLIENT_API_KEY");
 
       return VehicleManagementServiceClient::with_auth(
           VehicleManagementServiceAuth::ApiKeyAuth { x_api_key: vehicle_management_service_api_key }
