@@ -5,7 +5,7 @@ use log::{debug, error, info};
 use nom_teltonika::TeltonikaStream;
 use tokio::net::TcpStream;
 
-use crate::teltonika_handler::TeltonikaRecordsHandler;
+use crate::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
 use crate::vehicle_management_service::VehicleManagementService;
 use crate::utils::avl_packet::AVLPacketToBytes;
 
@@ -112,6 +112,13 @@ impl TeltonikaConnection {
           self.write_data_to_log_file(&mut file_handle, &frame.to_bytes());
 
           self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
+
+          teltonika_records_handler.handle_records(frame.records).await;
+
+          if let Some(id) = &truck_id {
+              info!("Truck ID found for VIN {}: {}. Purging cache...", truck_vin.clone().unwrap(), id);
+              teltonika_records_handler.purge_cache().await;
+          }
         },
         Err(err) =>  match err.kind() {
           std::io::ErrorKind::ConnectionReset => {

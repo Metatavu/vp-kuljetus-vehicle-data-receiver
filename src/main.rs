@@ -83,11 +83,11 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
 #[cfg(test)]
 mod tests {
-    use httpmock::{Method::GET, MockServer};
+    use httpmock::{Method::{GET, POST}, MockServer, Regex};
     use log::error;
     use nom_teltonika::{parser, AVLEventIO, Priority};
     use tempfile::tempdir;
-    use vehicle_management_service_client::model::PublicTruck;
+    use vehicle_management_service_client::{model::PublicTruck, request::CreateTruckSpeedRequest};
     use crate::{
         utils::{
             avl_frame_builder::*,
@@ -98,7 +98,7 @@ mod tests {
         },
         vehicle_management_service::VehicleManagementService
     };
-    use self::{telematics_cache::{cacheable_truck_speed::CacheableTruckSpeed, Cacheable}, teltonika_handler::TeltonikaRecordsHandler};
+    use self::{telematics_cache::Cacheable, teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler};
 
     use super::*;
 
@@ -324,8 +324,8 @@ mod tests {
         assert!(truck_id.is_none());
     }
 
-    #[test]
-    fn test_cache_speed_event() {
+    #[tokio::test]
+    async fn test_cache_speed_event() {
         let record_handler = get_teltonika_records_handler(None);
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::High)
@@ -340,14 +340,50 @@ mod tests {
             .add_record(record)
             .build();
 
-        record_handler.handle_records(packet.records);
+        record_handler.handle_records(packet.records).await;
 
-        let base_cache_path = record_handler.get_cache_path();
-        let speeds_cache = CacheableTruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+        let base_cache_path = record_handler.get_base_cache_path();
+        let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
         let first_cached_speed = speeds_cache.first();
 
         assert_eq!(1, speeds_cache.len());
         assert_eq!(10.0, first_cached_speed.unwrap().speed);
+    }
+
+    #[tokio::test]
+    async fn test_send_cached_event() {
+        start_vehicle_management_mock();
+        let mut record_handler = get_teltonika_records_handler(None);
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                },
+            ])
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .add_record(record)
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
+            let first_cached_speed = speeds_cache.first();
+
+            assert_eq!(1, speeds_cache.len());
+            assert_eq!(10.0, first_cached_speed.unwrap().speed);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
+            assert_eq!(0, speeds_cache.len());
+        }
     }
 
     /// Reads IMEI from the buffer
@@ -402,6 +438,15 @@ mod tests {
                     plate_number: String::from("ABC-123"),
                     vin: String::from("W1T96302X10704959"),
                 }]);
+        });
+
+        let _create_truck_speed_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&());
         });
     }
 }

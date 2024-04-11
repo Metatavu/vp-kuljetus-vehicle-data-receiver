@@ -80,21 +80,6 @@ impl VehicleManagementServiceClientClient {
         }
         r
     }
-    /**Updates driver cards
-
-Updates single driver card.*/
-    pub fn update_driver_card(
-        &self,
-        driver_card_id: &str,
-    ) -> FluentRequest<'_, request::UpdateDriverCardRequest> {
-        FluentRequest {
-            client: self,
-            params: request::UpdateDriverCardRequest {
-                driver_card_id: driver_card_id.to_owned(),
-                truck_vin: None,
-            },
-        }
-    }
     /**List PublicTrucks.
 
 Lists public info about each truck.*/
@@ -106,6 +91,57 @@ Lists public info about each truck.*/
             params: request::ListPublicTrucksRequest {
                 first: None,
                 max: None,
+            },
+        }
+    }
+    /**Create truck driver card
+
+Create new truck driver card*/
+    pub fn create_truck_driver_card(
+        &self,
+        id: &str,
+        truck_id: &str,
+    ) -> FluentRequest<'_, request::CreateTruckDriverCardRequest> {
+        FluentRequest {
+            client: self,
+            params: request::CreateTruckDriverCardRequest {
+                id: id.to_owned(),
+                truck_id: truck_id.to_owned(),
+            },
+        }
+    }
+    /**Deletes truck driver card
+
+Deletes single truck driver card. Cards are deleted when they are removed from the truck.*/
+    pub fn delete_truck_driver_card(
+        &self,
+        driver_card_id: &str,
+        truck_id: &str,
+    ) -> FluentRequest<'_, request::DeleteTruckDriverCardRequest> {
+        FluentRequest {
+            client: self,
+            params: request::DeleteTruckDriverCardRequest {
+                driver_card_id: driver_card_id.to_owned(),
+                truck_id: truck_id.to_owned(),
+            },
+        }
+    }
+    /**Create truck speed
+
+Create new truck speed. Used by vehicle data receiver to send truck speed data.*/
+    pub fn create_truck_speed(
+        &self,
+        speed: f64,
+        timestamp: i64,
+        truck_id: &str,
+    ) -> FluentRequest<'_, request::CreateTruckSpeedRequest> {
+        FluentRequest {
+            client: self,
+            params: request::CreateTruckSpeedRequest {
+                id: None,
+                speed,
+                timestamp,
+                truck_id: truck_id.to_owned(),
             },
         }
     }

@@ -1,11 +1,10 @@
-pub mod cacheable_truck_speed;
 use std::{fs::create_dir_all, io::{BufReader, Write}, path::Path};
-
 use nom_teltonika::AVLEventIOValue;
 use serde::{Deserialize, Serialize};
 
 /// Base trait for all cacheable telematics data
 pub trait Cacheable {
+
   /// File path to store the cache
   const FILE_PATH: &'static str;
 
