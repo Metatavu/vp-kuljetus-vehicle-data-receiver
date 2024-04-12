@@ -130,8 +130,8 @@ pub trait TeltonikaEventHandler<T> where T: Cacheable + Serialize + for<'a>Deser
 
     for cached_event in cache.iter() {
       let sent_event = self.send_event(cached_event.clone(), truck_id.clone()).await;
-      if let Err(_) = sent_event {
-
+      if let Err(err) = sent_event {
+        debug!("Failed to send event: {:?}. Adding it to failed events.", err);
         failed_events.push(cached_event.clone());
       }
     }
