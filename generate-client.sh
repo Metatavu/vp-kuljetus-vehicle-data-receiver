@@ -1,8 +1,12 @@
 #!/bin/sh
-echo "Generating client for Vehicle Management..."
+echo "Generating client for Vehicle Management..." && \
 
-libninja gen --lang rust --examples false -o vehicle_management_service_client vehicle-management-service-client vp-kuljetus-transport-management-specs/specs/vehicle-data-receiver.yaml
+rm -rf vehicle_management_service && \
 
-cd vehicle_management_service_client && rm -rf .github
+openapi-generator generate -g rust -i vp-kuljetus-transport-management-specs/specs/vehicle-data-receiver.yaml \
+ -o vehicle_management_service --additional-properties=useSingleRequestParameter=true,packageName=vehicle-management-service \
+ --global-property models,apis,supportingFiles,modelDocs=false,apiDocs=false && \
+
+cd vehicle_management_service && rm .travis.yml git_push.sh README.md && \
 
 echo "Client generated successfully!"

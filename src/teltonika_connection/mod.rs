@@ -1,12 +1,13 @@
 use std::{fs::{create_dir_all, File, OpenOptions}, io::Write, path::Path};
 use base64::Engine;
 use chrono::{Datelike, Utc};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
 use tokio::net::TcpStream;
+use uuid::Uuid;
+use vehicle_management_service::apis::public_trucks_api::ListPublicTrucksParams;
 
-use crate::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
-use crate::vehicle_management_service::VehicleManagementService;
+use crate::{teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler, utils::get_vehicle_management_api_config};
 use crate::utils::avl_packet::AVLPacketToBytes;
 
 pub struct TeltonikaConnection {
@@ -66,6 +67,42 @@ impl TeltonikaConnection {
     }
   }
 
+  /// Gets truck ID by VIN
+  ///
+  /// This function will get the truck ID by the VIN.
+  ///
+  /// # Arguments
+  /// * `vin` - VIN of the truck
+  ///
+  /// # Returns
+  /// * `Option<Uuid>` - Truck ID
+  async fn get_truck_id_by_vin(&self, vin: &Option<String>) -> Option<Uuid> {
+    if vin.is_none() {
+      return None;
+    }
+
+    match vehicle_management_service::apis::public_trucks_api::list_public_trucks(
+      &get_vehicle_management_api_config(),
+      ListPublicTrucksParams {
+        vin: vin.clone(),
+        first: None,
+        max: None
+      }
+    ).await {
+      Ok(trucks) => {
+        return trucks
+          .iter()
+          .find(|truck| truck.vin == vin.clone().unwrap())
+          .map(|truck| truck.id.clone())
+          .unwrap_or(None)
+      },
+      Err(err) => {
+        warn!("Failed to get truck ID by VIN [{}]: {}", vin.clone().unwrap(), err);
+        return None;
+      }
+    }
+  }
+
   /// Runs the connection with the Teltonika Telematics device
   ///
   /// This function will run the connection with the Teltonika Telematics device and handle the incoming frames.
@@ -98,9 +135,12 @@ impl TeltonikaConnection {
           }
 
           if truck_id.is_none() && truck_vin.is_some() {
-            truck_id = VehicleManagementService::get_truck_id_by_vin(&truck_vin).await;
-            debug!("Found Truck ID [{}] for VIN [{}]", truck_id.clone().unwrap(), truck_vin.clone().unwrap());
-            teltonika_records_handler.set_truck_id(truck_id.clone());
+            let found_truck_id = self.get_truck_id_by_vin(&truck_vin).await;
+            if found_truck_id.is_some() {
+              debug!("Found Truck ID [{}] for VIN [{}]", found_truck_id.clone().unwrap(), truck_vin.clone().unwrap());
+              teltonika_records_handler.set_truck_id(found_truck_id.clone().map(|id| id.to_string()));
+              truck_id = found_truck_id.map(|id| id.to_string());
+            }
           }
 
           if let Some(vin) = &truck_vin {

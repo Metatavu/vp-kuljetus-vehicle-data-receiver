@@ -1,6 +1,4 @@
 use std::{fmt::Debug, path::Path};
-use http::Response;
-use httpclient::{Error, InMemoryBody};
 use log::{debug, error};
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
 use serde::{Deserialize, Serialize};
@@ -48,7 +46,7 @@ impl TeltonikaEventHandlers {
 ///
 /// # Type parameters
 /// * `T` - The type of the event data to send to the API or Cache.
-pub trait TeltonikaEventHandler<T> where T: Cacheable + Serialize + for<'a>Deserialize<'a> + Clone + Debug {
+pub trait TeltonikaEventHandler<T, E> where T: Cacheable + Serialize + for<'a>Deserialize<'a> + Clone + Debug, E: Debug {
 
   /// Gets the event ID for the handler.
   fn get_event_id(&self) -> u16;
@@ -71,7 +69,7 @@ pub trait TeltonikaEventHandler<T> where T: Cacheable + Serialize + for<'a>Deser
   ) {
     if let Some(truck_id) =  truck_id {
       debug!("Handling event for truck: {}", truck_id);
-      let event_data = self.process_event_data(&event.value, truck_id.clone(), timestamp);
+      let event_data = self.process_event_data(&event.value, timestamp);
       let send_event_result = self.send_event(event_data, truck_id).await;
       if let Err(e) = send_event_result {
         error!("Error sending event: {:?}. Caching it for further use.", e);
@@ -103,7 +101,7 @@ pub trait TeltonikaEventHandler<T> where T: Cacheable + Serialize + for<'a>Deser
   /// # Arguments
   /// * `event_data` - The event data to send.
   /// * `truck_id` - The truck ID of the event.
-  async fn send_event(&self, event_data: T, truck_id: String) -> Result<(), Error<Response<InMemoryBody>>>;
+  async fn send_event(&self, event_data: T, truck_id: String) -> Result<(), E>;
 
   /// Processes the event data.
   ///
@@ -114,7 +112,7 @@ pub trait TeltonikaEventHandler<T> where T: Cacheable + Serialize + for<'a>Deser
   ///
   /// # Returns
   /// * The processed event data.
-  fn process_event_data(&self, event: &AVLEventIOValue, truck_id: String, timestamp: i64) -> T;
+  fn process_event_data(&self, event: &AVLEventIOValue, timestamp: i64) -> T;
 
   /// Purges the cache.
   ///

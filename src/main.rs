@@ -1,46 +1,14 @@
 mod utils;
 mod teltonika_handler;
 mod telematics_cache;
-mod vehicle_management_service;
 mod teltonika_connection;
+// mod vp_api;
 
 use std::error::Error;
 use log::info;
 use tokio::net::TcpListener;
 
-use crate::teltonika_connection::TeltonikaConnection;
-
-/// Reads string environment variable
-///
-/// Panics if the environment variable is not set.
-///
-/// # Arguments
-/// * `key` - Environment variable key
-///
-/// # Returns
-/// * `String` - Environment variable value
-fn read_string_env_variable(key: &str) -> String {
-    match std::env::var(key) {
-        Ok(value) => value,
-        Err(_) => panic!("{} environment variable not set", key)
-    }
-}
-
-/// Reads boolean environment variable
-///
-/// Panics if the environment variable is not set.
-///
-/// # Arguments
-/// * `key` - Environment variable key
-///
-/// # Returns
-/// * `bool` - Environment variable value
-fn read_bool_env_variable(key: &str) -> bool {
-    match std::env::var(key) {
-        Ok(value) => value.parse().unwrap(),
-        Err(_) => panic!("{} environment variable not set", key)
-    }
-}
+use crate::{teltonika_connection::TeltonikaConnection, utils::{read_bool_env_variable, read_string_env_variable}};
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -54,10 +22,10 @@ async fn main() -> Result<(), Box<dyn Error>>{
     let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
 
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
-    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_CLIENT_API_KEY");
+    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
 
     // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
-    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL");
+    read_string_env_variable("API_BASE_URL");
 
     let address = "0.0.0.0:8080";
 
@@ -83,22 +51,22 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use httpmock::{Method::{GET, POST}, MockServer, Regex};
     use log::error;
     use nom_teltonika::{parser, AVLEventIO, Priority};
     use tempfile::tempdir;
-    use vehicle_management_service_client::{model::PublicTruck, request::CreateTruckSpeedRequest};
-    use crate::{
+    use vehicle_management_service::{apis::public_trucks_api::ListPublicTrucksParams, models::{PublicTruck, TruckSpeed}};
+    use crate::
         utils::{
             avl_frame_builder::*,
             avl_packet::*,
             avl_record_builder::avl_record_builder::*,
             imei::*,
             str_to_bytes
-        },
-        vehicle_management_service::VehicleManagementService
-    };
-    use self::{telematics_cache::Cacheable, teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler};
+        };
+    use self::{telematics_cache::Cacheable, teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler, utils::get_vehicle_management_api_config};
 
     use super::*;
 
@@ -309,19 +277,21 @@ mod tests {
     async fn test_get_truck_id_with_valid_vin() {
         start_vehicle_management_mock();
         let vin = Some(String::from("W1T96302X10704959"));
-        let truck_id = VehicleManagementService::get_truck_id_by_vin(&vin).await;
+        let truck = vehicle_management_service::apis::public_trucks_api::list_public_trucks(
+            &get_vehicle_management_api_config(),
+            ListPublicTrucksParams {
+                vin: vin.clone(),
+                first: None,
+                max: None
+            }
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|truck| truck.vin == vin.clone().unwrap());
 
-        assert!(truck_id.is_some());
-        assert_eq!("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C", truck_id.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_get_truck_id_with_invalid_vin() {
-        start_vehicle_management_mock();
-        let vin = Some(String::from("invalid-vin"));
-        let truck_id = VehicleManagementService::get_truck_id_by_vin(&vin).await;
-
-        assert!(truck_id.is_none());
+        assert!(truck.is_some());
+        assert_eq!(uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap(), truck.unwrap().id.unwrap());
     }
 
     #[tokio::test]
@@ -343,7 +313,7 @@ mod tests {
         record_handler.handle_records(packet.records).await;
 
         let base_cache_path = record_handler.get_base_cache_path();
-        let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
+        let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
         let first_cached_speed = speeds_cache.first();
 
         assert_eq!(1, speeds_cache.len());
@@ -371,7 +341,7 @@ mod tests {
 
         {
             let base_cache_path = record_handler.get_base_cache_path();
-            let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
+            let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
             let first_cached_speed = speeds_cache.first();
 
             assert_eq!(1, speeds_cache.len());
@@ -381,7 +351,7 @@ mod tests {
         record_handler.purge_cache().await;
         {
             let base_cache_path = record_handler.get_base_cache_path();
-            let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
+            let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
             assert_eq!(0, speeds_cache.len());
         }
     }
@@ -423,8 +393,8 @@ mod tests {
         let mut server_address = String::from("http://");
         server_address.push_str(mock_server.address().to_string().as_str());
 
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL", &server_address);
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_API_KEY", "API_KEY");
+        std::env::set_var("API_BASE_URL", &server_address);
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
 
         let _public_trucks_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -433,7 +403,7 @@ mod tests {
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[PublicTruck{
-                    id: Some(String::from("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C")),
+                    id: Some(uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
                     name: Some(String::from("1")),
                     plate_number: String::from("ABC-123"),
                     vin: String::from("W1T96302X10704959"),
