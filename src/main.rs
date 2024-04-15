@@ -414,9 +414,7 @@ mod tests {
             when.method(POST)
                 .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
                 .header("X-API-KEY", "API_KEY");
-            then.status(201)
-                .header("Content-Type", "application/json")
-                .json_body_obj(&());
+            then.status(201);
         });
     }
 }
