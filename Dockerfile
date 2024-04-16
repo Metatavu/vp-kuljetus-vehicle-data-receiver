@@ -21,7 +21,7 @@ WORKDIR /app
 # source code into the container. Once built, copy the executable to an
 # output directory before the cache mounted /app/target is unmounted.
 RUN --mount=type=bind,source=src,target=src \
-    --mount=type=bind,source=vehicle_management_service_client,target=vehicle_management_service_client \
+    --mount=type=bind,source=vehicle_management_service,target=vehicle_management_service \
     --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=/app/target/ \
@@ -57,7 +57,7 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && update-ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates pkg-config libssl-dev && update-ca-certificates
 
 USER appuser
 
