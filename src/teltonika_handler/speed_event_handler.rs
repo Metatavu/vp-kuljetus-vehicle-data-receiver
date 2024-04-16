@@ -1,34 +1,35 @@
-use http::Response;
-use httpclient::InMemoryBody;
-use vehicle_management_service_client::Error;
-use vehicle_management_service_client::request::CreateTruckSpeedRequest;
+use vehicle_management_service::{apis::{trucks_api::{CreateTruckSpeedError, CreateTruckSpeedParams}, Error}, models::TruckSpeed};
+
 use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
-use crate::telematics_cache::Cacheable;
-use crate::vehicle_management_service::VehicleManagementService;
+use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 
 pub struct SpeedEventHandler {}
 
-impl TeltonikaEventHandler<CreateTruckSpeedRequest> for SpeedEventHandler {
+impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEventHandler {
   fn get_event_id(&self) -> u16 {
     191
   }
 
-  async fn send_event(&self, event_data: CreateTruckSpeedRequest, truck_id: String) -> Result<(), Error<Response<InMemoryBody>>> {
-    VehicleManagementService::send_truck_speed(truck_id, event_data.timestamp, event_data.speed).await
+  async fn send_event(&self, event_data: TruckSpeed, truck_id: String) -> Result<(), Error<CreateTruckSpeedError>> {
+    vehicle_management_service::apis::trucks_api::create_truck_speed(
+      &get_vehicle_management_api_config(),
+      CreateTruckSpeedParams {
+        truck_id,
+        truck_speed: event_data
+      }
+    ).await
   }
 
-  fn process_event_data(&self, event: &nom_teltonika::AVLEventIOValue, truck_id: String, timestamp: i64) -> CreateTruckSpeedRequest {
-      CreateTruckSpeedRequest {
+  fn process_event_data(&self, event: &nom_teltonika::AVLEventIOValue, timestamp: i64) -> TruckSpeed {
+      TruckSpeed {
           id: None,
-          speed: avl_event_io_value_to_u64(event) as f64,
+          speed: avl_event_io_value_to_u64(event) as f32,
           timestamp,
-          truck_id,
-
       }
   }
 }
 
-impl Cacheable for CreateTruckSpeedRequest {
+impl Cacheable for TruckSpeed {
 
   const FILE_PATH: &'static str = "truck_speed_cache.json";
 
@@ -40,6 +41,6 @@ impl Cacheable for CreateTruckSpeedRequest {
     if speed.is_none() {
       return None
     };
-    Some(CreateTruckSpeedRequest { id: None, speed: speed.unwrap(), timestamp, truck_id: "".to_string() })
+    Some(TruckSpeed { id: None, speed: speed.unwrap() as f32, timestamp })
   }
 }
