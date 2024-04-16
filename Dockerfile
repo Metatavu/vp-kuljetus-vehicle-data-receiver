@@ -28,7 +28,7 @@ RUN --mount=type=bind,source=src,target=src \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     <<EOF
 set -e
-apt-get update && apt-get install -y --no-install-recommends ca-certificates pkg-config libssl-dev && update-ca-certificates
+apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev
 cargo build --locked --release
 cp ./target/release/$APP_NAME /bin/server
 EOF
@@ -57,6 +57,8 @@ RUN adduser \
     --no-create-home \
     --uid "${UID}" \
     appuser
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && update-ca-certificates
 
 USER appuser
 
