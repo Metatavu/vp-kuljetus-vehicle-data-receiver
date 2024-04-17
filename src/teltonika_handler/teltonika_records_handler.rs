@@ -1,6 +1,6 @@
 use std::path::Path;
 use log::debug;
-use nom_teltonika::{AVLEventIOValue, AVLRecord};
+use nom_teltonika::{AVLEventIO, AVLEventIOValue, AVLRecord};
 use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
 use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 use super::{speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers, teltonika_vin_handler::TeltonikaVinHandler};
@@ -86,9 +86,11 @@ impl TeltonikaRecordsHandler {
   pub async fn handle_record(&self, record: &AVLRecord) {
     self.handle_record_location(record).await;
     for event in record.io_events.iter() {
-      if let Some(handler) = self.get_event_handler(event.id) {
+      let event_ids = record.io_events.iter().map(|event| event.id).collect::<Vec<u16>>();
+      if let Some(handler) = self.get_event_handler(event_ids) {
+        let events: Vec<&AVLEventIO> = record.io_events.iter().filter(|event| handler.get_event_ids().contains(&event.id)).collect::<Vec<&AVLEventIO>>();
         handler
-          .handle_event(&event, record.timestamp.timestamp(), self.truck_id.clone(), self.base_cache_path.clone())
+          .handle_events(events, record.timestamp.timestamp(), self.truck_id.clone(), self.base_cache_path.clone())
           .await;
       } else {
         debug!("No handler found for event id: {}", event.id);
@@ -118,9 +120,9 @@ impl TeltonikaRecordsHandler {
   ///
   /// # Returns
   /// * The event handler if found, otherwise None.
-  fn get_event_handler(&self, event_id: u16) -> Option<&TeltonikaEventHandlers> {
+  fn get_event_handler(&self, event_ids: Vec<u16>) -> Option<&TeltonikaEventHandlers> {
     for handler in self.event_handlers.iter() {
-      if handler.get_event_id() == event_id {
+      if event_ids.iter().all(|event_id| handler.get_event_ids().contains(event_id)) {
         return Some(handler);
       }
     }
@@ -189,7 +191,7 @@ impl TeltonikaRecordsHandler {
 impl Cacheable for TruckLocation {
   const FILE_PATH: &'static str = "truck_location_cache.json";
 
-  fn from_teltonika_event(_value: &AVLEventIOValue, _timestamp: i64) -> Option<Self> where Self: Sized {
+  fn from_teltonika_events(_events: Vec<&AVLEventIO>, _timestamp: i64) -> Option<Self> where Self: Sized {
     None
   }
 
