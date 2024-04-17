@@ -2,7 +2,6 @@ mod utils;
 mod teltonika_handler;
 mod telematics_cache;
 mod teltonika_connection;
-// mod vp_api;
 
 use std::error::Error;
 use log::info;
@@ -51,15 +50,17 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use httpmock::{Method::{GET, POST}, MockServer, Regex};
-    use nom_teltonika::{AVLEventIO, Priority};
+    use log::error;
+    use nom_teltonika::{parser, AVLEventIO, Priority};
     use tempfile::tempdir;
-    use vehicle_management_service_client::{model::PublicTruck, request::CreateTruckSpeedRequest};
-    use crate::test_utils::{
-        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, imei::*, utilities::str_to_bytes
-    };
-    use self::telematics_cache::Cacheable;
-
+    use uuid::Uuid;
+    use vehicle_management_service::{apis::public_trucks_api::ListPublicTrucksParams, models::{PublicTruck, TruckLocation, TruckSpeed}};
+    use crate::{telematics_cache::Cacheable, utils::{
+        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, get_vehicle_management_api_config, imei::{build_valid_imei_packet, get_random_imei_of_length, *}, str_to_bytes
+    }};
+    use self::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
     use super::*;
 
     #[test]
@@ -305,7 +306,7 @@ mod tests {
         record_handler.handle_records(packet.records).await;
 
         let base_cache_path = record_handler.get_base_cache_path();
-        let speeds_cache = CreateTruckSpeedRequest::read_from_file(base_cache_path.to_str().unwrap());
+        let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
         let first_cached_speed = speeds_cache.first();
 
         assert_eq!(1, speeds_cache.len());
@@ -370,12 +371,11 @@ mod tests {
 
         {
             let base_cache_path = record_handler.get_base_cache_path();
-            let locations_cache = CreateTruckLocationRequest::read_from_file(base_cache_path.to_str().unwrap());
+            let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
 
             let location_1 = locations_cache.iter().find(|location| location.heading == 810.0).unwrap();
             let location_2 = locations_cache.iter().find(|location| location.heading == 180.0).unwrap();
 
-            assert!(locations_cache.iter().all(|location| location.truck_id == ""));
             assert_eq!(2, locations_cache.len());
             assert_eq!(61.68779453479687, location_1.longitude);
             assert_eq!(27.272970302823353, location_1.latitude);
@@ -388,7 +388,7 @@ mod tests {
         record_handler.purge_cache().await;
         {
             let base_cache_path = record_handler.get_base_cache_path();
-            let locations_cache = CreateTruckLocationRequest::read_from_file(base_cache_path.to_str().unwrap());
+            let locations_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
             assert_eq!(0, locations_cache.len());
         }
     }
@@ -430,7 +430,7 @@ mod tests {
         let mut server_address = String::from("http://");
         server_address.push_str(mock_server.address().to_string().as_str());
 
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_CLIENT_BASE_URL", &server_address);
+        std::env::set_var("API_BASE_URL", &server_address);
         std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
 
         let _public_trucks_mock = mock_server.mock(|when, then| {
@@ -440,7 +440,7 @@ mod tests {
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[PublicTruck{
-                    id: Some(String::from("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C")),
+                    id: Some(Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
                     name: Some(String::from("1")),
                     plate_number: String::from("ABC-123"),
                     vin: String::from("W1T96302X10704959"),

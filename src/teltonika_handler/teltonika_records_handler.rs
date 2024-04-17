@@ -1,9 +1,8 @@
 use std::path::Path;
 use log::debug;
 use nom_teltonika::{AVLEventIOValue, AVLRecord};
-use vehicle_management_service_client::request::CreateTruckLocationRequest;
-use crate::{telematics_cache::Cacheable, vehicle_management_service::VehicleManagementService};
-
+use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
+use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 use super::{speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers, teltonika_vin_handler::TeltonikaVinHandler};
 
 /// Handler for Teltonika records.
@@ -133,15 +132,15 @@ impl TeltonikaRecordsHandler {
   /// Locations are separate from other events and are handled differently.
   /// This method will create a [CreateTruckLocationRequest] from the record and send it to the Vehicle Management Service or store in cache if truck ID is not yet known.
   async fn handle_record_location(&self, record: &AVLRecord) {
-    let location_data = CreateTruckLocationRequest::from_teltonika_record(record).unwrap();
+    let location_data = TruckLocation::from_teltonika_record(record).unwrap();
     if let Some(truck_id) = self.truck_id.clone() {
       debug!("Handling location for truck: {}", truck_id);
-      let result = VehicleManagementService::send_truck_location(
-        truck_id,
-        location_data.timestamp,
-        location_data.latitude,
-        location_data.longitude,
-        location_data.heading
+      let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+        &get_vehicle_management_api_config(),
+         CreateTruckLocationParams {
+          truck_id,
+          truck_location: location_data.clone()
+         }
       ).await;
       if let Err(e) = result {
         debug!("Error sending location: {:?}. Caching it for further use.", e);
@@ -159,16 +158,16 @@ impl TeltonikaRecordsHandler {
 
   /// Purges the location cache.
   async fn purge_location_cache(&self) {
-    let cache = CreateTruckLocationRequest::read_from_file(self.base_cache_path.to_str().unwrap());
+    let cache = TruckLocation::read_from_file(self.base_cache_path.to_str().unwrap());
     let mut failed_locations = Vec::new();
 
     for cached_location in cache.iter() {
-      let result = VehicleManagementService::send_truck_location(
-        self.truck_id.clone().unwrap(),
-        cached_location.timestamp,
-        cached_location.latitude,
-        cached_location.longitude,
-        cached_location.heading
+      let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+        &get_vehicle_management_api_config(),
+        CreateTruckLocationParams {
+          truck_id: self.truck_id.clone().unwrap(),
+          truck_location: cached_location.clone()
+        }
       ).await;
       if let Err(e) = result {
         debug!("Error sending location: {:?}. Caching it for further use.", e);
@@ -177,7 +176,7 @@ impl TeltonikaRecordsHandler {
     }
     let successful_locations_count = cache.len() - failed_locations.len();
     debug!("Purged location cache of {} locations. {} failed to send.", successful_locations_count, failed_locations.len());
-    CreateTruckLocationRequest::clear_cache(&self.base_cache_path.to_str().unwrap());
+    TruckLocation::clear_cache(&self.base_cache_path.to_str().unwrap());
     for failed_location in failed_locations.iter() {
       failed_location
         .write_to_file(self.base_cache_path.to_str().unwrap())
@@ -187,7 +186,7 @@ impl TeltonikaRecordsHandler {
 }
 
 /// Implementation of [Cacheable] for [CreateTruckLocationRequest].
-impl Cacheable for CreateTruckLocationRequest {
+impl Cacheable for TruckLocation {
   const FILE_PATH: &'static str = "truck_location_cache.json";
 
   fn from_teltonika_event(_value: &AVLEventIOValue, _timestamp: i64) -> Option<Self> where Self: Sized {
@@ -195,13 +194,12 @@ impl Cacheable for CreateTruckLocationRequest {
   }
 
   fn from_teltonika_record(record: &AVLRecord) -> Option<Self> where Self: Sized {
-    Some(CreateTruckLocationRequest {
+    Some(TruckLocation {
       id: None,
       latitude: record.latitude,
       longitude: record.longitude,
       heading: record.angle as f64,
       timestamp: record.timestamp.timestamp(),
-      truck_id: "".to_string()
     })
   }
 }
