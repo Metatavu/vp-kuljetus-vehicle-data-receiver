@@ -1,46 +1,14 @@
-mod test_utils;
+mod utils;
+mod teltonika_handler;
+mod telematics_cache;
+mod teltonika_connection;
+// mod vp_api;
 
 use std::error::Error;
-use std::fs::{File, OpenOptions};
-use std::net::SocketAddr;
-use std::io::{Write};
-use log::{debug, error, info};
-use nom_teltonika::parser;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use log::info;
+use tokio::net::TcpListener;
 
-
-/// Reads string environment variable
-///
-/// Panics if the environment variable is not set.
-///
-/// # Arguments
-/// * `key` - Environment variable key
-///
-/// # Returns
-/// * `String` - Environment variable value
-fn read_string_env_variable(key: &str) -> String {
-    match std::env::var(key) {
-        Ok(value) => value,
-        Err(_) => panic!("{} environment variable not set", key)
-    }
-}
-
-/// Reads boolean environment variable
-///
-/// Panics if the environment variable is not set.
-///
-/// # Arguments
-/// * `key` - Environment variable key
-///
-/// # Returns
-/// * `bool` - Environment variable value
-fn read_bool_env_variable(key: &str) -> bool {
-    match std::env::var(key) {
-        Ok(value) => value.parse().unwrap(),
-        Err(_) => panic!("{} environment variable not set", key)
-    }
-}
+use crate::{teltonika_connection::TeltonikaConnection, utils::{read_bool_env_variable, read_string_env_variable}};
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -50,8 +18,14 @@ fn read_bool_env_variable(key: &str) -> bool {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>>{
     env_logger::init();
-    let file_path = read_string_env_variable("LOG_FILE_PATH");
+    let file_path = read_string_env_variable("BASE_FILE_PATH");
     let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
+
+    // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
+    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
+
+    // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
+    read_string_env_variable("API_BASE_URL");
 
     let address = "0.0.0.0:8080";
 
@@ -60,167 +34,40 @@ async fn main() -> Result<(), Box<dyn Error>>{
     info!("Listening on: {}", address);
 
     loop {
-        let (mut socket, socket_address) = listener.accept().await?;
-        let log_file_path = match write_to_file {
+        let (socket, _) = listener.accept().await?;
+        let base_file_path = match write_to_file {
           true => file_path.clone(),
           false => "".to_string()
         };
 
         tokio::spawn(async move {
-            let mut buffer = vec![0; 4096];
-            let n = socket
-                .read(&mut buffer)
-                .await
-                .expect("Failed to read data from socket");
-
-            if n == 0 {
+            let mut teltonika_connection = TeltonikaConnection::new(socket);
+            if let Err(_) = teltonika_connection.handle_connection(base_file_path).await {
                 return;
-            }
-
-            let (valid_imei, imei) = read_imei(&buffer);
-
-            if  !valid_imei {
-                write_all_to_socket(&mut socket, &[0x00]).await.unwrap();
-                socket.shutdown().await.expect("Failed to shutdown socket");
-                return;
-            } else {
-                write_all_to_socket(&mut socket, &[0x01]).await.unwrap();
-            }
-
-            if let Result::Err(err) = handle_valid_connection(
-                socket,
-                &mut buffer,
-                socket_address,
-                imei.unwrap(),
-                log_file_path,
-            ).await {
-                error!("Error processing connection: {}", err);
             };
         });
     }
 }
 
-/// Writes buffer to socket
-///
-/// # Arguments
-/// * `socket` - TCP socket
-/// * `buffer` - Buffer to write to socket
-async fn write_all_to_socket(socket: &mut TcpStream, buffer: &[u8]) -> Result<(), Box<dyn Error>> {
-    socket.write_all(&buffer)
-        .await
-        .expect(&format!("Failed to write {:#?} to socket", buffer));
-    debug!("Wrote {:02X?} to socket", buffer);
-    Ok(())
-}
-
-/// Gets file handle for log file
-///
-/// # Arguments
-/// * `imei` - IMEI of the Teltonika Telematics device
-/// * `log_file_path` - Path to log file
-///
-/// # Returns
-/// * `Option<File>` - File handle
-fn get_log_file_handle(imei: &str, log_file_path: &str) -> Option<File> {
-    if cfg!(not(test)) && log_file_path != "" {
-        return Some(
-            OpenOptions::new()
-                .read(true)
-                .create(true)
-                .append(true)
-                .open(
-                    format!("{}/{}.bin", log_file_path, imei)
-                )
-                .expect("Failed to open file")
-        );
-    }
-
-    return None;
-}
-
-/// Write data to log file
-///
-/// # Arguments
-/// * `file_handle` - File handle
-/// * `data` - Data to write to file
-fn write_data_to_log_file(file_handle: &mut Option<File>, data: &[u8]) {
-    if cfg!(test) {
-        return;
-    }
-    if let Some(file) = file_handle {
-        file.write_all(data).expect("Failed to write data to file");
-    }
-}
-
-/// Handles individual TCP connection from Teltonika Telematics device
-///
-/// # Arguments
-/// * `socket` - TCP socket
-/// * `buffer` - Buffer for reading data from socket
-/// * `socket_address` - Socket address of the client
-/// * `imei` - IMEI of the Teltonika Telematics device
-async fn handle_valid_connection(
-    mut socket: TcpStream,
-    buffer: &mut Vec<u8>,
-    socket_address: SocketAddr,
-    imei: String,
-    log_file_path: String,
-) -> Result<(), Box<dyn Error>> {
-    let mut file_handle = get_log_file_handle(&imei, &log_file_path);
-    loop {
-        let n = socket
-            .read(buffer)
-            .await
-            .expect("Failed to read data from socket");
-
-        if n == 0 {
-            break;
-        }
-
-        let first_byte = buffer[0];
-
-        if first_byte == 0xFF {
-            debug!("Received ping from client {}", socket_address);
-            continue;
-        }
-        let (_, frame) = parser::tcp_frame(&buffer).expect("Failed to parse TCP frame");
-        let amount_of_records = frame.records.len();
-        debug!("Received {} records from client {}", amount_of_records, socket_address);
-
-        write_data_to_log_file(&mut file_handle, &buffer);
-
-        socket.write_i32(amount_of_records as i32).await?;
-        debug!("Sent {:x} records to client {}", amount_of_records as i32, socket_address)
-    }
-    info!("Client {} disconnected", socket_address);
-
-    Ok(())
-}
-
-/// Reads IMEI from the buffer
-///
-/// # Arguments
-/// * `buffer` - Buffer for reading data from socket
-///
-/// # Returns
-/// * `(bool, Option<String>)` - Whether the IMEI was successfully parsed and the IMEI itself as an `Option<String>`
-fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
-    let result = nom_teltonika::parser::imei(&buffer);
-    match result {
-        Ok((_, imei)) => {
-            info!("New client connected with IMEI: [{:?}]", imei);
-            return (true, Some(imei));
-        },
-        Err(_) => {
-            error!("Failed to parse IMEI from buffer {:#?}", buffer);
-            return (false, None);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::imei::*;
+    use std::str::FromStr;
+
+    use httpmock::{Method::{GET, POST}, MockServer, Regex};
+    use log::error;
+    use nom_teltonika::{parser, AVLEventIO, Priority};
+    use tempfile::tempdir;
+    use vehicle_management_service::{apis::public_trucks_api::ListPublicTrucksParams, models::{PublicTruck, TruckSpeed}};
+    use crate::
+        utils::{
+            avl_frame_builder::*,
+            avl_packet::*,
+            avl_record_builder::avl_record_builder::*,
+            imei::*,
+            str_to_bytes
+        };
+    use self::{telematics_cache::Cacheable, teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler, utils::get_vehicle_management_api_config};
+
     use super::*;
 
     #[test]
@@ -254,5 +101,320 @@ mod tests {
 
         assert_eq!(is_imei_valid, false);
         assert_eq!(parsed_imei, None);
+    }
+
+    #[test]
+    fn test_valid_packet() {
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::Panic)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 10,
+                    value: nom_teltonika::AVLEventIOValue::U8(10),
+                }
+            ])
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .add_record(record)
+            .build()
+            .to_bytes();
+
+        let example_packet_str = "000000000000003608010000016B40D8EA30010000000000000000000000000000000105021503010101425E0F01F10000601A014E0000000000000000010000C7CF";
+        let example_packet = str_to_bytes(example_packet_str);
+
+        let parsed_built_packet = parser::tcp_frame(&packet);
+        let parsed_example_packet = parser::tcp_frame(&example_packet);
+
+        assert!(parsed_built_packet.is_ok());
+        assert!(parsed_example_packet.is_ok());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_packet() {
+        // This packet is missing the preamble
+        let example_packet_str = "3608010000016B40D8EA30010000000000000000000000000000000105021503010101425E0F01F10000601A014E0000000000000000010000C7CF";
+        let example_packet = str_to_bytes(example_packet_str);
+        let parsed_example_packet = parser::tcp_frame(&example_packet);
+        // This should panic because the packet is missing the preamble
+        parsed_example_packet.unwrap();
+    }
+
+    #[test]
+    fn test_missing_truck_vin() {
+        let record_handler = get_teltonika_records_handler(None);
+        let record_without_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                },
+                AVLEventIO {
+                    id: 1,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+                AVLEventIO {
+                    id: 200,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+            ])
+            .build();
+        let packet_with_record_without_vin = AVLFrameBuilder::new()
+            .add_record(record_without_vin)
+            .build();
+
+        let missing_vin = record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
+
+        assert_eq!(missing_vin, None);
+    }
+
+    #[test]
+    fn test_partly_missing_truck_vin() {
+        let record_handler = get_teltonika_records_handler(None);
+        let record_without_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 200,
+                    value: nom_teltonika::AVLEventIOValue::U16(20),
+                },
+            ])
+            .build();
+        let packet_with_record_without_vin = AVLFrameBuilder::new()
+            .add_record(record_without_vin)
+            .build();
+
+        let missing_vin = record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
+
+        assert_eq!(missing_vin, None);
+    }
+
+    #[test]
+    fn test_get_truck_vin() {
+        let record_handler = get_teltonika_records_handler(None);
+        let record_with_vin = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let packet_with_record_with_vin = AVLFrameBuilder::new()
+            .add_record(record_with_vin)
+            .build();
+
+        let vin = record_handler.get_truck_vin_from_records(&packet_with_record_with_vin.records);
+
+        assert_eq!("W1T96302X10704959", vin.unwrap());
+    }
+
+    #[test]
+    fn test_get_truck_vin_with_multiple_vin_records() {
+        let record_handler = get_teltonika_records_handler(None);
+        let record_with_vin_1 = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let record_with_vin_2 = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 234,
+                    value: nom_teltonika::AVLEventIOValue::U64(6354913562786543925),
+                },
+                AVLEventIO {
+                    id: 233,
+                    value: nom_teltonika::AVLEventIOValue::U64(6282895559857745970),
+                },
+                AVLEventIO {
+                    id: 235,
+                    value: nom_teltonika::AVLEventIOValue::U8(57),
+                },
+            ])
+            .build();
+        let packet_with_multiple_records_with_vin = AVLFrameBuilder::new()
+            .with_records([record_with_vin_1, record_with_vin_2].to_vec())
+            .build();
+
+        let vin = record_handler.get_truck_vin_from_records(&packet_with_multiple_records_with_vin.records);
+
+        assert_eq!("W1T96302X10704959", vin.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_get_truck_id_with_valid_vin() {
+        start_vehicle_management_mock();
+        let vin = Some(String::from("W1T96302X10704959"));
+        let truck = vehicle_management_service::apis::public_trucks_api::list_public_trucks(
+            &get_vehicle_management_api_config(),
+            ListPublicTrucksParams {
+                vin: vin.clone(),
+                first: None,
+                max: None
+            }
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|truck| truck.vin == vin.clone().unwrap());
+
+        assert!(truck.is_some());
+        assert_eq!(uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap(), truck.unwrap().id.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_cache_speed_event() {
+        let record_handler = get_teltonika_records_handler(None);
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                },
+            ])
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .add_record(record)
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        let base_cache_path = record_handler.get_base_cache_path();
+        let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+        let first_cached_speed = speeds_cache.first();
+
+        assert_eq!(1, speeds_cache.len());
+        assert_eq!(10.0, first_cached_speed.unwrap().speed);
+    }
+
+    #[tokio::test]
+    async fn test_send_cached_event() {
+        start_vehicle_management_mock();
+        let mut record_handler = get_teltonika_records_handler(None);
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                },
+            ])
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .add_record(record)
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+            let first_cached_speed = speeds_cache.first();
+
+            assert_eq!(1, speeds_cache.len());
+            assert_eq!(10.0, first_cached_speed.unwrap().speed);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+            assert_eq!(0, speeds_cache.len());
+        }
+    }
+
+    /// Reads IMEI from the buffer
+    ///
+    /// # Arguments
+    /// * `buffer` - Buffer for reading data from socket
+    ///
+    /// # Returns
+    /// * `(bool, Option<String>)` - Whether the IMEI was successfully parsed and the IMEI itself as an `Option<String>`
+    fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
+        let result = nom_teltonika::parser::imei(&buffer);
+        match result {
+            Ok((_, imei)) => {
+                info!("New client connected with IMEI: [{:?}]", imei);
+                return (true, Some(imei));
+            },
+            Err(_) => {
+                error!("Failed to parse IMEI from buffer");
+                return (false, None);
+            }
+        }
+    }
+
+    /// Gets a TeltonikaRecordsHandler for testing
+    ///
+    /// Uses a temporary directory for the cache
+    fn get_teltonika_records_handler(truck_id: Option<String>) -> TeltonikaRecordsHandler {
+        let test_cache_dir = tempdir().unwrap();
+        let test_cache_path = test_cache_dir.path();
+
+        return TeltonikaRecordsHandler::new( test_cache_path, truck_id);
+    }
+
+    /// Starts a mock server for the Vehicle Management Service
+    fn start_vehicle_management_mock() {
+        let mock_server = MockServer::start();
+        let mut server_address = String::from("http://");
+        server_address.push_str(mock_server.address().to_string().as_str());
+
+        std::env::set_var("API_BASE_URL", &server_address);
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+
+        let _public_trucks_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/vehicle-management/v1/publicTrucks")
+                .header("X-API-KEY", "API_KEY");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&[PublicTruck{
+                    id: Some(uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
+                    name: Some(String::from("1")),
+                    plate_number: String::from("ABC-123"),
+                    vin: String::from("W1T96302X10704959"),
+                }]);
+        });
+
+        let _create_truck_speed_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201);
+        });
     }
 }

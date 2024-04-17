@@ -7,7 +7,7 @@
 ################################################################################
 # Create a stage for building the application.
 
-ARG RUST_VERSION=1.67.1
+ARG RUST_VERSION=1.76
 ARG APP_NAME=vp-kuljetus-vehicle-data-receiver
 FROM rust:${RUST_VERSION}-slim-bullseye AS build
 ARG APP_NAME
@@ -21,12 +21,14 @@ WORKDIR /app
 # source code into the container. Once built, copy the executable to an
 # output directory before the cache mounted /app/target is unmounted.
 RUN --mount=type=bind,source=src,target=src \
+    --mount=type=bind,source=vehicle_management_service,target=vehicle_management_service \
     --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=/app/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     <<EOF
 set -e
+apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev
 cargo build --locked --release
 cp ./target/release/$APP_NAME /bin/server
 EOF
@@ -55,6 +57,9 @@ RUN adduser \
     --no-create-home \
     --uid "${UID}" \
     appuser
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && update-ca-certificates
+
 USER appuser
 
 # Copy the executable from the "build" stage.
