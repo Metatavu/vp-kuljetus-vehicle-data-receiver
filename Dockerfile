@@ -21,13 +21,14 @@ WORKDIR /app
 # source code into the container. Once built, copy the executable to an
 # output directory before the cache mounted /app/target is unmounted.
 RUN --mount=type=bind,source=src,target=src \
-    --mount=type=bind,source=vehicle-management-service,target=vehicle-management-service \
+    --mount=type=bind,source=vehicle_management_service,target=vehicle_management_service \
     --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=/app/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     <<EOF
 set -e
+apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev
 cargo build --locked --release
 cp ./target/release/$APP_NAME /bin/server
 EOF
