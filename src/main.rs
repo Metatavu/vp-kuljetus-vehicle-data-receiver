@@ -355,11 +355,11 @@ mod tests {
         let mut record_handler = get_teltonika_records_handler(None);
         let record_1 = AVLRecordBuilder::new()
             .with_longitude(61.68779453479687)
-            .with_latitude(27.272970302823353)
+            .with_latitude(27.27297030282335)
             .with_angle(810)
             .build();
         let record_2 = AVLRecordBuilder::new()
-            .with_longitude(27.272970302823353)
+            .with_longitude(27.27297030282335)
             .with_latitude(61.68779453479687)
             .with_angle(180)
             .build();
@@ -378,9 +378,9 @@ mod tests {
 
             assert_eq!(2, locations_cache.len());
             assert_eq!(61.68779453479687, location_1.longitude);
-            assert_eq!(27.272970302823353, location_1.latitude);
+            assert_eq!(27.27297030282335, location_1.latitude);
             assert_eq!(810.0, location_1.heading);
-            assert_eq!(27.272970302823353, location_2.longitude);
+            assert_eq!(27.27297030282335, location_2.longitude);
             assert_eq!(61.68779453479687, location_2.latitude);
             assert_eq!(180.0, location_2.heading);
         }
