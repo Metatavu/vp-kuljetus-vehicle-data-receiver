@@ -1,6 +1,8 @@
 use std::path::Path;
 use log::debug;
-use nom_teltonika::AVLRecord;
+use nom_teltonika::{AVLEventIOValue, AVLRecord};
+use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
+use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 use super::{speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers, teltonika_vin_handler::TeltonikaVinHandler};
 
 /// Handler for Teltonika records.
@@ -19,7 +21,7 @@ impl TeltonikaRecordsHandler {
       truck_id,
       event_handlers: vec![
         TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler {}),
-      ]
+      ],
     }
   }
 
@@ -82,6 +84,7 @@ impl TeltonikaRecordsHandler {
   ///
   /// This method will iterate over the IO events in the record and call the appropriate handler for each event.
   pub async fn handle_record(&self, record: &AVLRecord) {
+    self.handle_record_location(record).await;
     for event in record.io_events.iter() {
       if let Some(handler) = self.get_event_handler(event.id) {
         handler
@@ -98,6 +101,8 @@ impl TeltonikaRecordsHandler {
     if self.truck_id.is_none() {
       return;
     }
+
+    self.purge_location_cache().await;
 
     for handler in self.event_handlers.iter() {
       handler
@@ -120,5 +125,81 @@ impl TeltonikaRecordsHandler {
       }
     }
     return None;
+  }
+
+  /// Handles a Teltonika [AVLRecord] location.
+  ///
+  /// Locations are separate from other events and are handled differently.
+  /// This method will create a [CreateTruckLocationRequest] from the record and send it to the Vehicle Management Service or store in cache if truck ID is not yet known.
+  async fn handle_record_location(&self, record: &AVLRecord) {
+    let location_data = TruckLocation::from_teltonika_record(record).unwrap();
+    if let Some(truck_id) = self.truck_id.clone() {
+      debug!("Handling location for truck: {}", truck_id);
+      let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+        &get_vehicle_management_api_config(),
+         CreateTruckLocationParams {
+          truck_id,
+          truck_location: location_data.clone()
+         }
+      ).await;
+      if let Err(e) = result {
+        debug!("Error sending location: {:?}. Caching it for further use.", e);
+        location_data
+          .write_to_file(self.base_cache_path.to_str().unwrap())
+          .expect("Error caching location");
+      }
+    } else {
+      debug!("Caching location for yet unknown truck");
+      location_data
+        .write_to_file(self.base_cache_path.to_str().unwrap())
+        .expect("Error caching location");
+    }
+  }
+
+  /// Purges the location cache.
+  async fn purge_location_cache(&self) {
+    let cache = TruckLocation::read_from_file(self.base_cache_path.to_str().unwrap());
+    let mut failed_locations = Vec::new();
+
+    for cached_location in cache.iter() {
+      let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+        &get_vehicle_management_api_config(),
+        CreateTruckLocationParams {
+          truck_id: self.truck_id.clone().unwrap(),
+          truck_location: cached_location.clone()
+        }
+      ).await;
+      if let Err(e) = result {
+        debug!("Error sending location: {:?}. Caching it for further use.", e);
+        failed_locations.push(cached_location.clone());
+      }
+    }
+    let successful_locations_count = cache.len() - failed_locations.len();
+    debug!("Purged location cache of {} locations. {} failed to send.", successful_locations_count, failed_locations.len());
+    TruckLocation::clear_cache(&self.base_cache_path.to_str().unwrap());
+    for failed_location in failed_locations.iter() {
+      failed_location
+        .write_to_file(self.base_cache_path.to_str().unwrap())
+        .expect("Error caching location");
+    }
+  }
+}
+
+/// Implementation of [Cacheable] for [CreateTruckLocationRequest].
+impl Cacheable for TruckLocation {
+  const FILE_PATH: &'static str = "truck_location_cache.json";
+
+  fn from_teltonika_event(_value: &AVLEventIOValue, _timestamp: i64) -> Option<Self> where Self: Sized {
+    None
+  }
+
+  fn from_teltonika_record(record: &AVLRecord) -> Option<Self> where Self: Sized {
+    Some(TruckLocation {
+      id: None,
+      latitude: record.latitude,
+      longitude: record.longitude,
+      heading: record.angle as f64,
+      timestamp: record.timestamp.timestamp(),
+    })
   }
 }

@@ -2,7 +2,6 @@ mod utils;
 mod teltonika_handler;
 mod telematics_cache;
 mod teltonika_connection;
-// mod vp_api;
 
 use std::error::Error;
 use log::info;
@@ -52,22 +51,16 @@ async fn main() -> Result<(), Box<dyn Error>>{
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-
     use httpmock::{Method::{GET, POST}, MockServer, Regex};
     use log::error;
     use nom_teltonika::{parser, AVLEventIO, Priority};
     use tempfile::tempdir;
-    use vehicle_management_service::{apis::public_trucks_api::ListPublicTrucksParams, models::{PublicTruck, TruckSpeed}};
-    use crate::
-        utils::{
-            avl_frame_builder::*,
-            avl_packet::*,
-            avl_record_builder::avl_record_builder::*,
-            imei::*,
-            str_to_bytes
-        };
-    use self::{telematics_cache::Cacheable, teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler, utils::get_vehicle_management_api_config};
-
+    use uuid::Uuid;
+    use vehicle_management_service::{apis::public_trucks_api::ListPublicTrucksParams, models::{PublicTruck, TruckLocation, TruckSpeed}};
+    use crate::{telematics_cache::Cacheable, utils::{
+        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, get_vehicle_management_api_config, imei::{build_valid_imei_packet, get_random_imei_of_length, *}, str_to_bytes
+    }};
+    use self::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
     use super::*;
 
     #[test]
@@ -356,6 +349,50 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_record_location_handling() {
+        start_vehicle_management_mock();
+        let mut record_handler = get_teltonika_records_handler(None);
+        let record_1 = AVLRecordBuilder::new()
+            .with_longitude(61.68779453479687)
+            .with_latitude(27.27297030282335)
+            .with_angle(810)
+            .build();
+        let record_2 = AVLRecordBuilder::new()
+            .with_longitude(27.27297030282335)
+            .with_latitude(61.68779453479687)
+            .with_angle(180)
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record_1, record_2].to_vec())
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
+
+            let location_1 = locations_cache.iter().find(|location| location.heading == 810.0).unwrap();
+            let location_2 = locations_cache.iter().find(|location| location.heading == 180.0).unwrap();
+
+            assert_eq!(2, locations_cache.len());
+            assert_eq!(61.68779453479687, location_1.longitude);
+            assert_eq!(27.27297030282335, location_1.latitude);
+            assert_eq!(810.0, location_1.heading);
+            assert_eq!(27.27297030282335, location_2.longitude);
+            assert_eq!(61.68779453479687, location_2.latitude);
+            assert_eq!(180.0, location_2.heading);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let locations_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+            assert_eq!(0, locations_cache.len());
+        }
+    }
+
     /// Reads IMEI from the buffer
     ///
     /// # Arguments
@@ -403,7 +440,7 @@ mod tests {
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[PublicTruck{
-                    id: Some(uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
+                    id: Some(Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
                     name: Some(String::from("1")),
                     plate_number: String::from("ABC-123"),
                     vin: String::from("W1T96302X10704959"),
@@ -414,7 +451,9 @@ mod tests {
             when.method(POST)
                 .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
                 .header("X-API-KEY", "API_KEY");
-            then.status(201);
+            then.status(201)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&());
         });
     }
 }

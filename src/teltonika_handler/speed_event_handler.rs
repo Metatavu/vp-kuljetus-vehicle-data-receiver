@@ -43,4 +43,8 @@ impl Cacheable for TruckSpeed {
     };
     Some(TruckSpeed { id: None, speed: speed.unwrap() as f32, timestamp })
   }
+
+  fn from_teltonika_record(_record: &nom_teltonika::AVLRecord) -> Option<Self> {
+    None
+  }
 }
