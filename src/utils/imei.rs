@@ -11,12 +11,12 @@ use rand::{distributions::Alphanumeric, Rng};
 /// # Returns
 /// * `Vec<u8>` - The IMEI packet
 pub fn build_valid_imei_packet(imei: &str) -> Vec<u8> {
-  let length = imei.len() as i16;
-  let mut imei_byte_array = length.to_be_bytes().to_vec();
+    let length = imei.len() as i16;
+    let mut imei_byte_array = length.to_be_bytes().to_vec();
 
-  imei_byte_array.append(&mut imei.as_bytes().to_vec());
+    imei_byte_array.append(&mut imei.as_bytes().to_vec());
 
-  return imei_byte_array;
+    return imei_byte_array;
 }
 
 /// Builds an invalid IMEI packet from the given IMEI
@@ -29,7 +29,7 @@ pub fn build_valid_imei_packet(imei: &str) -> Vec<u8> {
 /// # Returns
 /// * `Vec<u8>` - The IMEI packet
 pub fn build_invalid_imei_packet(imei: &str) -> Vec<u8> {
-  return imei.as_bytes().to_vec();
+    return imei.as_bytes().to_vec();
 }
 
 /// Generates a random IMEI of the given length
@@ -40,9 +40,9 @@ pub fn build_invalid_imei_packet(imei: &str) -> Vec<u8> {
 /// # Returns
 /// * `String` - The generated IMEI
 pub fn get_random_imei_of_length(length: i16) -> String {
-  rand::thread_rng()
-      .sample_iter(&Alphanumeric)
-      .take(length as usize)
-      .map(char::from)
-      .collect()
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(length as usize)
+        .map(char::from)
+        .collect()
 }
