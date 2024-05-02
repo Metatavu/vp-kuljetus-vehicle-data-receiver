@@ -209,13 +209,6 @@ impl TeltonikaRecordsHandler {
 impl Cacheable for TruckLocation {
     const FILE_PATH: &'static str = "truck_location_cache.json";
 
-    fn from_teltonika_events(_events: Vec<&AVLEventIO>, _timestamp: i64) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        None
-    }
-
     fn from_teltonika_record(record: &AVLRecord) -> Option<Self>
     where
         Self: Sized,

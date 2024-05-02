@@ -88,17 +88,17 @@ where
         truck_id: Option<String>,
         base_cache_path: Box<Path>,
     ) {
+        let event_data = self.process_event_data(&events, timestamp);
         if let Some(truck_id) = truck_id {
             debug!("Handling event for truck: {}", truck_id);
-            let event_data = self.process_event_data(&events, timestamp);
-            let send_event_result = self.send_event(event_data, truck_id).await;
+            let send_event_result = self.send_event(&event_data, truck_id).await;
             if let Err(e) = send_event_result {
                 error!("Error sending event: {:?}. Caching it for further use.", e);
-                self.cache_event_data(events, timestamp, base_cache_path);
+                self.cache_event_data(event_data, base_cache_path);
             }
         } else {
             debug!("Caching event for yet unknown truck");
-            self.cache_event_data(events, timestamp, base_cache_path);
+            self.cache_event_data(event_data, base_cache_path);
         };
     }
 
@@ -108,15 +108,8 @@ where
     /// * `event` - The Teltonika event to cache.
     /// * `timestamp` - The timestamp of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    fn cache_event_data(
-        &self,
-        events: Vec<&AVLEventIO>,
-        timestamp: i64,
-        base_cache_path: Box<Path>,
-    ) {
-        let cache_result = T::from_teltonika_events(events, timestamp)
-            .expect("Error parsing event")
-            .write_to_file(base_cache_path.to_owned().to_str().unwrap());
+    fn cache_event_data(&self, event: T, base_cache_path: Box<Path>) {
+        let cache_result = event.write_to_file(base_cache_path.to_owned().to_str().unwrap());
         if let Err(e) = cache_result {
             panic!("Error caching event: {:?}", e);
         }
@@ -127,7 +120,7 @@ where
     /// # Arguments
     /// * `event_data` - The event data to send.
     /// * `truck_id` - The truck ID of the event.
-    async fn send_event(&self, event_data: T, truck_id: String) -> Result<(), E>;
+    async fn send_event(&self, event_data: &T, truck_id: String) -> Result<(), E>;
 
     /// Processes the event data.
     ///
@@ -162,9 +155,7 @@ where
         );
 
         for cached_event in cache.iter() {
-            let sent_event = self
-                .send_event(cached_event.clone(), truck_id.clone())
-                .await;
+            let sent_event = self.send_event(cached_event, truck_id.clone()).await;
             if let Err(err) = sent_event {
                 debug!(
                     "Failed to send event: {:?}. Adding it to failed events.",

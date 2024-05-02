@@ -19,14 +19,14 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
 
     async fn send_event(
         &self,
-        event_data: TruckSpeed,
+        event_data: &TruckSpeed,
         truck_id: String,
     ) -> Result<(), Error<CreateTruckSpeedError>> {
         vehicle_management_service::apis::trucks_api::create_truck_speed(
             &get_vehicle_management_api_config(),
             CreateTruckSpeedParams {
                 truck_id,
-                truck_speed: event_data,
+                truck_speed: event_data.clone(),
             },
         )
         .await
@@ -44,22 +44,6 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
 
 impl Cacheable for TruckSpeed {
     const FILE_PATH: &'static str = "truck_speed_cache.json";
-
-    fn from_teltonika_events(events: Vec<&AVLEventIO>, timestamp: i64) -> Option<Self> {
-        let event = events.first().expect("Received empty speed event");
-        let speed = match event.value {
-            nom_teltonika::AVLEventIOValue::U16(val) => Some(val.clone() as f64),
-            _ => None,
-        };
-        if speed.is_none() {
-            return None;
-        };
-        Some(TruckSpeed {
-            id: None,
-            speed: speed.unwrap() as f32,
-            timestamp,
-        })
-    }
 
     fn from_teltonika_record(_record: &nom_teltonika::AVLRecord) -> Option<Self> {
         None

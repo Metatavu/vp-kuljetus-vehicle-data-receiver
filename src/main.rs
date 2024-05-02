@@ -446,24 +446,24 @@ mod tests {
     fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
         let driver_card_id_bytes = driver_card_id.as_bytes();
         let driver_card_id_lsb = u64::from_be_bytes([
-            driver_card_id_bytes[0],
-            driver_card_id_bytes[1],
-            driver_card_id_bytes[2],
-            driver_card_id_bytes[3],
-            driver_card_id_bytes[4],
-            driver_card_id_bytes[5],
-            driver_card_id_bytes[6],
             driver_card_id_bytes[7],
+            driver_card_id_bytes[6],
+            driver_card_id_bytes[5],
+            driver_card_id_bytes[4],
+            driver_card_id_bytes[3],
+            driver_card_id_bytes[2],
+            driver_card_id_bytes[1],
+            driver_card_id_bytes[0],
         ]);
         let driver_card_id_msb = u64::from_be_bytes([
-            driver_card_id_bytes[8],
-            driver_card_id_bytes[9],
-            driver_card_id_bytes[10],
-            driver_card_id_bytes[11],
-            driver_card_id_bytes[12],
-            driver_card_id_bytes[13],
-            driver_card_id_bytes[14],
             driver_card_id_bytes[15],
+            driver_card_id_bytes[14],
+            driver_card_id_bytes[13],
+            driver_card_id_bytes[12],
+            driver_card_id_bytes[11],
+            driver_card_id_bytes[10],
+            driver_card_id_bytes[9],
+            driver_card_id_bytes[8],
         ]);
         let driver_card_id_msb_event = AVLEventIO {
             id: 195,
