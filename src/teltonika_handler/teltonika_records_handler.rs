@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use super::{
+    driver_one_card_id_event_handler::DriverOneCardIdEventHandler,
     speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers,
     teltonika_vin_handler::TeltonikaVinHandler,
 };
@@ -24,9 +25,10 @@ impl TeltonikaRecordsHandler {
         TeltonikaRecordsHandler {
             base_cache_path: base_cache_path.into(),
             truck_id,
-            event_handlers: vec![TeltonikaEventHandlers::SpeedEventHandler(
-                SpeedEventHandler {},
-            )],
+            event_handlers: vec![
+                TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler {}),
+                TeltonikaEventHandlers::DriverOneCardIdEventHandler(DriverOneCardIdEventHandler {}),
+            ],
         }
     }
 
@@ -89,35 +91,35 @@ impl TeltonikaRecordsHandler {
 
     /// Handles a single Teltonika [AVLRecord].
     ///
-    /// This method will iterate over the IO events in the record and call the appropriate handler for each event.
+    /// This method will iterate over the known event handlers and pass appropriate events to them.
     pub async fn handle_record(&self, record: &AVLRecord) {
         self.handle_record_location(record).await;
-        for event in record.io_events.iter() {
-            let event_ids = record
-                .io_events
+        for handler in self.event_handlers.iter() {
+            let events = handler
+                .get_event_ids()
                 .iter()
-                .map(|event| event.id)
-                .collect::<Vec<u16>>();
-            if let Some(handler) = self.get_event_handler(event_ids) {
-                let events: Vec<&AVLEventIO> = record
-                    .io_events
-                    .iter()
-                    .filter(|event| handler.get_event_ids().contains(&event.id))
-                    .collect::<Vec<&AVLEventIO>>();
-                handler
-                    .handle_events(
-                        events,
-                        record.timestamp.timestamp(),
-                        self.truck_id.clone(),
-                        self.base_cache_path.clone(),
-                    )
-                    .await;
-            } else {
-                debug!("No handler found for event id: {}", event.id);
+                .map(|id| {
+                    record
+                        .io_events
+                        .iter()
+                        .filter(|event| event.id == *id)
+                        .collect::<Vec<&AVLEventIO>>()
+                })
+                .flatten()
+                .collect::<Vec<&AVLEventIO>>();
+            if events.is_empty() {
+                continue;
             }
+            handler
+                .handle_events(
+                    events,
+                    record.timestamp.timestamp(),
+                    self.truck_id.clone(),
+                    self.base_cache_path.clone(),
+                )
+                .await;
         }
     }
-
     /// Purges the cache if Truck ID is known.
     pub async fn purge_cache(&self) {
         if self.truck_id.is_none() {
@@ -131,25 +133,6 @@ impl TeltonikaRecordsHandler {
                 .purge_cache(self.truck_id.clone().unwrap(), self.base_cache_path.clone())
                 .await;
         }
-    }
-
-    /// Gets the event handler for a specific event ID.
-    ///
-    /// # Arguments
-    /// * `event_id` - The event ID to get the handler for.
-    ///
-    /// # Returns
-    /// * The event handler if found, otherwise None.
-    fn get_event_handler(&self, event_ids: Vec<u16>) -> Option<&TeltonikaEventHandlers> {
-        for handler in self.event_handlers.iter() {
-            if event_ids
-                .iter()
-                .all(|event_id| handler.get_event_ids().contains(event_id))
-            {
-                return Some(handler);
-            }
-        }
-        return None;
     }
 
     /// Handles a Teltonika [AVLRecord] location.

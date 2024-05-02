@@ -1,4 +1,4 @@
-use super::speed_event_handler;
+use super::{driver_one_card_id_event_handler, speed_event_handler};
 use crate::telematics_cache::Cacheable;
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
@@ -10,6 +10,7 @@ use std::{fmt::Debug, path::Path};
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
 pub enum TeltonikaEventHandlers {
     SpeedEventHandler(speed_event_handler::SpeedEventHandler),
+    DriverOneCardIdEventHandler(driver_one_card_id_event_handler::DriverOneCardIdEventHandler),
 }
 
 impl TeltonikaEventHandlers {
@@ -17,6 +18,7 @@ impl TeltonikaEventHandlers {
     pub fn get_event_ids(&self) -> Vec<u16> {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => handler.get_event_ids(),
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => handler.get_event_ids(),
         }
     }
 
@@ -34,6 +36,11 @@ impl TeltonikaEventHandlers {
                     .handle_events(events, timestamp, truck_id, base_cache_path)
                     .await
             }
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
+                handler
+                    .handle_events(events, timestamp, truck_id, base_cache_path)
+                    .await
+            }
         }
     }
 
@@ -41,6 +48,9 @@ impl TeltonikaEventHandlers {
     pub async fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => {
+                handler.purge_cache(truck_id, base_cache_path).await
+            }
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
                 handler.purge_cache(truck_id, base_cache_path).await
             }
         }
@@ -53,6 +63,7 @@ impl TeltonikaEventHandlers {
 ///
 /// # Type parameters
 /// * `T` - The type of the event data to send to the API or Cache.
+/// * `E` - The type of the error that can occur when sending the event to the API.
 pub trait TeltonikaEventHandler<T, E>
 where
     T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
