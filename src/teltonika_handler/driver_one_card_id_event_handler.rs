@@ -11,6 +11,7 @@ use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_confi
 
 use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
 
+#[derive(Clone, Copy)]
 pub struct DriverOneCardIdEventHandler {}
 
 impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
@@ -20,8 +21,7 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
         vec![195, 196]
     }
 
-    async fn send_event(
-        &self,
+    fn send_event(
         event_data: &TruckDriverCard,
         truck_id: String,
     ) -> Result<(), Error<CreateTruckDriverCardError>> {
@@ -31,15 +31,14 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
                 truck_id: truck_id.clone(),
                 truck_driver_card: event_data.clone(),
             },
-        )
-        .await;
+        );
         match res {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
     }
 
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, _: i64) -> TruckDriverCard {
+    fn process_event_data(events: &Vec<&AVLEventIO>, _: i64) -> TruckDriverCard {
         let driver_one_card_msb = events
             .iter()
             .find(|event| event.id == 195)

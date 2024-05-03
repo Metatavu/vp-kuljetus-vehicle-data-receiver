@@ -34,7 +34,7 @@ pub enum ReceiveTelematicDataError {
 
 
 /// Receives telematic data entry
-pub async fn receive_telematic_data(configuration: &configuration::Configuration, params: ReceiveTelematicDataParams) -> Result<(), Error<ReceiveTelematicDataError>> {
+pub fn receive_telematic_data(configuration: &configuration::Configuration, params: ReceiveTelematicDataParams) -> Result<(), Error<ReceiveTelematicDataError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
@@ -61,10 +61,10 @@ pub async fn receive_telematic_data(configuration: &configuration::Configuration
     local_var_req_builder = local_var_req_builder.json(&telematic_data);
 
     let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let local_var_resp = local_var_client.execute(local_var_req)?;
 
     let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let local_var_content = local_var_resp.text()?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         Ok(())
