@@ -12,7 +12,7 @@ use crate::{
     utils::get_vehicle_management_api_config,
 };
 
-use super::teltonika_event_handlers::TeltonikaEventHandler;
+use super::{teltonika_event_handlers::TeltonikaEventHandler, FromAVLEventIoValue};
 
 pub struct DriverOneDriveStateEventHandler;
 
