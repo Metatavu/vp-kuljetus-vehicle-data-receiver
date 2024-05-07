@@ -10,7 +10,7 @@ use vehicle_management_service::{
 use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
 use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 
-pub struct SpeedEventHandler {}
+pub struct SpeedEventHandler;
 
 impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEventHandler {
     fn get_event_ids(&self) -> Vec<u16> {
