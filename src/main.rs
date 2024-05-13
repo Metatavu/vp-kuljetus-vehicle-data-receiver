@@ -2,15 +2,21 @@ mod telematics_cache;
 mod teltonika_connection;
 mod teltonika_handler;
 mod utils;
+use lazy_static::lazy_static;
 
 use log::info;
 use std::error::Error;
 use tokio::net::TcpListener;
+use tokio_threadpool::{Builder, ThreadPool};
 
 use crate::{
     teltonika_connection::TeltonikaConnection,
     utils::{read_bool_env_variable, read_string_env_variable},
 };
+
+lazy_static! {
+    static ref THREAD_POOL: ThreadPool = Builder::new().pool_size(5).keep_alive(None).build();
+}
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -71,7 +77,7 @@ mod tests {
         MockServer, Regex,
     };
     use log::error;
-    use nom_teltonika::{parser, AVLEventIO, Priority};
+    use nom_teltonika::{parser, AVLEventIO, AVLRecord, Priority};
     use std::str::FromStr;
     use tempfile::tempdir;
     use uuid::Uuid;
@@ -292,7 +298,6 @@ mod tests {
                 max: None,
             },
         )
-        .await
         .unwrap()
         .into_iter()
         .find(|truck| truck.vin == vin.clone().unwrap());
@@ -316,7 +321,7 @@ mod tests {
             .build();
         let packet = AVLFrameBuilder::new().add_record(record).build();
 
-        record_handler.handle_records(packet.records).await;
+        record_handler.handle_records(packet.records);
 
         let base_cache_path = record_handler.get_base_cache_path();
         let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
@@ -339,7 +344,7 @@ mod tests {
             .build();
         let packet = AVLFrameBuilder::new().add_record(record).build();
 
-        record_handler.handle_records(packet.records).await;
+        record_handler.handle_records(packet.records);
 
         {
             let base_cache_path = record_handler.get_base_cache_path();
@@ -350,7 +355,7 @@ mod tests {
             assert_eq!(10.0, first_cached_speed.unwrap().speed);
         }
         record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
+        record_handler.purge_cache();
         {
             let base_cache_path = record_handler.get_base_cache_path();
             let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
@@ -376,7 +381,7 @@ mod tests {
             .with_records([record_1, record_2].to_vec())
             .build();
 
-        record_handler.handle_records(packet.records).await;
+        record_handler.handle_records(packet.records);
 
         {
             let base_cache_path = record_handler.get_base_cache_path();
@@ -400,10 +405,10 @@ mod tests {
             assert_eq!(180.0, location_2.heading);
         }
         record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
+        record_handler.purge_cache();
         {
             let base_cache_path = record_handler.get_base_cache_path();
-            let locations_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+            let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
             assert_eq!(0, locations_cache.len());
         }
     }
@@ -420,7 +425,7 @@ mod tests {
             .with_records([record_1].to_vec())
             .build();
 
-        record_handler.handle_records(packet.records).await;
+        record_handler.handle_records(packet.records);
 
         {
             let base_cache_path = record_handler.get_base_cache_path();
@@ -433,7 +438,7 @@ mod tests {
             assert_eq!("DVF1232950483967", cached_driver_card_event.id);
         }
         record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
+        record_handler.purge_cache();
         {
             let base_cache_path = record_handler.get_base_cache_path();
             let driver_cards_cache =
@@ -441,6 +446,43 @@ mod tests {
 
             assert_eq!(0, driver_cards_cache.len());
         }
+    }
+
+    #[tokio::test]
+    async fn test_thread_pool() {
+        start_vehicle_management_mock();
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .filter_module("reqwest", log::LevelFilter::Off)
+            .filter_module("hyper", log::LevelFilter::Off)
+            .filter_module("httpmock", log::LevelFilter::Off)
+            .try_init()
+            .unwrap();
+        let records = build_n_records(100);
+        let record_handler =
+            get_teltonika_records_handler(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        let packet = AVLFrameBuilder::new().with_records(records).build();
+
+        record_handler.handle_records(packet.records);
+
+        info!("Waiting for thread pool to finish...");
+        std::thread::sleep(std::time::Duration::from_secs(100));
+    }
+
+    fn build_n_records(n: usize) -> Vec<AVLRecord> {
+        let mut records = Vec::new();
+        for _ in 0..n {
+            let record = AVLRecordBuilder::new()
+                .with_priority(Priority::High)
+                .with_io_events(vec![AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(10),
+                }])
+                .build();
+            records.push(record);
+        }
+        return records;
     }
 
     fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
@@ -529,12 +571,17 @@ mod tests {
                     vin: String::from("W1T96302X10704959"),
                 }]);
         });
-
         let _create_truck_speed_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
                 .header("X-API-KEY", "API_KEY");
-            then.status(201);
+            then.status(201).delay(std::time::Duration::from_secs(2));
+        });
+        let _create_truck_location_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/locations").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201).delay(std::time::Duration::from_secs(2));
         });
         let _create_truck_driver_card_mock = mock_server.mock(|when, then| {
             when.method(POST)
@@ -544,7 +591,16 @@ mod tests {
                 .header("X-API-KEY", "API_KEY");
             then.status(201)
                 .header("Content-Type", "application/json")
-                .json_body_obj(&TruckDriverCard { id: String::new() });
+                .json_body_obj(&TruckDriverCard { id: String::new() })
+                .delay(std::time::Duration::from_secs(2));
+        });
+        let _create_truck_drive_state_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path_matches(
+                    Regex::new(r"/vehicle-management/v1/trucks/.{36}/driveStates").unwrap(),
+                )
+                .header("X-API-KEY", "API_KEY");
+            then.status(201).delay(std::time::Duration::from_secs(2));
         });
     }
 }

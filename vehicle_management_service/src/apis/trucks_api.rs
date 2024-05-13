@@ -102,7 +102,7 @@ pub enum DeleteTruckDriverCardError {
 
 
 /// Create new drive state for truck
-pub async fn create_drive_state(configuration: &configuration::Configuration, params: CreateDriveStateParams) -> Result<(), Error<CreateDriveStateError>> {
+pub fn create_drive_state(configuration: &configuration::Configuration, params: CreateDriveStateParams) -> Result<(), Error<CreateDriveStateError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
@@ -129,10 +129,10 @@ pub async fn create_drive_state(configuration: &configuration::Configuration, pa
     local_var_req_builder = local_var_req_builder.json(&truck_drive_state);
 
     let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let local_var_resp = local_var_client.execute(local_var_req)?;
 
     let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let local_var_content = local_var_resp.text()?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         Ok(())
@@ -144,7 +144,7 @@ pub async fn create_drive_state(configuration: &configuration::Configuration, pa
 }
 
 /// Create new truck driver card
-pub async fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
+pub fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
@@ -171,10 +171,10 @@ pub async fn create_truck_driver_card(configuration: &configuration::Configurati
     local_var_req_builder = local_var_req_builder.json(&truck_driver_card);
 
     let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let local_var_resp = local_var_client.execute(local_var_req)?;
 
     let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let local_var_content = local_var_resp.text()?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         serde_json::from_str(&local_var_content).map_err(Error::from)
@@ -186,7 +186,7 @@ pub async fn create_truck_driver_card(configuration: &configuration::Configurati
 }
 
 /// Create new truck location. Used by vehicle data receiver to send truck location data.
-pub async fn create_truck_location(configuration: &configuration::Configuration, params: CreateTruckLocationParams) -> Result<(), Error<CreateTruckLocationError>> {
+pub fn create_truck_location(configuration: &configuration::Configuration, params: CreateTruckLocationParams) -> Result<(), Error<CreateTruckLocationError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
@@ -213,10 +213,10 @@ pub async fn create_truck_location(configuration: &configuration::Configuration,
     local_var_req_builder = local_var_req_builder.json(&truck_location);
 
     let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let local_var_resp = local_var_client.execute(local_var_req)?;
 
     let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let local_var_content = local_var_resp.text()?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         Ok(())
@@ -228,7 +228,7 @@ pub async fn create_truck_location(configuration: &configuration::Configuration,
 }
 
 /// Create new truck speed. Used by vehicle data receiver to send truck speed data.
-pub async fn create_truck_speed(configuration: &configuration::Configuration, params: CreateTruckSpeedParams) -> Result<(), Error<CreateTruckSpeedError>> {
+pub fn create_truck_speed(configuration: &configuration::Configuration, params: CreateTruckSpeedParams) -> Result<(), Error<CreateTruckSpeedError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
@@ -255,10 +255,10 @@ pub async fn create_truck_speed(configuration: &configuration::Configuration, pa
     local_var_req_builder = local_var_req_builder.json(&truck_speed);
 
     let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let local_var_resp = local_var_client.execute(local_var_req)?;
 
     let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let local_var_content = local_var_resp.text()?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         Ok(())
@@ -270,7 +270,7 @@ pub async fn create_truck_speed(configuration: &configuration::Configuration, pa
 }
 
 /// Deletes single truck driver card. Cards are deleted when they are removed from the truck.
-pub async fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
+pub fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
@@ -296,10 +296,10 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
     };
 
     let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let local_var_resp = local_var_client.execute(local_var_req)?;
 
     let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let local_var_content = local_var_resp.text()?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         Ok(())

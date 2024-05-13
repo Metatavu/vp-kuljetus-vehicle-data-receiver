@@ -1,5 +1,9 @@
-use super::{driver_one_card_id_event_handler, speed_event_handler};
-use crate::telematics_cache::Cacheable;
+use super::{
+    driver_one_card_id_event_handler::{self, DriverOneCardIdEventHandler},
+    speed_event_handler::{self, SpeedEventHandler},
+};
+use crate::{telematics_cache::Cacheable, THREAD_POOL};
+use futures::future::lazy;
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
@@ -8,6 +12,7 @@ use std::{fmt::Debug, path::Path};
 /// Enumeration for Teltonika event handlers.
 ///
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
+#[derive(Clone, Copy)]
 pub enum TeltonikaEventHandlers {
     SpeedEventHandler(speed_event_handler::SpeedEventHandler),
     DriverOneCardIdEventHandler(driver_one_card_id_event_handler::DriverOneCardIdEventHandler),
@@ -23,7 +28,7 @@ impl TeltonikaEventHandlers {
     }
 
     /// Handles a Teltonika event.
-    pub async fn handle_events(
+    pub fn handle_events(
         &self,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
@@ -31,27 +36,28 @@ impl TeltonikaEventHandlers {
         base_cache_path: Box<Path>,
     ) {
         match self {
-            TeltonikaEventHandlers::SpeedEventHandler(handler) => {
-                handler
-                    .handle_events(events, timestamp, truck_id, base_cache_path)
-                    .await
+            TeltonikaEventHandlers::SpeedEventHandler(_) => {
+                SpeedEventHandler::handle_events(events, timestamp, truck_id, base_cache_path)
             }
-            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
-                handler
-                    .handle_events(events, timestamp, truck_id, base_cache_path)
-                    .await
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(_) => {
+                DriverOneCardIdEventHandler::handle_events(
+                    events,
+                    timestamp,
+                    truck_id,
+                    base_cache_path,
+                )
             }
         }
     }
 
     /// Purges the cache.
-    pub async fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
+    pub fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => {
-                handler.purge_cache(truck_id, base_cache_path).await
+                handler.purge_cache(truck_id, base_cache_path)
             }
             TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
-                handler.purge_cache(truck_id, base_cache_path).await
+                handler.purge_cache(truck_id, base_cache_path)
             }
         }
     }
@@ -66,8 +72,9 @@ impl TeltonikaEventHandlers {
 /// * `E` - The type of the error that can occur when sending the event to the API.
 pub trait TeltonikaEventHandler<T, E>
 where
-    T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
+    T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug + Send + Sync + 'static,
     E: Debug,
+    Self: Send,
 {
     /// Gets the event ID for the handler.
     fn get_event_ids(&self) -> Vec<u16>;
@@ -81,25 +88,30 @@ where
     /// * `timestamp` - The timestamp of the event.
     /// * `truck_id` - The truck ID of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    async fn handle_events(
-        &self,
+    fn handle_events(
+        // &self,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
         base_cache_path: Box<Path>,
     ) {
-        let event_data = self.process_event_data(&events, timestamp);
-        if let Some(truck_id) = truck_id {
-            debug!("Handling event for truck: {}", truck_id);
-            let send_event_result = self.send_event(&event_data, truck_id).await;
-            if let Err(e) = send_event_result {
-                error!("Error sending event: {:?}. Caching it for further use.", e);
-                self.cache_event_data(event_data, base_cache_path);
-            }
-        } else {
-            debug!("Caching event for yet unknown truck");
-            self.cache_event_data(event_data, base_cache_path);
-        };
+        let event_data = Self::process_event_data(&events, timestamp);
+        let _ = THREAD_POOL.sender().spawn(lazy(|| {
+            if let Some(truck_id) = truck_id {
+                debug!("Handling event for truck: {}", truck_id);
+                let send_event_result = Self::send_event(&event_data, truck_id);
+                if let Err(e) = send_event_result {
+                    error!("Error sending event: {:?}. Caching it for further use.", e);
+                    Self::cache_event_data(event_data, base_cache_path);
+                } else {
+                    debug!("Event sent successfully");
+                }
+            } else {
+                debug!("Caching event for yet unknown truck");
+                Self::cache_event_data(event_data, base_cache_path);
+            };
+            Ok(())
+        }));
     }
 
     /// Caches the event data.
@@ -108,7 +120,11 @@ where
     /// * `event` - The Teltonika event to cache.
     /// * `timestamp` - The timestamp of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    fn cache_event_data(&self, event: T, base_cache_path: Box<Path>) {
+    fn cache_event_data(
+        // &self,
+        event: T,
+        base_cache_path: Box<Path>,
+    ) {
         let cache_result = event.write_to_file(base_cache_path.to_owned().to_str().unwrap());
         if let Err(e) = cache_result {
             panic!("Error caching event: {:?}", e);
@@ -120,7 +136,7 @@ where
     /// # Arguments
     /// * `event_data` - The event data to send.
     /// * `truck_id` - The truck ID of the event.
-    async fn send_event(&self, event_data: &T, truck_id: String) -> Result<(), E>;
+    fn send_event(event_data: &T, truck_id: String) -> Result<(), E>;
 
     /// Processes the event data.
     ///
@@ -131,14 +147,14 @@ where
     ///
     /// # Returns
     /// * The processed event data.
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, timestamp: i64) -> T;
+    fn process_event_data(events: &Vec<&AVLEventIO>, timestamp: i64) -> T;
 
     /// Purges the cache.
     ///
     /// # Arguments
     /// * `truck_id` - The truck ID to purge the cache for.
     /// * `base_cache_path` - The base path to the cache directory.
-    async fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
+    fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
         let cache = T::read_from_file(base_cache_path.to_str().unwrap());
         let mut failed_events: Vec<T> = Vec::new();
 
@@ -153,30 +169,32 @@ where
             cache.len(),
             event_ids
         );
-
-        for cached_event in cache.iter() {
-            let sent_event = self.send_event(cached_event, truck_id.clone()).await;
-            if let Err(err) = sent_event {
-                debug!(
-                    "Failed to send event: {:?}. Adding it to failed events.",
-                    err
-                );
-                failed_events.push(cached_event.clone());
+        let _ = THREAD_POOL.sender().spawn(lazy(move || {
+            for cached_event in cache.iter() {
+                let sent_event = Self::send_event(cached_event, truck_id.clone());
+                if let Err(err) = sent_event {
+                    debug!(
+                        "Failed to send event: {:?}. Adding it to failed events.",
+                        err
+                    );
+                    failed_events.push(cached_event.clone());
+                }
             }
-        }
-        let successful_events_count = cache.len() - failed_events.len();
-        debug!(
-            "Purged {} events for event ids: {} from cache with {} failures",
-            successful_events_count,
-            event_ids,
-            failed_events.len()
-        );
-        T::clear_cache(base_cache_path.to_str().unwrap());
+            let successful_events_count = cache.len() - failed_events.len();
+            debug!(
+                "Purged {} events for event ids: {} from cache with {} failures",
+                successful_events_count,
+                event_ids,
+                failed_events.len()
+            );
+            T::clear_cache(base_cache_path.to_str().unwrap());
 
-        for failed_event in failed_events.iter() {
-            failed_event
-                .write_to_file(base_cache_path.to_owned().to_str().unwrap())
-                .expect("Failed to write cache");
-        }
+            for failed_event in failed_events.iter() {
+                failed_event
+                    .write_to_file(base_cache_path.to_owned().to_str().unwrap())
+                    .expect("Failed to write cache");
+            }
+            Ok(())
+        }));
     }
 }

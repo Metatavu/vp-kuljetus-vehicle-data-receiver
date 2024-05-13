@@ -99,9 +99,7 @@ impl TeltonikaConnection {
                 first: None,
                 max: None,
             },
-        )
-        .await
-        {
+        ) {
             Ok(trucks) => {
                 return trucks
                     .iter()
@@ -184,18 +182,14 @@ impl TeltonikaConnection {
                     self.teltonika_stream
                         .write_frame_ack_async(Some(&frame))
                         .await?;
-
-                    teltonika_records_handler
-                        .handle_records(frame.records)
-                        .await;
-
+                    teltonika_records_handler.handle_records(frame.records);
                     if let Some(id) = &truck_id {
                         info!(
                             "Truck ID found for VIN {}: {}. Purging cache...",
                             truck_vin.clone().unwrap(),
                             id
                         );
-                        teltonika_records_handler.purge_cache().await;
+                        teltonika_records_handler.purge_cache();
                     }
                 }
                 Err(err) => match err.kind() {

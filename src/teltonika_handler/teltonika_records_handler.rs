@@ -5,7 +5,8 @@ use super::{
     speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers,
     teltonika_vin_handler::TeltonikaVinHandler,
 };
-use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
+use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config, THREAD_POOL};
+use futures::future::lazy;
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
@@ -17,6 +18,7 @@ pub struct TeltonikaRecordsHandler {
     base_cache_path: Box<Path>,
     truck_id: Option<String>,
     event_handlers: Vec<TeltonikaEventHandlers>,
+    driver_card_id: Option<String>,
 }
 
 impl TeltonikaRecordsHandler {
@@ -25,6 +27,7 @@ impl TeltonikaRecordsHandler {
         TeltonikaRecordsHandler {
             base_cache_path: base_cache_path.into(),
             truck_id,
+            driver_card_id: None,
             event_handlers: vec![
                 TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler {}),
                 TeltonikaEventHandlers::DriverOneCardIdEventHandler(DriverOneCardIdEventHandler {}),
@@ -83,18 +86,20 @@ impl TeltonikaRecordsHandler {
     }
 
     /// Handles a list of Teltonika [AVLRecord]s.
-    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>) {
+    pub fn handle_records(&self, teltonika_records: Vec<AVLRecord>) {
         for record in teltonika_records.iter() {
-            self.handle_record(record).await;
+            self.handle_record(record);
         }
     }
 
     /// Handles a single Teltonika [AVLRecord].
     ///
     /// This method will iterate over the known event handlers and pass appropriate events to them.
-    pub async fn handle_record(&self, record: &AVLRecord) {
-        self.handle_record_location(record).await;
+    pub fn handle_record(&self, record: &AVLRecord) {
+        self.handle_record_location(record);
         for handler in self.event_handlers.iter() {
+            let truck_id = self.truck_id.clone();
+            let base_cache_path = self.base_cache_path.clone();
             let events = handler
                 .get_event_ids()
                 .iter()
@@ -110,28 +115,24 @@ impl TeltonikaRecordsHandler {
             if events.is_empty() {
                 continue;
             }
-            handler
-                .handle_events(
-                    events,
-                    record.timestamp.timestamp(),
-                    self.truck_id.clone(),
-                    self.base_cache_path.clone(),
-                )
-                .await;
+            handler.handle_events(
+                events,
+                record.timestamp.timestamp(),
+                truck_id.clone(),
+                base_cache_path.clone(),
+            );
         }
     }
     /// Purges the cache if Truck ID is known.
-    pub async fn purge_cache(&self) {
+    pub fn purge_cache(&self) {
         if self.truck_id.is_none() {
             return;
         }
 
-        self.purge_location_cache().await;
+        self.purge_location_cache();
 
         for handler in self.event_handlers.iter() {
-            handler
-                .purge_cache(self.truck_id.clone().unwrap(), self.base_cache_path.clone())
-                .await;
+            handler.purge_cache(self.truck_id.clone().unwrap(), self.base_cache_path.clone());
         }
     }
 
@@ -139,37 +140,41 @@ impl TeltonikaRecordsHandler {
     ///
     /// Locations are separate from other events and are handled differently.
     /// This method will create a [CreateTruckLocationRequest] from the record and send it to the Vehicle Management Service or store in cache if truck ID is not yet known.
-    async fn handle_record_location(&self, record: &AVLRecord) {
+    fn handle_record_location(&self, record: &AVLRecord) {
+        let truck_id = self.truck_id.clone();
+        let base_cache_path = self.base_cache_path.clone();
         let location_data = TruckLocation::from_teltonika_record(record).unwrap();
-        if let Some(truck_id) = self.truck_id.clone() {
-            debug!("Handling location for truck: {}", truck_id);
-            let result = vehicle_management_service::apis::trucks_api::create_truck_location(
-                &get_vehicle_management_api_config(),
-                CreateTruckLocationParams {
-                    truck_id,
-                    truck_location: location_data.clone(),
-                },
-            )
-            .await;
-            if let Err(e) = result {
-                debug!(
-                    "Error sending location: {:?}. Caching it for further use.",
-                    e
+        let _ = THREAD_POOL.sender().spawn(lazy(move || {
+            if let Some(truck_id) = truck_id {
+                debug!("Handling location for truck: {}", truck_id);
+                let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+                    &get_vehicle_management_api_config(),
+                    CreateTruckLocationParams {
+                        truck_id,
+                        truck_location: location_data.clone(),
+                    },
                 );
+                if let Err(e) = result {
+                    debug!(
+                        "Error sending location: {:?}. Caching it for further use.",
+                        e
+                    );
+                    location_data
+                        .write_to_file(base_cache_path.to_str().unwrap())
+                        .expect("Error caching location");
+                }
+            } else {
+                debug!("Caching location for yet unknown truck");
                 location_data
-                    .write_to_file(self.base_cache_path.to_str().unwrap())
+                    .write_to_file(base_cache_path.to_str().unwrap())
                     .expect("Error caching location");
             }
-        } else {
-            debug!("Caching location for yet unknown truck");
-            location_data
-                .write_to_file(self.base_cache_path.to_str().unwrap())
-                .expect("Error caching location");
-        }
+            Ok(())
+        }));
     }
 
     /// Purges the location cache.
-    async fn purge_location_cache(&self) {
+    fn purge_location_cache(&self) {
         let cache = TruckLocation::read_from_file(self.base_cache_path.to_str().unwrap());
         let mut failed_locations = Vec::new();
 
@@ -180,8 +185,7 @@ impl TeltonikaRecordsHandler {
                     truck_id: self.truck_id.clone().unwrap(),
                     truck_location: cached_location.clone(),
                 },
-            )
-            .await;
+            );
             if let Err(e) = result {
                 debug!(
                     "Error sending location: {:?}. Caching it for further use.",

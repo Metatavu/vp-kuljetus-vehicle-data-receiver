@@ -10,6 +10,7 @@ use vehicle_management_service::{
 use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
 use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 
+#[derive(Clone, Copy)]
 pub struct SpeedEventHandler {}
 
 impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEventHandler {
@@ -17,8 +18,7 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         vec![191]
     }
 
-    async fn send_event(
-        &self,
+    fn send_event(
         event_data: &TruckSpeed,
         truck_id: String,
     ) -> Result<(), Error<CreateTruckSpeedError>> {
@@ -29,10 +29,9 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
                 truck_speed: event_data.clone(),
             },
         )
-        .await
     }
 
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, timestamp: i64) -> TruckSpeed {
+    fn process_event_data(events: &Vec<&AVLEventIO>, timestamp: i64) -> TruckSpeed {
         let event = events.first().expect("Received empty speed event");
         TruckSpeed {
             id: None,
