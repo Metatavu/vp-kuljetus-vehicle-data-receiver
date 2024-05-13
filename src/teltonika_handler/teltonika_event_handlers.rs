@@ -1,4 +1,6 @@
-use super::{driver_one_card_id_event_handler, speed_event_handler};
+use super::{
+    driver_one_card_id_event_handler, driver_one_drive_state_event_handler, speed_event_handler,
+};
 use crate::telematics_cache::Cacheable;
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
@@ -11,6 +13,9 @@ use std::{fmt::Debug, path::Path};
 pub enum TeltonikaEventHandlers {
     SpeedEventHandler(speed_event_handler::SpeedEventHandler),
     DriverOneCardIdEventHandler(driver_one_card_id_event_handler::DriverOneCardIdEventHandler),
+    DriverOneDriveStateEventHandler(
+        driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler,
+    ),
 }
 
 impl TeltonikaEventHandlers {
@@ -19,6 +24,9 @@ impl TeltonikaEventHandlers {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => handler.get_event_ids(),
             TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => handler.get_event_ids(),
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler(handler) => {
+                handler.get_event_ids()
+            }
         }
     }
 
@@ -41,6 +49,11 @@ impl TeltonikaEventHandlers {
                     .handle_events(events, timestamp, truck_id, base_cache_path)
                     .await
             }
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler(handler) => {
+                handler
+                    .handle_events(events, timestamp, truck_id, base_cache_path)
+                    .await
+            }
         }
     }
 
@@ -51,6 +64,9 @@ impl TeltonikaEventHandlers {
                 handler.purge_cache(truck_id, base_cache_path).await
             }
             TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
+                handler.purge_cache(truck_id, base_cache_path).await
+            }
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler(handler) => {
                 handler.purge_cache(truck_id, base_cache_path).await
             }
         }

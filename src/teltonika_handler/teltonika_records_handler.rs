@@ -2,6 +2,7 @@ use std::path::Path;
 
 use super::{
     driver_one_card_id_event_handler::DriverOneCardIdEventHandler,
+    driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler,
     speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers,
     teltonika_vin_handler::TeltonikaVinHandler,
 };
@@ -26,8 +27,11 @@ impl TeltonikaRecordsHandler {
             base_cache_path: base_cache_path.into(),
             truck_id,
             event_handlers: vec![
-                TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler {}),
-                TeltonikaEventHandlers::DriverOneCardIdEventHandler(DriverOneCardIdEventHandler {}),
+                TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler),
+                TeltonikaEventHandlers::DriverOneCardIdEventHandler(DriverOneCardIdEventHandler),
+                TeltonikaEventHandlers::DriverOneDriveStateEventHandler(
+                    DriverOneDriveStateEventHandler,
+                ),
             ],
         }
     }
@@ -107,7 +111,8 @@ impl TeltonikaRecordsHandler {
                 })
                 .flatten()
                 .collect::<Vec<&AVLEventIO>>();
-            if events.is_empty() {
+            // If we don't have any events or the number of events is not the same as the number of event IDs, we skip the handler
+            if events.is_empty() || handler.get_event_ids().len() != events.len() {
                 continue;
             }
             handler

@@ -77,7 +77,10 @@ mod tests {
     use uuid::Uuid;
     use vehicle_management_service::{
         apis::public_trucks_api::ListPublicTrucksParams,
-        models::{PublicTruck, TruckDriverCard, TruckLocation, TruckSpeed},
+        models::{
+            PublicTruck, TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation,
+            TruckSpeed,
+        },
     };
 
     #[test]
@@ -443,6 +446,49 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_driver_one_card_drive_state_handling() {
+        start_vehicle_management_mock();
+        let mut record_handler = get_teltonika_records_handler(None);
+        let driver_card_events = driver_card_id_to_two_part_events("DVF1232950483967".to_string());
+        let record_1 = AVLRecordBuilder::new()
+            .with_io_events(driver_card_events.to_vec())
+            .add_io_event(AVLEventIO {
+                id: 184,
+                value: nom_teltonika::AVLEventIOValue::U8(3),
+            })
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record_1].to_vec())
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let driver_cards_cache =
+                TruckDriveState::read_from_file(base_cache_path.to_str().unwrap());
+            let cached_driver_card_event = driver_cards_cache.get(0);
+            assert_eq!(1, driver_cards_cache.len());
+            assert!(cached_driver_card_event.is_some());
+            let cached_driver_card_event = cached_driver_card_event.unwrap();
+            assert_eq!(
+                "DVF1232950483967",
+                cached_driver_card_event.driver_card_id.clone().unwrap()
+            );
+            assert_eq!(TruckDriveStateEnum::Drive, cached_driver_card_event.state);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let driver_cards_cache =
+                TruckDriveState::read_from_file(base_cache_path.to_str().unwrap());
+
+            assert_eq!(0, driver_cards_cache.len());
+        }
+    }
+
     fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
         let driver_card_id_bytes = driver_card_id.as_bytes();
         let driver_card_id_lsb = u64::from_be_bytes([
@@ -545,6 +591,14 @@ mod tests {
             then.status(201)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&TruckDriverCard { id: String::new() });
+        });
+        let _create_truck_drive_state_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path_matches(
+                    Regex::new(r"/vehicle-management/v1/trucks/.{36}/driveState").unwrap(),
+                )
+                .header("X-API-KEY", "API_KEY");
+            then.status(201);
         });
     }
 }

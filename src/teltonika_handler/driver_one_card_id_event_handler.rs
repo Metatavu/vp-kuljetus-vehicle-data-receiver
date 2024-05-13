@@ -9,9 +9,11 @@ use vehicle_management_service::{
 
 use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 
-use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
+use super::{
+    driver_card_events_to_truck_driver_card, teltonika_event_handlers::TeltonikaEventHandler,
+};
 
-pub struct DriverOneCardIdEventHandler {}
+pub struct DriverOneCardIdEventHandler;
 
 impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
     for DriverOneCardIdEventHandler
@@ -40,32 +42,7 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
     }
 
     fn process_event_data(&self, events: &Vec<&AVLEventIO>, _: i64) -> TruckDriverCard {
-        let driver_one_card_msb = events
-            .iter()
-            .find(|event| event.id == 195)
-            .expect("Driver one card MSB event not found");
-        let driver_one_card_lsb = events
-            .iter()
-            .find(|event| event.id == 196)
-            .expect("Driver one card LSB event not found");
-        let driver_one_card_msb =
-            avl_event_io_value_to_u64(&driver_one_card_msb.value).to_be_bytes();
-        let driver_one_card_lsb =
-            avl_event_io_value_to_u64(&driver_one_card_lsb.value).to_be_bytes();
-        let driver_one_card_part_1 = driver_one_card_msb
-            .iter()
-            .rev()
-            .map(|byte| *byte as char)
-            .collect::<String>();
-        let driver_one_card_part_2 = driver_one_card_lsb
-            .iter()
-            .rev()
-            .map(|byte| *byte as char)
-            .collect::<String>();
-
-        return TruckDriverCard {
-            id: driver_one_card_part_2 + &driver_one_card_part_1,
-        };
+        return driver_card_events_to_truck_driver_card(events);
     }
 }
 
