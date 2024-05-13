@@ -1,8 +1,8 @@
 use vehicle_management_service::apis::configuration::Configuration;
 
-pub mod avl_record_builder;
 pub mod avl_frame_builder;
 pub mod avl_packet;
+pub mod avl_record_builder;
 
 #[cfg(test)]
 pub mod imei;
@@ -41,7 +41,7 @@ pub fn str_to_bytes(input: &str) -> Vec<u8> {
 pub fn read_string_env_variable(key: &str) -> String {
     match std::env::var(key) {
         Ok(value) => value,
-        Err(_) => panic!("{} environment variable not set", key)
+        Err(_) => panic!("{} environment variable not set", key),
     }
 }
 
@@ -57,7 +57,7 @@ pub fn read_string_env_variable(key: &str) -> String {
 pub fn read_bool_env_variable(key: &str) -> bool {
     match std::env::var(key) {
         Ok(value) => value.parse().unwrap(),
-        Err(_) => panic!("{} environment variable not set", key)
+        Err(_) => panic!("{} environment variable not set", key),
     }
 }
 
@@ -67,12 +67,12 @@ pub fn read_bool_env_variable(key: &str) -> bool {
 /// * [`Configuration`] - The API configuration
 pub fn get_vehicle_management_api_config() -> Configuration {
     let api_key = vehicle_management_service::apis::configuration::ApiKey {
-      prefix: None,
-      key: read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY")
+        prefix: None,
+        key: read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY"),
     };
     Configuration {
-      base_path: read_string_env_variable("API_BASE_URL"),
-      api_key: Some(api_key),
-      ..Default::default()
+        base_path: read_string_env_variable("API_BASE_URL"),
+        api_key: Some(api_key),
+        ..Default::default()
     }
 }

@@ -1,13 +1,16 @@
-mod utils;
-mod teltonika_handler;
 mod telematics_cache;
 mod teltonika_connection;
+mod teltonika_handler;
+mod utils;
 
-use std::error::Error;
 use log::info;
+use std::error::Error;
 use tokio::net::TcpListener;
 
-use crate::{teltonika_connection::TeltonikaConnection, utils::{read_bool_env_variable, read_string_env_variable}};
+use crate::{
+    teltonika_connection::TeltonikaConnection,
+    utils::{read_bool_env_variable, read_string_env_variable},
+};
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -15,7 +18,7 @@ use crate::{teltonika_connection::TeltonikaConnection, utils::{read_bool_env_var
 /// processes the data and sends it to the VP-Kuljetus Vehicle Management Service API.
 ///
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>>{
+async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
     let file_path = read_string_env_variable("BASE_FILE_PATH");
     let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
@@ -35,8 +38,8 @@ async fn main() -> Result<(), Box<dyn Error>>{
     loop {
         let (socket, _) = listener.accept().await?;
         let base_file_path = match write_to_file {
-          true => file_path.clone(),
-          false => "".to_string()
+            true => file_path.clone(),
+            false => "".to_string(),
         };
 
         tokio::spawn(async move {
@@ -50,18 +53,32 @@ async fn main() -> Result<(), Box<dyn Error>>{
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use httpmock::{Method::{GET, POST}, MockServer, Regex};
-    use log::error;
-    use nom_teltonika::{parser, AVLEventIO, Priority};
-    use tempfile::tempdir;
-    use uuid::Uuid;
-    use vehicle_management_service::{apis::public_trucks_api::ListPublicTrucksParams, models::{PublicTruck, TruckLocation, TruckSpeed}};
-    use crate::{telematics_cache::Cacheable, utils::{
-        avl_frame_builder::*, avl_packet::*, avl_record_builder::avl_record_builder::*, get_vehicle_management_api_config, imei::{build_valid_imei_packet, get_random_imei_of_length, *}, str_to_bytes
-    }};
     use self::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
     use super::*;
+    use crate::{
+        telematics_cache::Cacheable,
+        utils::{
+            avl_frame_builder::*,
+            avl_packet::*,
+            avl_record_builder::avl_record_builder::*,
+            get_vehicle_management_api_config,
+            imei::{build_valid_imei_packet, get_random_imei_of_length, *},
+            str_to_bytes,
+        },
+    };
+    use httpmock::{
+        Method::{GET, POST},
+        MockServer, Regex,
+    };
+    use log::error;
+    use nom_teltonika::{parser, AVLEventIO, Priority};
+    use std::str::FromStr;
+    use tempfile::tempdir;
+    use uuid::Uuid;
+    use vehicle_management_service::{
+        apis::public_trucks_api::ListPublicTrucksParams,
+        models::{PublicTruck, TruckLocation, TruckSpeed},
+    };
 
     #[test]
     fn test_valid_imei() {
@@ -100,17 +117,12 @@ mod tests {
     fn test_valid_packet() {
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::Panic)
-            .with_io_events(vec![
-                AVLEventIO {
-                    id: 10,
-                    value: nom_teltonika::AVLEventIOValue::U8(10),
-                }
-            ])
+            .with_io_events(vec![AVLEventIO {
+                id: 10,
+                value: nom_teltonika::AVLEventIOValue::U8(10),
+            }])
             .build();
-        let packet = AVLFrameBuilder::new()
-            .add_record(record)
-            .build()
-            .to_bytes();
+        let packet = AVLFrameBuilder::new().add_record(record).build().to_bytes();
 
         let example_packet_str = "000000000000003608010000016B40D8EA30010000000000000000000000000000000105021503010101425E0F01F10000601A014E0000000000000000010000C7CF";
         let example_packet = str_to_bytes(example_packet_str);
@@ -157,7 +169,8 @@ mod tests {
             .add_record(record_without_vin)
             .build();
 
-        let missing_vin = record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
+        let missing_vin =
+            record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
 
         assert_eq!(missing_vin, None);
     }
@@ -186,7 +199,8 @@ mod tests {
             .add_record(record_without_vin)
             .build();
 
-        let missing_vin = record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
+        let missing_vin =
+            record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
 
         assert_eq!(missing_vin, None);
     }
@@ -211,9 +225,8 @@ mod tests {
                 },
             ])
             .build();
-        let packet_with_record_with_vin = AVLFrameBuilder::new()
-            .add_record(record_with_vin)
-            .build();
+        let packet_with_record_with_vin =
+            AVLFrameBuilder::new().add_record(record_with_vin).build();
 
         let vin = record_handler.get_truck_vin_from_records(&packet_with_record_with_vin.records);
 
@@ -261,7 +274,8 @@ mod tests {
             .with_records([record_with_vin_1, record_with_vin_2].to_vec())
             .build();
 
-        let vin = record_handler.get_truck_vin_from_records(&packet_with_multiple_records_with_vin.records);
+        let vin = record_handler
+            .get_truck_vin_from_records(&packet_with_multiple_records_with_vin.records);
 
         assert_eq!("W1T96302X10704959", vin.unwrap());
     }
@@ -275,8 +289,8 @@ mod tests {
             ListPublicTrucksParams {
                 vin: vin.clone(),
                 first: None,
-                max: None
-            }
+                max: None,
+            },
         )
         .await
         .unwrap()
@@ -284,7 +298,10 @@ mod tests {
         .find(|truck| truck.vin == vin.clone().unwrap());
 
         assert!(truck.is_some());
-        assert_eq!(uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap(), truck.unwrap().id.unwrap());
+        assert_eq!(
+            uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap(),
+            truck.unwrap().id.unwrap()
+        );
     }
 
     #[tokio::test]
@@ -292,16 +309,12 @@ mod tests {
         let record_handler = get_teltonika_records_handler(None);
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::High)
-            .with_io_events(vec![
-                AVLEventIO {
-                    id: 191,
-                    value: nom_teltonika::AVLEventIOValue::U16(10),
-                },
-            ])
+            .with_io_events(vec![AVLEventIO {
+                id: 191,
+                value: nom_teltonika::AVLEventIOValue::U16(10),
+            }])
             .build();
-        let packet = AVLFrameBuilder::new()
-            .add_record(record)
-            .build();
+        let packet = AVLFrameBuilder::new().add_record(record).build();
 
         record_handler.handle_records(packet.records).await;
 
@@ -319,16 +332,12 @@ mod tests {
         let mut record_handler = get_teltonika_records_handler(None);
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::High)
-            .with_io_events(vec![
-                AVLEventIO {
-                    id: 191,
-                    value: nom_teltonika::AVLEventIOValue::U16(10),
-                },
-            ])
+            .with_io_events(vec![AVLEventIO {
+                id: 191,
+                value: nom_teltonika::AVLEventIOValue::U16(10),
+            }])
             .build();
-        let packet = AVLFrameBuilder::new()
-            .add_record(record)
-            .build();
+        let packet = AVLFrameBuilder::new().add_record(record).build();
 
         record_handler.handle_records(packet.records).await;
 
@@ -373,8 +382,14 @@ mod tests {
             let base_cache_path = record_handler.get_base_cache_path();
             let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
 
-            let location_1 = locations_cache.iter().find(|location| location.heading == 810.0).unwrap();
-            let location_2 = locations_cache.iter().find(|location| location.heading == 180.0).unwrap();
+            let location_1 = locations_cache
+                .iter()
+                .find(|location| location.heading == 810.0)
+                .unwrap();
+            let location_2 = locations_cache
+                .iter()
+                .find(|location| location.heading == 180.0)
+                .unwrap();
 
             assert_eq!(2, locations_cache.len());
             assert_eq!(61.68779453479687, location_1.longitude);
@@ -406,7 +421,7 @@ mod tests {
             Ok((_, imei)) => {
                 info!("New client connected with IMEI: [{:?}]", imei);
                 return (true, Some(imei));
-            },
+            }
             Err(_) => {
                 error!("Failed to parse IMEI from buffer");
                 return (false, None);
@@ -421,7 +436,7 @@ mod tests {
         let test_cache_dir = tempdir().unwrap();
         let test_cache_path = test_cache_dir.path();
 
-        return TeltonikaRecordsHandler::new( test_cache_path, truck_id);
+        return TeltonikaRecordsHandler::new(test_cache_path, truck_id);
     }
 
     /// Starts a mock server for the Vehicle Management Service
@@ -439,7 +454,7 @@ mod tests {
                 .header("X-API-KEY", "API_KEY");
             then.status(200)
                 .header("Content-Type", "application/json")
-                .json_body_obj(&[PublicTruck{
+                .json_body_obj(&[PublicTruck {
                     id: Some(Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
                     name: Some(String::from("1")),
                     plate_number: String::from("ABC-123"),
