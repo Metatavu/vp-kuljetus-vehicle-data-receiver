@@ -1,11 +1,13 @@
+use std::path::Path;
+
 use super::{
+    driver_one_card_id_event_handler::DriverOneCardIdEventHandler,
     speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers,
     teltonika_vin_handler::TeltonikaVinHandler,
 };
 use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 use log::debug;
-use nom_teltonika::{AVLEventIOValue, AVLRecord};
-use std::path::Path;
+use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
     apis::trucks_api::CreateTruckLocationParams, models::TruckLocation,
 };
@@ -23,9 +25,10 @@ impl TeltonikaRecordsHandler {
         TeltonikaRecordsHandler {
             base_cache_path: base_cache_path.into(),
             truck_id,
-            event_handlers: vec![TeltonikaEventHandlers::SpeedEventHandler(
-                SpeedEventHandler {},
-            )],
+            event_handlers: vec![
+                TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler {}),
+                TeltonikaEventHandlers::DriverOneCardIdEventHandler(DriverOneCardIdEventHandler {}),
+            ],
         }
     }
 
@@ -88,25 +91,35 @@ impl TeltonikaRecordsHandler {
 
     /// Handles a single Teltonika [AVLRecord].
     ///
-    /// This method will iterate over the IO events in the record and call the appropriate handler for each event.
+    /// This method will iterate over the known event handlers and pass appropriate events to them.
     pub async fn handle_record(&self, record: &AVLRecord) {
         self.handle_record_location(record).await;
-        for event in record.io_events.iter() {
-            if let Some(handler) = self.get_event_handler(event.id) {
-                handler
-                    .handle_event(
-                        &event,
-                        record.timestamp.timestamp(),
-                        self.truck_id.clone(),
-                        self.base_cache_path.clone(),
-                    )
-                    .await;
-            } else {
-                debug!("No handler found for event id: {}", event.id);
+        for handler in self.event_handlers.iter() {
+            let events = handler
+                .get_event_ids()
+                .iter()
+                .map(|id| {
+                    record
+                        .io_events
+                        .iter()
+                        .filter(|event| event.id == *id)
+                        .collect::<Vec<&AVLEventIO>>()
+                })
+                .flatten()
+                .collect::<Vec<&AVLEventIO>>();
+            if events.is_empty() {
+                continue;
             }
+            handler
+                .handle_events(
+                    events,
+                    record.timestamp.timestamp(),
+                    self.truck_id.clone(),
+                    self.base_cache_path.clone(),
+                )
+                .await;
         }
     }
-
     /// Purges the cache if Truck ID is known.
     pub async fn purge_cache(&self) {
         if self.truck_id.is_none() {
@@ -120,22 +133,6 @@ impl TeltonikaRecordsHandler {
                 .purge_cache(self.truck_id.clone().unwrap(), self.base_cache_path.clone())
                 .await;
         }
-    }
-
-    /// Gets the event handler for a specific event ID.
-    ///
-    /// # Arguments
-    /// * `event_id` - The event ID to get the handler for.
-    ///
-    /// # Returns
-    /// * The event handler if found, otherwise None.
-    fn get_event_handler(&self, event_id: u16) -> Option<&TeltonikaEventHandlers> {
-        for handler in self.event_handlers.iter() {
-            if handler.get_event_id() == event_id {
-                return Some(handler);
-            }
-        }
-        return None;
     }
 
     /// Handles a Teltonika [AVLRecord] location.
@@ -211,13 +208,6 @@ impl TeltonikaRecordsHandler {
 /// Implementation of [Cacheable] for [CreateTruckLocationRequest].
 impl Cacheable for TruckLocation {
     const FILE_PATH: &'static str = "truck_location_cache.json";
-
-    fn from_teltonika_event(_value: &AVLEventIOValue, _timestamp: i64) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        None
-    }
 
     fn from_teltonika_record(record: &AVLRecord) -> Option<Self>
     where

@@ -77,7 +77,7 @@ mod tests {
     use uuid::Uuid;
     use vehicle_management_service::{
         apis::public_trucks_api::ListPublicTrucksParams,
-        models::{PublicTruck, TruckLocation, TruckSpeed},
+        models::{PublicTruck, TruckDriverCard, TruckLocation, TruckSpeed},
     };
 
     #[test]
@@ -408,6 +408,74 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_driver_one_card_id_handling() {
+        start_vehicle_management_mock();
+        let mut record_handler = get_teltonika_records_handler(None);
+        let driver_card_events = driver_card_id_to_two_part_events("DVF1232950483967".to_string());
+        let record_1 = AVLRecordBuilder::new()
+            .with_io_events(driver_card_events.to_vec())
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record_1].to_vec())
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let driver_cards_cache =
+                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
+            let cached_driver_card_event = driver_cards_cache.get(0);
+            assert_eq!(1, driver_cards_cache.len());
+            assert!(cached_driver_card_event.is_some());
+            let cached_driver_card_event = cached_driver_card_event.unwrap();
+            assert_eq!("DVF1232950483967", cached_driver_card_event.id);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let driver_cards_cache =
+                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
+
+            assert_eq!(0, driver_cards_cache.len());
+        }
+    }
+
+    fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
+        let driver_card_id_bytes = driver_card_id.as_bytes();
+        let driver_card_id_lsb = u64::from_be_bytes([
+            driver_card_id_bytes[7],
+            driver_card_id_bytes[6],
+            driver_card_id_bytes[5],
+            driver_card_id_bytes[4],
+            driver_card_id_bytes[3],
+            driver_card_id_bytes[2],
+            driver_card_id_bytes[1],
+            driver_card_id_bytes[0],
+        ]);
+        let driver_card_id_msb = u64::from_be_bytes([
+            driver_card_id_bytes[15],
+            driver_card_id_bytes[14],
+            driver_card_id_bytes[13],
+            driver_card_id_bytes[12],
+            driver_card_id_bytes[11],
+            driver_card_id_bytes[10],
+            driver_card_id_bytes[9],
+            driver_card_id_bytes[8],
+        ]);
+        let driver_card_id_msb_event = AVLEventIO {
+            id: 195,
+            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_msb),
+        };
+        let driver_card_id_lsb_event = AVLEventIO {
+            id: 196,
+            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_lsb),
+        };
+        return [driver_card_id_msb_event, driver_card_id_lsb_event];
+    }
+
     /// Reads IMEI from the buffer
     ///
     /// # Arguments
@@ -466,9 +534,17 @@ mod tests {
             when.method(POST)
                 .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
                 .header("X-API-KEY", "API_KEY");
+            then.status(201);
+        });
+        let _create_truck_driver_card_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path_matches(
+                    Regex::new(r"/vehicle-management/v1/trucks/.{36}/driverCards").unwrap(),
+                )
+                .header("X-API-KEY", "API_KEY");
             then.status(201)
                 .header("Content-Type", "application/json")
-                .json_body_obj(&());
+                .json_body_obj(&TruckDriverCard { id: String::new() });
         });
     }
 }

@@ -1,4 +1,4 @@
-use nom_teltonika::{AVLEventIOValue, AVLRecord};
+use nom_teltonika::AVLRecord;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::create_dir_all,
@@ -10,10 +10,6 @@ use std::{
 pub trait Cacheable {
     /// File path to store the cache
     const FILE_PATH: &'static str;
-
-    fn from_teltonika_event(value: &AVLEventIOValue, timestamp: i64) -> Option<Self>
-    where
-        Self: Sized;
 
     fn from_teltonika_record(record: &AVLRecord) -> Option<Self>
     where

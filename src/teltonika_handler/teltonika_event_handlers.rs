@@ -1,7 +1,7 @@
-use super::speed_event_handler;
+use super::{driver_one_card_id_event_handler, speed_event_handler};
 use crate::telematics_cache::Cacheable;
 use log::{debug, error};
-use nom_teltonika::{AVLEventIO, AVLEventIOValue};
+use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, path::Path};
 
@@ -10,20 +10,22 @@ use std::{fmt::Debug, path::Path};
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
 pub enum TeltonikaEventHandlers {
     SpeedEventHandler(speed_event_handler::SpeedEventHandler),
+    DriverOneCardIdEventHandler(driver_one_card_id_event_handler::DriverOneCardIdEventHandler),
 }
 
 impl TeltonikaEventHandlers {
     /// Gets the event ID for the handler.
-    pub fn get_event_id(&self) -> u16 {
+    pub fn get_event_ids(&self) -> Vec<u16> {
         match self {
-            TeltonikaEventHandlers::SpeedEventHandler(handler) => handler.get_event_id(),
+            TeltonikaEventHandlers::SpeedEventHandler(handler) => handler.get_event_ids(),
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => handler.get_event_ids(),
         }
     }
 
     /// Handles a Teltonika event.
-    pub async fn handle_event(
+    pub async fn handle_events(
         &self,
-        event: &AVLEventIO,
+        events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
         base_cache_path: Box<Path>,
@@ -31,7 +33,12 @@ impl TeltonikaEventHandlers {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => {
                 handler
-                    .handle_event(event, timestamp, truck_id, base_cache_path)
+                    .handle_events(events, timestamp, truck_id, base_cache_path)
+                    .await
+            }
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
+                handler
+                    .handle_events(events, timestamp, truck_id, base_cache_path)
                     .await
             }
         }
@@ -41,6 +48,9 @@ impl TeltonikaEventHandlers {
     pub async fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => {
+                handler.purge_cache(truck_id, base_cache_path).await
+            }
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
                 handler.purge_cache(truck_id, base_cache_path).await
             }
         }
@@ -53,13 +63,14 @@ impl TeltonikaEventHandlers {
 ///
 /// # Type parameters
 /// * `T` - The type of the event data to send to the API or Cache.
+/// * `E` - The type of the error that can occur when sending the event to the API.
 pub trait TeltonikaEventHandler<T, E>
 where
     T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
     E: Debug,
 {
     /// Gets the event ID for the handler.
-    fn get_event_id(&self) -> u16;
+    fn get_event_ids(&self) -> Vec<u16>;
 
     /// Handles a Teltonika event.
     ///
@@ -70,24 +81,24 @@ where
     /// * `timestamp` - The timestamp of the event.
     /// * `truck_id` - The truck ID of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    async fn handle_event(
+    async fn handle_events(
         &self,
-        event: &AVLEventIO,
+        events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
         base_cache_path: Box<Path>,
     ) {
+        let event_data = self.process_event_data(&events, timestamp);
         if let Some(truck_id) = truck_id {
             debug!("Handling event for truck: {}", truck_id);
-            let event_data = self.process_event_data(&event.value, timestamp);
-            let send_event_result = self.send_event(event_data, truck_id).await;
+            let send_event_result = self.send_event(&event_data, truck_id).await;
             if let Err(e) = send_event_result {
                 error!("Error sending event: {:?}. Caching it for further use.", e);
-                self.cache_event_data(event, timestamp, base_cache_path);
+                self.cache_event_data(event_data, base_cache_path);
             }
         } else {
             debug!("Caching event for yet unknown truck");
-            self.cache_event_data(event, timestamp, base_cache_path);
+            self.cache_event_data(event_data, base_cache_path);
         };
     }
 
@@ -97,10 +108,8 @@ where
     /// * `event` - The Teltonika event to cache.
     /// * `timestamp` - The timestamp of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    fn cache_event_data(&self, event: &AVLEventIO, timestamp: i64, base_cache_path: Box<Path>) {
-        let cache_result = T::from_teltonika_event(&event.value, timestamp)
-            .expect("Error parsing event")
-            .write_to_file(base_cache_path.to_owned().to_str().unwrap());
+    fn cache_event_data(&self, event: T, base_cache_path: Box<Path>) {
+        let cache_result = event.write_to_file(base_cache_path.to_owned().to_str().unwrap());
         if let Err(e) = cache_result {
             panic!("Error caching event: {:?}", e);
         }
@@ -111,7 +120,7 @@ where
     /// # Arguments
     /// * `event_data` - The event data to send.
     /// * `truck_id` - The truck ID of the event.
-    async fn send_event(&self, event_data: T, truck_id: String) -> Result<(), E>;
+    async fn send_event(&self, event_data: &T, truck_id: String) -> Result<(), E>;
 
     /// Processes the event data.
     ///
@@ -122,7 +131,7 @@ where
     ///
     /// # Returns
     /// * The processed event data.
-    fn process_event_data(&self, event: &AVLEventIOValue, timestamp: i64) -> T;
+    fn process_event_data(&self, events: &Vec<&AVLEventIO>, timestamp: i64) -> T;
 
     /// Purges the cache.
     ///
@@ -133,17 +142,20 @@ where
         let cache = T::read_from_file(base_cache_path.to_str().unwrap());
         let mut failed_events: Vec<T> = Vec::new();
 
-        let event_id = self.get_event_id();
+        let event_ids = self
+            .get_event_ids()
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
         debug!(
-            "Purging cache of {} events for event id: {}",
+            "Purging cache of {} events for event ids: {}",
             cache.len(),
-            event_id
+            event_ids
         );
 
         for cached_event in cache.iter() {
-            let sent_event = self
-                .send_event(cached_event.clone(), truck_id.clone())
-                .await;
+            let sent_event = self.send_event(cached_event, truck_id.clone()).await;
             if let Err(err) = sent_event {
                 debug!(
                     "Failed to send event: {:?}. Adding it to failed events.",
@@ -154,9 +166,9 @@ where
         }
         let successful_events_count = cache.len() - failed_events.len();
         debug!(
-            "Purged {} events for event id: {} from cache with {} failures",
+            "Purged {} events for event ids: {} from cache with {} failures",
             successful_events_count,
-            event_id,
+            event_ids,
             failed_events.len()
         );
         T::clear_cache(base_cache_path.to_str().unwrap());
