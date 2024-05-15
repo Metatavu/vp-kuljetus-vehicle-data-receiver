@@ -37,7 +37,17 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
         .await;
         match res {
             Ok(_) => Ok(()),
-            Err(e) => Err(e),
+            Err(error) => match &error {
+                // API returns a 409 if the truck already has a driver card. At least for now, swallow them silently and continue.
+                Error::ResponseError(err) => {
+                    if err.status.as_u16() == reqwest::StatusCode::CONFLICT {
+                        return Ok(());
+                    } else {
+                        return Err(error);
+                    }
+                }
+                _ => Err(error),
+            },
         }
     }
 
