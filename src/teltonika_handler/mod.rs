@@ -31,32 +31,42 @@ fn avl_event_io_value_to_u64(value: &AVLEventIOValue) -> u64 {
 }
 
 /// Converts a list of [AVLEventIO] to a [TruckDriverCard].
+///
+/// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
 fn driver_card_events_to_truck_driver_card(events: &Vec<&AVLEventIO>) -> TruckDriverCard {
-    let driver_one_card_msb = events
-        .iter()
-        .find(|event| event.id == 195)
-        .expect("Driver one card MSB event not found");
-    let driver_one_card_lsb = events
-        .iter()
-        .find(|event| event.id == 196)
-        .expect("Driver one card LSB event not found");
-    let driver_one_card_msb = avl_event_io_value_to_u64(&driver_one_card_msb.value).to_be_bytes();
-    let driver_one_card_lsb = avl_event_io_value_to_u64(&driver_one_card_lsb.value).to_be_bytes();
-    let driver_one_card_part_1 = driver_one_card_msb
-        .iter()
-        .rev()
-        .map(|byte| *byte as char)
-        .collect::<String>();
-    let driver_one_card_part_2 = driver_one_card_lsb
-        .iter()
-        .rev()
-        .map(|byte| *byte as char)
-        .collect::<String>();
-    let id = driver_one_card_part_2 + &driver_one_card_part_1;
+    let driver_card_msb_part = driver_card_part_from_event(events, 195);
+    let driver_card_lsb_part = driver_card_part_from_event(events, 196);
+    let id = format!("{}{}", driver_card_msb_part, driver_card_lsb_part);
 
     assert!(id.len() == 16);
 
     return TruckDriverCard { id };
+}
+/// Converts a Driver Card part [AVLEventIO] to a String.
+///
+/// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
+fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
+    let driver_one_card_msb = avl_event_io_value_to_u64(&event.value)
+        .to_be_bytes()
+        .to_vec();
+    let Ok(test) = String::from_utf8(driver_one_card_msb) else {
+        panic!("Invalid driver one card data");
+    };
+    let test = test.chars().rev().collect::<String>();
+
+    return test;
+}
+
+/// Returns a driver card part as String from a list of [AVLEventIO].
+///
+/// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
+fn driver_card_part_from_event(events: &Vec<&AVLEventIO>, event_id: u16) -> String {
+    let driver_card_part = events
+        .iter()
+        .find(|event| event.id == event_id)
+        .expect(&format!("Driver card part event not found {event_id}"));
+
+    return driver_card_part_event_to_string(driver_card_part);
 }
 
 /// Trait for converting an [AVLEventIOValue] to a value used by Vehicle Management API.
