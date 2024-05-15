@@ -413,14 +413,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_driver_one_card_id_handling() {
+        let valid_driver_card_id = "0000000111020489".to_string();
+        let valid_driver_card_id_2 = "0A00Y00111020488".to_string();
         start_vehicle_management_mock();
         let mut record_handler = get_teltonika_records_handler(None);
-        let driver_card_events = driver_card_id_to_two_part_events("DVF1232950483967".to_string());
-        let record_1 = AVLRecordBuilder::new()
+        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
+        let record = AVLRecordBuilder::new()
             .with_io_events(driver_card_events.to_vec())
             .build();
         let packet = AVLFrameBuilder::new()
-            .with_records([record_1].to_vec())
+            .with_records([record].to_vec())
             .build();
 
         record_handler.handle_records(packet.records).await;
@@ -433,7 +435,7 @@ mod tests {
             assert_eq!(1, driver_cards_cache.len());
             assert!(cached_driver_card_event.is_some());
             let cached_driver_card_event = cached_driver_card_event.unwrap();
-            assert_eq!("DVF1232950483967", cached_driver_card_event.id);
+            assert_eq!(valid_driver_card_id, cached_driver_card_event.id);
         }
         record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
         record_handler.purge_cache().await;
@@ -444,13 +446,36 @@ mod tests {
 
             assert_eq!(0, driver_cards_cache.len());
         }
+        // Test that a driver card id containing more than just numbers is also handled correctly
+        record_handler.set_truck_id(None);
+        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id_2.clone());
+        let record = AVLRecordBuilder::new()
+            .with_io_events(driver_card_events.to_vec())
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record].to_vec())
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let driver_cards_cache =
+                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
+            let cached_driver_card_event = driver_cards_cache.get(0);
+            assert_eq!(1, driver_cards_cache.len());
+            assert!(cached_driver_card_event.is_some());
+            let cached_driver_card_event = cached_driver_card_event.unwrap();
+            assert_eq!(valid_driver_card_id_2, cached_driver_card_event.id);
+        }
     }
 
     #[tokio::test]
     async fn test_driver_one_card_drive_state_handling() {
+        let valid_driver_card_id = "0000000111020489".to_string();
         start_vehicle_management_mock();
         let mut record_handler = get_teltonika_records_handler(None);
-        let driver_card_events = driver_card_id_to_two_part_events("DVF1232950483967".to_string());
+        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
         let record_1 = AVLRecordBuilder::new()
             .with_io_events(driver_card_events.to_vec())
             .add_io_event(AVLEventIO {
@@ -473,7 +498,7 @@ mod tests {
             assert!(cached_driver_card_event.is_some());
             let cached_driver_card_event = cached_driver_card_event.unwrap();
             assert_eq!(
-                "DVF1232950483967",
+                valid_driver_card_id,
                 cached_driver_card_event.driver_card_id.clone().unwrap()
             );
             assert_eq!(TruckDriveStateEnum::Drive, cached_driver_card_event.state);
@@ -489,37 +514,80 @@ mod tests {
         }
     }
 
+    /// Tests the conversion of a driver card ID to two part events as described in [Teltonika documentation](https://wiki.teltonika-gps.com/view/DriverID)
+    #[test]
+    fn test_driver_card_conversion() {
+        // Step 5 in the documentation
+        let valid_driver_card_id = String::from("0000000111020489");
+        let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(valid_driver_card_id.clone());
+        // Step 4 in the documentation
+        assert_eq!(driver_card_id_msb, "00000001");
+        assert_eq!(driver_card_id_lsb, "11020489");
+        let driver_card_id_msb_rev = reverse_str(&driver_card_id_msb);
+        let driver_card_id_lsb_rev = reverse_str(&driver_card_id_lsb);
+        // Step 3 in the documentation
+        assert_eq!(driver_card_id_msb_rev, "10000000");
+        assert_eq!(driver_card_id_lsb_rev, "98402011");
+        let driver_card_id_msb_hex = string_to_hex_string(driver_card_id_msb_rev);
+        let driver_card_id_lsb_hex = string_to_hex_string(driver_card_id_lsb_rev);
+        // Step 2 in the documentation
+        assert_eq!(driver_card_id_msb_hex, "3130303030303030");
+        assert_eq!(driver_card_id_lsb_hex, "3938343032303131");
+        let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
+        let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
+        // Step 1 in the documentation
+        assert_eq!(driver_card_id_msb_dec, 3544385890265608240);
+        assert_eq!(driver_card_id_lsb_dec, 4123102840462782769);
+    }
+
+    /// Converts a driver card ID to two part events.
+    ///
+    /// This function is a reverse implementation of what's described in [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID)
+    /// where the driver card part is converted to a hexadecimal number from an ASCII-string.
     fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
-        let driver_card_id_bytes = driver_card_id.as_bytes();
-        let driver_card_id_lsb = u64::from_be_bytes([
-            driver_card_id_bytes[7],
-            driver_card_id_bytes[6],
-            driver_card_id_bytes[5],
-            driver_card_id_bytes[4],
-            driver_card_id_bytes[3],
-            driver_card_id_bytes[2],
-            driver_card_id_bytes[1],
-            driver_card_id_bytes[0],
-        ]);
-        let driver_card_id_msb = u64::from_be_bytes([
-            driver_card_id_bytes[15],
-            driver_card_id_bytes[14],
-            driver_card_id_bytes[13],
-            driver_card_id_bytes[12],
-            driver_card_id_bytes[11],
-            driver_card_id_bytes[10],
-            driver_card_id_bytes[9],
-            driver_card_id_bytes[8],
-        ]);
+        let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(driver_card_id);
+        let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
+        let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
         let driver_card_id_msb_event = AVLEventIO {
             id: 195,
-            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_msb),
+            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_msb_dec),
         };
         let driver_card_id_lsb_event = AVLEventIO {
             id: 196,
-            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_lsb),
+            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_lsb_dec),
         };
         return [driver_card_id_msb_event, driver_card_id_lsb_event];
+    }
+
+    /// Splits a String at half
+    fn split_at_half(string: String) -> (String, String) {
+        let half = string.len() / 2;
+        let (part_1, part_2) = string.split_at(half);
+
+        return (part_1.to_string(), part_2.to_string());
+    }
+
+    /// Converts a string to a hexadecimal string
+    fn string_to_hex_string(string: String) -> String {
+        return string
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{:02X}", byte))
+            .collect::<Vec<String>>()
+            .concat();
+    }
+
+    /// Reverses a string slice
+    fn reverse_str(string: &str) -> String {
+        return string.chars().rev().collect::<String>();
+    }
+
+    /// Converts a driver card part to a decimal number
+    fn driver_card_part_to_dec(driver_card_part: &str) -> u64 {
+        let driver_card_part = reverse_str(driver_card_part);
+        let driver_card_part_hex = string_to_hex_string(driver_card_part);
+
+        return u64::from_str_radix(&driver_card_part_hex, 16).unwrap();
     }
 
     /// Reads IMEI from the buffer
