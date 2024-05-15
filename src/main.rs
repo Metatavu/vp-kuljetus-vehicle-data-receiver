@@ -514,15 +514,40 @@ mod tests {
         }
     }
 
+    /// Tests the conversion of a driver card ID to two part events as described in [Teltonika documentation](https://wiki.teltonika-gps.com/view/DriverID)
+    #[test]
+    fn test_driver_card_conversion() {
+        // Step 5 in the documentation
+        let valid_driver_card_id = String::from("0000000111020489");
+        let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(valid_driver_card_id.clone());
+        // Step 4 in the documentation
+        assert_eq!(driver_card_id_msb, "00000001");
+        assert_eq!(driver_card_id_lsb, "11020489");
+        let driver_card_id_msb_rev = reverse_str(&driver_card_id_msb);
+        let driver_card_id_lsb_rev = reverse_str(&driver_card_id_lsb);
+        // Step 3 in the documentation
+        assert_eq!(driver_card_id_msb_rev, "10000000");
+        assert_eq!(driver_card_id_lsb_rev, "98402011");
+        let driver_card_id_msb_hex = string_to_hex_string(driver_card_id_msb_rev);
+        let driver_card_id_lsb_hex = string_to_hex_string(driver_card_id_lsb_rev);
+        // Step 2 in the documentation
+        assert_eq!(driver_card_id_msb_hex, "3130303030303030");
+        assert_eq!(driver_card_id_lsb_hex, "3938343032303131");
+        let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
+        let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
+        // Step 1 in the documentation
+        assert_eq!(driver_card_id_msb_dec, 3544385890265608240);
+        assert_eq!(driver_card_id_lsb_dec, 4123102840462782769);
+    }
+
     /// Converts a driver card ID to two part events.
     ///
     /// This function is a reverse implementation of what's described in [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID)
     /// where the driver card part is converted to a hexadecimal number from an ASCII-string.
     fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
-        let (driver_card_id_msb, driver_card_id_lsb) =
-            driver_card_id.split_at(&driver_card_id.len() / 2);
-        let driver_card_id_msb_dec = driver_card_part_to_dec(driver_card_id_msb);
-        let driver_card_id_lsb_dec = driver_card_part_to_dec(driver_card_id_lsb);
+        let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(driver_card_id);
+        let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
+        let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
         let driver_card_id_msb_event = AVLEventIO {
             id: 195,
             value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_msb_dec),
@@ -532,6 +557,14 @@ mod tests {
             value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_lsb_dec),
         };
         return [driver_card_id_msb_event, driver_card_id_lsb_event];
+    }
+
+    /// Splits a String at half
+    fn split_at_half(string: String) -> (String, String) {
+        let half = string.len() / 2;
+        let (part_1, part_2) = string.split_at(half);
+
+        return (part_1.to_string(), part_2.to_string());
     }
 
     /// Converts a string to a hexadecimal string
@@ -544,9 +577,14 @@ mod tests {
             .concat();
     }
 
+    /// Reverses a string slice
+    fn reverse_str(string: &str) -> String {
+        return string.chars().rev().collect::<String>();
+    }
+
     /// Converts a driver card part to a decimal number
     fn driver_card_part_to_dec(driver_card_part: &str) -> u64 {
-        let driver_card_part = driver_card_part.chars().rev().collect::<String>();
+        let driver_card_part = reverse_str(driver_card_part);
         let driver_card_part_hex = string_to_hex_string(driver_card_part);
 
         return u64::from_str_radix(&driver_card_part_hex, 16).unwrap();
