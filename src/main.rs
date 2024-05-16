@@ -587,7 +587,6 @@ mod tests {
 
     /// Converts a driver card part to a decimal number
     fn driver_card_part_to_dec(driver_card_part: &str) -> u64 {
-        // let driver_card_part = reverse_str(driver_card_part);
         let driver_card_part_hex = string_to_hex_string(driver_card_part);
 
         return u64::from_str_radix(&driver_card_part_hex, 16).unwrap();
