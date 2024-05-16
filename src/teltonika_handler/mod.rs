@@ -46,15 +46,14 @@ fn driver_card_events_to_truck_driver_card(events: &Vec<&AVLEventIO>) -> TruckDr
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
 fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
-    let driver_one_card_msb = avl_event_io_value_to_u64(&event.value)
+    let driver_one_card_part = avl_event_io_value_to_u64(&event.value)
         .to_be_bytes()
         .to_vec();
-    let Ok(test) = String::from_utf8(driver_one_card_msb) else {
-        panic!("Invalid driver one card data");
+    let Ok(part) = String::from_utf8(driver_one_card_part) else {
+        panic!("Invalid driver one card part data");
     };
-    let test = test.chars().rev().collect::<String>();
 
-    return test;
+    return part;
 }
 
 /// Returns a driver card part as String from a list of [AVLEventIO].
