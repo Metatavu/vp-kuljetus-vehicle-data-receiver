@@ -413,8 +413,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_driver_one_card_id_handling() {
-        let valid_driver_card_id = "0000000111020489".to_string();
-        let valid_driver_card_id_2 = "0A00Y00111020488".to_string();
+        let valid_driver_card_id = "1069619335000001".to_string();
+        let valid_driver_card_id_2 = "1A696193350YZ001".to_string();
         start_vehicle_management_mock();
         let mut record_handler = get_teltonika_records_handler(None);
         let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
@@ -472,7 +472,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_driver_one_card_drive_state_handling() {
-        let valid_driver_card_id = "0000000111020489".to_string();
+        let valid_driver_card_id = "1069619335000001".to_string();
         start_vehicle_management_mock();
         let mut record_handler = get_teltonika_records_handler(None);
         let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
@@ -515,29 +515,29 @@ mod tests {
     }
 
     /// Tests the conversion of a driver card ID to two part events as described in [Teltonika documentation](https://wiki.teltonika-gps.com/view/DriverID)
+    ///
+    /// Field tests have proven that the conversion formula provided by Teltonika is incorrect and the ASCII strings should NOT be reversed.
+    /// Therefore the conversion is done without reversing the ASCII strings.
+    ///
+    /// Note for later: Can the difference in conversion be due to different generations of digital tachographs? Customer will provide us with the model of the digital tachograph this test was done with.
     #[test]
     fn test_driver_card_conversion() {
         // Step 5 in the documentation
-        let valid_driver_card_id = String::from("0000000111020489");
+        let valid_driver_card_id = String::from("1069619335000001");
         let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(valid_driver_card_id.clone());
         // Step 4 in the documentation
-        assert_eq!(driver_card_id_msb, "00000001");
-        assert_eq!(driver_card_id_lsb, "11020489");
-        let driver_card_id_msb_rev = reverse_str(&driver_card_id_msb);
-        let driver_card_id_lsb_rev = reverse_str(&driver_card_id_lsb);
-        // Step 3 in the documentation
-        assert_eq!(driver_card_id_msb_rev, "10000000");
-        assert_eq!(driver_card_id_lsb_rev, "98402011");
-        let driver_card_id_msb_hex = string_to_hex_string(driver_card_id_msb_rev);
-        let driver_card_id_lsb_hex = string_to_hex_string(driver_card_id_lsb_rev);
+        assert_eq!(driver_card_id_msb, "10696193");
+        assert_eq!(driver_card_id_lsb, "35000001");
+        let driver_card_id_msb_hex = string_to_hex_string(&driver_card_id_msb);
+        let driver_card_id_lsb_hex = string_to_hex_string(&driver_card_id_lsb);
         // Step 2 in the documentation
-        assert_eq!(driver_card_id_msb_hex, "3130303030303030");
-        assert_eq!(driver_card_id_lsb_hex, "3938343032303131");
+        assert_eq!(driver_card_id_msb_hex, "3130363936313933");
+        assert_eq!(driver_card_id_lsb_hex, "3335303030303031");
         let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
         let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
         // Step 1 in the documentation
-        assert_eq!(driver_card_id_msb_dec, 3544385890265608240);
-        assert_eq!(driver_card_id_lsb_dec, 4123102840462782769);
+        assert_eq!(driver_card_id_msb_dec, 3544392526090811699);
+        assert_eq!(driver_card_id_lsb_dec, 3689908453225017393);
     }
 
     /// Converts a driver card ID to two part events.
@@ -568,7 +568,7 @@ mod tests {
     }
 
     /// Converts a string to a hexadecimal string
-    fn string_to_hex_string(string: String) -> String {
+    fn string_to_hex_string(string: &str) -> String {
         return string
             .as_bytes()
             .iter()
@@ -578,13 +578,15 @@ mod tests {
     }
 
     /// Reverses a string slice
+    ///
+    /// This function is not used in the implementation at the moment but is kept in case it is needed later.
+    #[allow(dead_code)]
     fn reverse_str(string: &str) -> String {
         return string.chars().rev().collect::<String>();
     }
 
     /// Converts a driver card part to a decimal number
     fn driver_card_part_to_dec(driver_card_part: &str) -> u64 {
-        let driver_card_part = reverse_str(driver_card_part);
         let driver_card_part_hex = string_to_hex_string(driver_card_part);
 
         return u64::from_str_radix(&driver_card_part_hex, 16).unwrap();
