@@ -22,6 +22,10 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
         vec![195, 196]
     }
 
+    fn get_trigger_event_id(&self) -> Option<u16> {
+        Some(187)
+    }
+
     async fn send_event(
         &self,
         event_data: &TruckDriverCard,
@@ -51,8 +55,16 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
         }
     }
 
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, _: i64) -> TruckDriverCard {
-        return driver_card_events_to_truck_driver_card(events);
+    fn process_event_data(
+        &self,
+        trigger_event_id: u16,
+        events: &Vec<&AVLEventIO>,
+        _: i64,
+    ) -> Option<TruckDriverCard> {
+        match trigger_event_id {
+            187 => Some(driver_card_events_to_truck_driver_card(events)),
+            _ => None,
+        }
     }
 }
 

@@ -6,6 +6,8 @@ pub mod avl_record_builder;
 
 #[cfg(test)]
 pub mod imei;
+#[cfg(test)]
+pub mod test_utils;
 
 /// Converts a hex string to a byte vector
 ///

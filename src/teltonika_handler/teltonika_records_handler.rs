@@ -98,7 +98,12 @@ impl TeltonikaRecordsHandler {
     /// This method will iterate over the known event handlers and pass appropriate events to them.
     pub async fn handle_record(&self, record: &AVLRecord) {
         self.handle_record_location(record).await;
+        debug!("Record trigger event ID: {}", record.trigger_event_id);
         for handler in self.event_handlers.iter() {
+            let trigger_event_id = handler.get_trigger_event_id();
+            if trigger_event_id.is_some() && record.trigger_event_id != trigger_event_id.unwrap() {
+                continue;
+            }
             let events = handler
                 .get_event_ids()
                 .iter()
@@ -117,6 +122,7 @@ impl TeltonikaRecordsHandler {
             }
             handler
                 .handle_events(
+                    record.trigger_event_id,
                     events,
                     record.timestamp.timestamp(),
                     self.truck_id.clone(),

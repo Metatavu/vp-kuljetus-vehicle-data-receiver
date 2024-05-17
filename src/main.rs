@@ -53,8 +53,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
-    use self::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
-    use super::*;
     use crate::{
         telematics_cache::Cacheable,
         utils::{
@@ -64,22 +62,19 @@ mod tests {
             get_vehicle_management_api_config,
             imei::{build_valid_imei_packet, get_random_imei_of_length, *},
             str_to_bytes,
+            test_utils::{
+                driver_card_id_to_two_part_events, driver_card_part_to_dec,
+                get_teltonika_records_handler, read_imei, split_at_half,
+                start_vehicle_management_mock, string_to_hex_string,
+            },
         },
     };
-    use httpmock::{
-        Method::{GET, POST},
-        MockServer, Regex,
-    };
-    use log::error;
     use nom_teltonika::{parser, AVLEventIO, Priority};
     use std::str::FromStr;
-    use tempfile::tempdir;
-    use uuid::Uuid;
     use vehicle_management_service::{
         apis::public_trucks_api::ListPublicTrucksParams,
         models::{
-            PublicTruck, TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation,
-            TruckSpeed,
+            TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckSpeed,
         },
     };
 
@@ -420,6 +415,11 @@ mod tests {
         let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
         let record = AVLRecordBuilder::new()
             .with_io_events(driver_card_events.to_vec())
+            .add_io_event(AVLEventIO {
+                id: 187,
+                value: nom_teltonika::AVLEventIOValue::U8(1),
+            })
+            .with_trigger_event_id(187)
             .build();
         let packet = AVLFrameBuilder::new()
             .with_records([record].to_vec())
@@ -451,6 +451,11 @@ mod tests {
         let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id_2.clone());
         let record = AVLRecordBuilder::new()
             .with_io_events(driver_card_events.to_vec())
+            .add_io_event(AVLEventIO {
+                id: 187,
+                value: nom_teltonika::AVLEventIOValue::U8(1),
+            })
+            .with_trigger_event_id(187)
             .build();
         let packet = AVLFrameBuilder::new()
             .with_records([record].to_vec())
@@ -467,6 +472,26 @@ mod tests {
             assert!(cached_driver_card_event.is_some());
             let cached_driver_card_event = cached_driver_card_event.unwrap();
             assert_eq!(valid_driver_card_id_2, cached_driver_card_event.id);
+        }
+        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
+        record_handler.purge_cache().await;
+        // Test that a record without 187 (driver 1 card presence) as a trigger event is not handled
+        record_handler.set_truck_id(None);
+        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
+        let record = AVLRecordBuilder::new()
+            .with_io_events(driver_card_events.to_vec())
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record].to_vec())
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        {
+            let base_cache_path = record_handler.get_base_cache_path();
+            let driver_cards_cache =
+                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
+            assert_eq!(0, driver_cards_cache.len());
         }
     }
 
@@ -538,137 +563,5 @@ mod tests {
         // Step 1 in the documentation
         assert_eq!(driver_card_id_msb_dec, 3544392526090811699);
         assert_eq!(driver_card_id_lsb_dec, 3689908453225017393);
-    }
-
-    /// Converts a driver card ID to two part events.
-    ///
-    /// This function is a reverse implementation of what's described in [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID)
-    /// where the driver card part is converted to a hexadecimal number from an ASCII-string.
-    fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
-        let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(driver_card_id);
-        let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
-        let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
-        let driver_card_id_msb_event = AVLEventIO {
-            id: 195,
-            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_msb_dec),
-        };
-        let driver_card_id_lsb_event = AVLEventIO {
-            id: 196,
-            value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_lsb_dec),
-        };
-        return [driver_card_id_msb_event, driver_card_id_lsb_event];
-    }
-
-    /// Splits a String at half
-    fn split_at_half(string: String) -> (String, String) {
-        let half = string.len() / 2;
-        let (part_1, part_2) = string.split_at(half);
-
-        return (part_1.to_string(), part_2.to_string());
-    }
-
-    /// Converts a string to a hexadecimal string
-    fn string_to_hex_string(string: &str) -> String {
-        return string
-            .as_bytes()
-            .iter()
-            .map(|byte| format!("{:02X}", byte))
-            .collect::<Vec<String>>()
-            .concat();
-    }
-
-    /// Reverses a string slice
-    ///
-    /// This function is not used in the implementation at the moment but is kept in case it is needed later.
-    #[allow(dead_code)]
-    fn reverse_str(string: &str) -> String {
-        return string.chars().rev().collect::<String>();
-    }
-
-    /// Converts a driver card part to a decimal number
-    fn driver_card_part_to_dec(driver_card_part: &str) -> u64 {
-        let driver_card_part_hex = string_to_hex_string(driver_card_part);
-
-        return u64::from_str_radix(&driver_card_part_hex, 16).unwrap();
-    }
-
-    /// Reads IMEI from the buffer
-    ///
-    /// # Arguments
-    /// * `buffer` - Buffer for reading data from socket
-    ///
-    /// # Returns
-    /// * `(bool, Option<String>)` - Whether the IMEI was successfully parsed and the IMEI itself as an `Option<String>`
-    fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
-        let result = nom_teltonika::parser::imei(&buffer);
-        match result {
-            Ok((_, imei)) => {
-                info!("New client connected with IMEI: [{:?}]", imei);
-                return (true, Some(imei));
-            }
-            Err(_) => {
-                error!("Failed to parse IMEI from buffer");
-                return (false, None);
-            }
-        }
-    }
-
-    /// Gets a TeltonikaRecordsHandler for testing
-    ///
-    /// Uses a temporary directory for the cache
-    fn get_teltonika_records_handler(truck_id: Option<String>) -> TeltonikaRecordsHandler {
-        let test_cache_dir = tempdir().unwrap();
-        let test_cache_path = test_cache_dir.path();
-
-        return TeltonikaRecordsHandler::new(test_cache_path, truck_id);
-    }
-
-    /// Starts a mock server for the Vehicle Management Service
-    fn start_vehicle_management_mock() {
-        let mock_server = MockServer::start();
-        let mut server_address = String::from("http://");
-        server_address.push_str(mock_server.address().to_string().as_str());
-
-        std::env::set_var("API_BASE_URL", &server_address);
-        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
-
-        let _public_trucks_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/vehicle-management/v1/publicTrucks")
-                .header("X-API-KEY", "API_KEY");
-            then.status(200)
-                .header("Content-Type", "application/json")
-                .json_body_obj(&[PublicTruck {
-                    id: Some(Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
-                    name: Some(String::from("1")),
-                    plate_number: String::from("ABC-123"),
-                    vin: String::from("W1T96302X10704959"),
-                }]);
-        });
-
-        let _create_truck_speed_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
-                .header("X-API-KEY", "API_KEY");
-            then.status(201);
-        });
-        let _create_truck_driver_card_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path_matches(
-                    Regex::new(r"/vehicle-management/v1/trucks/.{36}/driverCards").unwrap(),
-                )
-                .header("X-API-KEY", "API_KEY");
-            then.status(201)
-                .header("Content-Type", "application/json")
-                .json_body_obj(&TruckDriverCard { id: String::new() });
-        });
-        let _create_truck_drive_state_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path_matches(
-                    Regex::new(r"/vehicle-management/v1/trucks/.{36}/driveState").unwrap(),
-                )
-                .header("X-API-KEY", "API_KEY");
-            then.status(201);
-        });
     }
 }
