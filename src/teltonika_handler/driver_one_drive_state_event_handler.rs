@@ -38,20 +38,25 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>>
         .await
     }
 
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, timestamp: i64) -> TruckDriveState {
+    fn process_event_data(
+        &self,
+        _trigger_event_id: u16,
+        events: &Vec<&AVLEventIO>,
+        timestamp: i64,
+    ) -> Option<TruckDriveState> {
         let driver_card = driver_card_events_to_truck_driver_card(events);
         let state_event = events
             .iter()
             .find(|event| event.id == 184)
             .expect("Driver one drive state event not found");
         let state = TruckDriveStateEnum::from_avl_event_io_value(&state_event.value);
-        return TruckDriveState {
+        Some(TruckDriveState {
             id: None,
             timestamp,
             state,
             driver_id: None,
             driver_card_id: Some(driver_card.id),
-        };
+        })
     }
 }
 

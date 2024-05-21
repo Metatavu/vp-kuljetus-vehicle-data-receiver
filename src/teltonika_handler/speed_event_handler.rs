@@ -32,13 +32,18 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         .await
     }
 
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, timestamp: i64) -> TruckSpeed {
+    fn process_event_data(
+        &self,
+        _trigger_event_id: u16,
+        events: &Vec<&AVLEventIO>,
+        timestamp: i64,
+    ) -> Option<TruckSpeed> {
         let event = events.first().expect("Received empty speed event");
-        TruckSpeed {
+        Some(TruckSpeed {
             id: None,
             speed: avl_event_io_value_to_u64(&event.value) as f32,
             timestamp,
-        }
+        })
     }
 }
 

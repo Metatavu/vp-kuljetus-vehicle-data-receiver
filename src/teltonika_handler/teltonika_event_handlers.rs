@@ -30,9 +30,23 @@ impl TeltonikaEventHandlers {
         }
     }
 
+    /// Gets the trigger event ID for the handler.
+    pub fn get_trigger_event_id(&self) -> Option<u16> {
+        match self {
+            TeltonikaEventHandlers::SpeedEventHandler(handler) => handler.get_trigger_event_id(),
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
+                handler.get_trigger_event_id()
+            }
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler(handler) => {
+                handler.get_trigger_event_id()
+            }
+        }
+    }
+
     /// Handles a Teltonika event.
     pub async fn handle_events(
         &self,
+        trigger_event_id: u16,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
@@ -41,17 +55,35 @@ impl TeltonikaEventHandlers {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler(handler) => {
                 handler
-                    .handle_events(events, timestamp, truck_id, base_cache_path)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                    )
                     .await
             }
             TeltonikaEventHandlers::DriverOneCardIdEventHandler(handler) => {
                 handler
-                    .handle_events(events, timestamp, truck_id, base_cache_path)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                    )
                     .await
             }
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler(handler) => {
                 handler
-                    .handle_events(events, timestamp, truck_id, base_cache_path)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                    )
                     .await
             }
         }
@@ -88,6 +120,13 @@ where
     /// Gets the event ID for the handler.
     fn get_event_ids(&self) -> Vec<u16>;
 
+    /// Gets the trigger event ID for the handler.
+    ///
+    /// If the trigger event ID is not the one that has triggered the record being processed (e.g. the records triggered event ID is 195 or 0 and the trigger event ID of the handler is 196), the record will be ignored.
+    fn get_trigger_event_id(&self) -> Option<u16> {
+        None
+    }
+
     /// Handles a Teltonika event.
     ///
     /// This method will process the event data, send it to the API and cache it if sending fails or truck id is not yet known.
@@ -99,12 +138,17 @@ where
     /// * `base_cache_path` - The base path to the cache directory.
     async fn handle_events(
         &self,
+        trigger_event_id: u16,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
         base_cache_path: Box<Path>,
     ) {
-        let event_data = self.process_event_data(&events, timestamp);
+        let event_data = self.process_event_data(trigger_event_id, &events, timestamp);
+        if event_data.is_none() {
+            return;
+        }
+        let event_data = event_data.unwrap();
         if let Some(truck_id) = truck_id {
             debug!("Handling event for truck: {}", truck_id);
             let send_event_result = self.send_event(&event_data, truck_id).await;
@@ -147,7 +191,12 @@ where
     ///
     /// # Returns
     /// * The processed event data.
-    fn process_event_data(&self, events: &Vec<&AVLEventIO>, timestamp: i64) -> T;
+    fn process_event_data(
+        &self,
+        trigger_event_id: u16,
+        events: &Vec<&AVLEventIO>,
+        timestamp: i64,
+    ) -> Option<T>;
 
     /// Purges the cache.
     ///
