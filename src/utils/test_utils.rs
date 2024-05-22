@@ -99,7 +99,7 @@ pub fn start_vehicle_management_mock() {
 
     let _public_trucks_mock = mock_server.mock(|when, then| {
         when.method(GET)
-            .path("/vehicle-management/v1/publicTrucks")
+            .path("/v1/publicTrucks")
             .header("X-API-KEY", "API_KEY");
         then.status(200)
             .header("Content-Type", "application/json")
@@ -113,13 +113,13 @@ pub fn start_vehicle_management_mock() {
 
     let _create_truck_speed_mock = mock_server.mock(|when, then| {
         when.method(POST)
-            .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/speeds").unwrap())
+            .path_matches(Regex::new(r"/v1/trucks/.{36}/speeds").unwrap())
             .header("X-API-KEY", "API_KEY");
         then.status(201);
     });
     let _create_truck_driver_card_mock = mock_server.mock(|when, then| {
         when.method(POST)
-            .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/driverCards").unwrap())
+            .path_matches(Regex::new(r"/v1/trucks/.{36}/driverCards").unwrap())
             .header("X-API-KEY", "API_KEY");
         then.status(201)
             .header("Content-Type", "application/json")
@@ -127,7 +127,7 @@ pub fn start_vehicle_management_mock() {
     });
     let _create_truck_drive_state_mock = mock_server.mock(|when, then| {
         when.method(POST)
-            .path_matches(Regex::new(r"/vehicle-management/v1/trucks/.{36}/driveState").unwrap())
+            .path_matches(Regex::new(r"/v1/trucks/.{36}/driveState").unwrap())
             .header("X-API-KEY", "API_KEY");
         then.status(201);
     });

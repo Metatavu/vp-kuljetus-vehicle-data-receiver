@@ -14,13 +14,11 @@ use reqwest;
 use crate::{apis::ResponseContent, models};
 use super::{Error, configuration};
 
-/// struct for passing parameters to the method [`create_drive_state`]
+/// struct for passing parameters to the method [`create_towable`]
 #[derive(Clone, Debug)]
-pub struct CreateDriveStateParams {
-    /// truck id
-    pub truck_id: String,
+pub struct CreateTowableParams {
     /// Payload
-    pub truck_drive_state: models::TruckDriveState
+    pub towable: models::Towable
 }
 
 /// struct for passing parameters to the method [`create_truck`]
@@ -30,47 +28,18 @@ pub struct CreateTruckParams {
     pub truck: models::Truck
 }
 
-/// struct for passing parameters to the method [`create_truck_driver_card`]
+/// struct for passing parameters to the method [`create_vehicle`]
 #[derive(Clone, Debug)]
-pub struct CreateTruckDriverCardParams {
-    /// truck ID
-    pub truck_id: String,
+pub struct CreateVehicleParams {
     /// Payload
-    pub truck_driver_card: models::TruckDriverCard
+    pub vehicle: models::Vehicle
 }
 
-/// struct for passing parameters to the method [`create_truck_location`]
+/// struct for passing parameters to the method [`find_towable`]
 #[derive(Clone, Debug)]
-pub struct CreateTruckLocationParams {
-    /// truck id
-    pub truck_id: String,
-    /// Payload
-    pub truck_location: models::TruckLocation
-}
-
-/// struct for passing parameters to the method [`create_truck_speed`]
-#[derive(Clone, Debug)]
-pub struct CreateTruckSpeedParams {
-    /// truck id
-    pub truck_id: String,
-    /// Payload
-    pub truck_speed: models::TruckSpeed
-}
-
-/// struct for passing parameters to the method [`delete_truck`]
-#[derive(Clone, Debug)]
-pub struct DeleteTruckParams {
-    /// truck id
-    pub truck_id: String
-}
-
-/// struct for passing parameters to the method [`delete_truck_driver_card`]
-#[derive(Clone, Debug)]
-pub struct DeleteTruckDriverCardParams {
-    /// truck ID
-    pub truck_id: String,
-    /// driver card ID
-    pub driver_card_id: String
+pub struct FindTowableParams {
+    /// towables id
+    pub towable_id: String
 }
 
 /// struct for passing parameters to the method [`find_truck`]
@@ -78,6 +47,13 @@ pub struct DeleteTruckDriverCardParams {
 pub struct FindTruckParams {
     /// trucks id
     pub truck_id: String
+}
+
+/// struct for passing parameters to the method [`find_vehicle`]
+#[derive(Clone, Debug)]
+pub struct FindVehicleParams {
+    /// vehicles id
+    pub vehicle_id: String
 }
 
 /// struct for passing parameters to the method [`list_drive_states`]
@@ -99,11 +75,17 @@ pub struct ListDriveStatesParams {
     pub max: Option<i32>
 }
 
-/// struct for passing parameters to the method [`list_truck_driver_cards`]
+/// struct for passing parameters to the method [`list_towables`]
 #[derive(Clone, Debug)]
-pub struct ListTruckDriverCardsParams {
-    /// truck ID
-    pub truck_id: String
+pub struct ListTowablesParams {
+    /// Filter results by plate number
+    pub plate_number: Option<String>,
+    /// Filter results by archived status
+    pub archived: Option<bool>,
+    /// First result.
+    pub first: Option<i32>,
+    /// Max results.
+    pub max: Option<i32>
 }
 
 /// struct for passing parameters to the method [`list_truck_locations`]
@@ -149,6 +131,28 @@ pub struct ListTrucksParams {
     pub max: Option<i32>
 }
 
+/// struct for passing parameters to the method [`list_vehicles`]
+#[derive(Clone, Debug)]
+pub struct ListVehiclesParams {
+    /// Filter results by truck id
+    pub truck_id: Option<String>,
+    /// Filter results by archived status
+    pub archived: Option<bool>,
+    /// First result.
+    pub first: Option<i32>,
+    /// Max results.
+    pub max: Option<i32>
+}
+
+/// struct for passing parameters to the method [`update_towable`]
+#[derive(Clone, Debug)]
+pub struct UpdateTowableParams {
+    /// towable id
+    pub towable_id: String,
+    /// Payload
+    pub towable: models::Towable
+}
+
 /// struct for passing parameters to the method [`update_truck`]
 #[derive(Clone, Debug)]
 pub struct UpdateTruckParams {
@@ -159,10 +163,10 @@ pub struct UpdateTruckParams {
 }
 
 
-/// struct for typed errors of method [`create_drive_state`]
+/// struct for typed errors of method [`create_towable`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum CreateDriveStateError {
+pub enum CreateTowableError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
@@ -175,42 +179,18 @@ pub enum CreateTruckError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`create_truck_driver_card`]
+/// struct for typed errors of method [`create_vehicle`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum CreateTruckDriverCardError {
+pub enum CreateVehicleError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`create_truck_location`]
+/// struct for typed errors of method [`find_towable`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum CreateTruckLocationError {
-    DefaultResponse(models::Error),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`create_truck_speed`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CreateTruckSpeedError {
-    DefaultResponse(models::Error),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`delete_truck`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteTruckError {
-    DefaultResponse(models::Error),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`delete_truck_driver_card`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteTruckDriverCardError {
+pub enum FindTowableError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
@@ -223,6 +203,14 @@ pub enum FindTruckError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`find_vehicle`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FindVehicleError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_drive_states`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -231,10 +219,10 @@ pub enum ListDriveStatesError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_truck_driver_cards`]
+/// struct for typed errors of method [`list_towables`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ListTruckDriverCardsError {
+pub enum ListTowablesError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
@@ -263,6 +251,22 @@ pub enum ListTrucksError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_vehicles`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListVehiclesError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`update_towable`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UpdateTowableError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`update_truck`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -272,32 +276,26 @@ pub enum UpdateTruckError {
 }
 
 
-/// Create new drive state for truck
-pub async fn create_drive_state(configuration: &configuration::Configuration, params: CreateDriveStateParams) -> Result<(), Error<CreateDriveStateError>> {
+/// Create new towable
+pub async fn create_towable(configuration: &configuration::Configuration, params: CreateTowableParams) -> Result<models::Towable, Error<CreateTowableError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_drive_state = params.truck_drive_state;
+    let towable = params.towable;
 
 
     let local_var_client = &local_var_configuration.client;
 
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driveStates", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
+    let local_var_uri_str = format!("{}/v1/towables", local_var_configuration.base_path);
     let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
 
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
-        };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_drive_state);
+    local_var_req_builder = local_var_req_builder.json(&towable);
 
     let local_var_req = local_var_req_builder.build()?;
     let local_var_resp = local_var_client.execute(local_var_req).await?;
@@ -306,9 +304,9 @@ pub async fn create_drive_state(configuration: &configuration::Configuration, pa
     let local_var_content = local_var_resp.text().await?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        Ok(())
+        serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
-        let local_var_entity: Option<CreateDriveStateError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_entity: Option<CreateTowableError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
@@ -350,32 +348,26 @@ pub async fn create_truck(configuration: &configuration::Configuration, params: 
     }
 }
 
-/// Create new truck driver card
-pub async fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
+/// Create new vehicle. Vehicles are the history of the combinations of towables behind a truck. When a vehicle structure needs to be updated, a new vehicle with updated structure should be created. This updates the active vehicle for the truck and archives the previous one. 
+pub async fn create_vehicle(configuration: &configuration::Configuration, params: CreateVehicleParams) -> Result<models::Vehicle, Error<CreateVehicleError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_driver_card = params.truck_driver_card;
+    let vehicle = params.vehicle;
 
 
     let local_var_client = &local_var_configuration.client;
 
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driverCards", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
+    let local_var_uri_str = format!("{}/v1/vehicles", local_var_configuration.base_path);
     let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
 
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
-        };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_driver_card);
+    local_var_req_builder = local_var_req_builder.json(&vehicle);
 
     let local_var_req = local_var_req_builder.build()?;
     let local_var_resp = local_var_client.execute(local_var_req).await?;
@@ -386,108 +378,24 @@ pub async fn create_truck_driver_card(configuration: &configuration::Configurati
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
-        let local_var_entity: Option<CreateTruckDriverCardError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_entity: Option<CreateVehicleError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
 }
 
-/// Create new truck location. Used by vehicle data receiver to send truck location data.
-pub async fn create_truck_location(configuration: &configuration::Configuration, params: CreateTruckLocationParams) -> Result<(), Error<CreateTruckLocationError>> {
+/// Finds a towable by id.
+pub async fn find_towable(configuration: &configuration::Configuration, params: FindTowableParams) -> Result<models::Towable, Error<FindTowableError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_location = params.truck_location;
+    let towable_id = params.towable_id;
 
 
     let local_var_client = &local_var_configuration.client;
 
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/locations", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
-    }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
-        };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
-    };
-    local_var_req_builder = local_var_req_builder.json(&truck_location);
-
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
-
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
-
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        Ok(())
-    } else {
-        let local_var_entity: Option<CreateTruckLocationError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
-    }
-}
-
-/// Create new truck speed. Used by vehicle data receiver to send truck speed data.
-pub async fn create_truck_speed(configuration: &configuration::Configuration, params: CreateTruckSpeedParams) -> Result<(), Error<CreateTruckSpeedError>> {
-    let local_var_configuration = configuration;
-
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_speed = params.truck_speed;
-
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/speeds", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
-    }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
-        };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
-    };
-    local_var_req_builder = local_var_req_builder.json(&truck_speed);
-
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
-
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
-
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        Ok(())
-    } else {
-        let local_var_entity: Option<CreateTruckSpeedError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
-    }
-}
-
-/// Deletes truck. For non-production use. Returns forbidden in production environment.
-pub async fn delete_truck(configuration: &configuration::Configuration, params: DeleteTruckParams) -> Result<(), Error<DeleteTruckError>> {
-    let local_var_configuration = configuration;
-
-    // unbox the parameters
-    let truck_id = params.truck_id;
-
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::DELETE, local_var_uri_str.as_str());
+    let local_var_uri_str = format!("{}/v1/towables/{towableId}", local_var_configuration.base_path, towableId=crate::apis::urlencode(towable_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
 
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
@@ -503,50 +411,9 @@ pub async fn delete_truck(configuration: &configuration::Configuration, params: 
     let local_var_content = local_var_resp.text().await?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        Ok(())
+        serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
-        let local_var_entity: Option<DeleteTruckError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
-    }
-}
-
-/// Deletes single truck driver card. Cards are deleted when they are removed from the truck.
-pub async fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
-    let local_var_configuration = configuration;
-
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let driver_card_id = params.driver_card_id;
-
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driverCards/{driverCardId}", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id), driverCardId=crate::apis::urlencode(driver_card_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::DELETE, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
-    }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
-        };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
-    };
-
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
-
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
-
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        Ok(())
-    } else {
-        let local_var_entity: Option<DeleteTruckDriverCardError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_entity: Option<FindTowableError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
@@ -582,6 +449,41 @@ pub async fn find_truck(configuration: &configuration::Configuration, params: Fi
         serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
         let local_var_entity: Option<FindTruckError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
+/// Finds a vehicle by id.
+pub async fn find_vehicle(configuration: &configuration::Configuration, params: FindVehicleParams) -> Result<models::Vehicle, Error<FindVehicleError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let vehicle_id = params.vehicle_id;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/vehicles/{vehicleId}", local_var_configuration.base_path, vehicleId=crate::apis::urlencode(vehicle_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    };
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        serde_json::from_str(&local_var_content).map_err(Error::from)
+    } else {
+        let local_var_entity: Option<FindVehicleError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
@@ -649,29 +551,39 @@ pub async fn list_drive_states(configuration: &configuration::Configuration, par
     }
 }
 
-/// Lists truck driver cards. Used to check if a truck has a driver card inserted.
-pub async fn list_truck_driver_cards(configuration: &configuration::Configuration, params: ListTruckDriverCardsParams) -> Result<Vec<models::TruckDriverCard>, Error<ListTruckDriverCardsError>> {
+/// Lists Towables.
+pub async fn list_towables(configuration: &configuration::Configuration, params: ListTowablesParams) -> Result<Vec<models::Towable>, Error<ListTowablesError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
-    let truck_id = params.truck_id;
+    let plate_number = params.plate_number;
+    let archived = params.archived;
+    let first = params.first;
+    let max = params.max;
 
 
     let local_var_client = &local_var_configuration.client;
 
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driverCards", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
+    let local_var_uri_str = format!("{}/v1/towables", local_var_configuration.base_path);
     let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
 
+    if let Some(ref local_var_str) = plate_number {
+        local_var_req_builder = local_var_req_builder.query(&[("plateNumber", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = archived {
+        local_var_req_builder = local_var_req_builder.query(&[("archived", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = first {
+        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = max {
+        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    }
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
-        };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
     };
 
     let local_var_req = local_var_req_builder.build()?;
@@ -683,7 +595,7 @@ pub async fn list_truck_driver_cards(configuration: &configuration::Configuratio
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
         serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
-        let local_var_entity: Option<ListTruckDriverCardsError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_entity: Option<ListTowablesError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
@@ -836,6 +748,93 @@ pub async fn list_trucks(configuration: &configuration::Configuration, params: L
         serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
         let local_var_entity: Option<ListTrucksError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
+/// Lists Vehicles.
+pub async fn list_vehicles(configuration: &configuration::Configuration, params: ListVehiclesParams) -> Result<Vec<models::Vehicle>, Error<ListVehiclesError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let truck_id = params.truck_id;
+    let archived = params.archived;
+    let first = params.first;
+    let max = params.max;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/vehicles", local_var_configuration.base_path);
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_str) = truck_id {
+        local_var_req_builder = local_var_req_builder.query(&[("truckId", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = archived {
+        local_var_req_builder = local_var_req_builder.query(&[("archived", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = first {
+        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = max {
+        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    };
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        serde_json::from_str(&local_var_content).map_err(Error::from)
+    } else {
+        let local_var_entity: Option<ListVehiclesError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
+/// Updates single towable
+pub async fn update_towable(configuration: &configuration::Configuration, params: UpdateTowableParams) -> Result<models::Towable, Error<UpdateTowableError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let towable_id = params.towable_id;
+    let towable = params.towable;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/towables/{towableId}", local_var_configuration.base_path, towableId=crate::apis::urlencode(towable_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::PUT, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    };
+    local_var_req_builder = local_var_req_builder.json(&towable);
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        serde_json::from_str(&local_var_content).map_err(Error::from)
+    } else {
+        let local_var_entity: Option<UpdateTowableError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
