@@ -133,8 +133,9 @@ impl TeltonikaConnection {
         let start_of_connection = Utc::now();
 
         let mut file_handle = self.get_log_file_handle(&file_path);
-        let mut truck_vin: Option<String> = None;
-        let mut truck_id: Option<String> = None;
+        let mut truck_vin = None;
+        let mut truck_id = None;
+        let mut driver_one_card_present = None;
         let mut teltonika_records_handler =
             TeltonikaRecordsHandler::new(&file_path, truck_id.clone());
 
@@ -147,6 +148,9 @@ impl TeltonikaConnection {
             match self.teltonika_stream.read_frame_async().await {
                 Ok(frame) => {
                     let records_count = frame.records.len();
+
+                    driver_one_card_present = teltonika_records_handler
+                        .get_driver_one_card_presence_from_records(frame.records.clone());
 
                     if let None = truck_vin {
                         truck_vin =

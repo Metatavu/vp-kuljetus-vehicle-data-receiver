@@ -8,6 +8,9 @@ mod teltonika_vin_handler;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
 use vehicle_management_service::models::{TruckDriveStateEnum, TruckDriverCard};
 
+/// The event ID for the event describing driver one card presence in tachograph.
+const DRIVER_ONE_CARD_PRESENCE_EVENT_ID: u16 = 187;
+
 /// Converts an [AVLEventIOValue] to a big-endian byte vector.
 fn avl_event_io_value_to_be_bytes(value: &AVLEventIOValue) -> Vec<u8> {
     match value {
@@ -27,6 +30,14 @@ fn avl_event_io_value_to_u64(value: &AVLEventIOValue) -> u64 {
         AVLEventIOValue::U16(value) => *value as u64,
         AVLEventIOValue::U8(value) => *value as u64,
         _ => 0,
+    }
+}
+
+/// Converts an [AVLEventIOValue] to a u8. Will panic if the value is not a u8.
+fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
+    match value {
+        AVLEventIOValue::U8(value) => *value,
+        _ => panic!("Value is not a u8"),
     }
 }
 
