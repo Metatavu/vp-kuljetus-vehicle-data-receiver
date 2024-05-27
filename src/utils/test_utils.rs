@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use httpmock::{
-    Method::{GET, POST},
+    Method::{DELETE, GET, POST},
     MockServer, Regex,
 };
 use nom_teltonika::AVLEventIO;
@@ -9,7 +9,31 @@ use tempfile::tempdir;
 use uuid::Uuid;
 use vehicle_management_service::models::{PublicTruck, TruckDriverCard};
 
-use crate::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler;
+use crate::teltonika::records::TeltonikaRecordsHandler;
+
+/// Converts a VIN number to 3 part events.
+pub fn vin_to_three_part_events(vin: String) -> [AVLEventIO; 3] {
+    let (first_part, second_part) = vin.split_at(8);
+    let (second_part, third_part) = second_part.split_at(8);
+    let first_part = string_to_hex_to_dec(first_part);
+    let second_part = string_to_hex_to_dec(second_part);
+    let third_part = string_to_hex_to_dec(third_part);
+
+    return [
+        AVLEventIO {
+            id: 233,
+            value: nom_teltonika::AVLEventIOValue::U64(first_part),
+        },
+        AVLEventIO {
+            id: 234,
+            value: nom_teltonika::AVLEventIOValue::U64(second_part),
+        },
+        AVLEventIO {
+            id: 235,
+            value: nom_teltonika::AVLEventIOValue::U8(third_part as u8),
+        },
+    ];
+}
 
 /// Converts a driver card ID to two part events.
 ///
@@ -17,8 +41,8 @@ use crate::teltonika_handler::teltonika_records_handler::TeltonikaRecordsHandler
 /// where the driver card part is converted to a hexadecimal number from an ASCII-string.
 pub fn driver_card_id_to_two_part_events(driver_card_id: String) -> [AVLEventIO; 2] {
     let (driver_card_id_msb, driver_card_id_lsb) = split_at_half(driver_card_id);
-    let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
-    let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
+    let driver_card_id_msb_dec = string_to_hex_to_dec(&driver_card_id_msb);
+    let driver_card_id_lsb_dec = string_to_hex_to_dec(&driver_card_id_lsb);
     let driver_card_id_msb_event = AVLEventIO {
         id: 195,
         value: nom_teltonika::AVLEventIOValue::U64(driver_card_id_msb_dec),
@@ -57,8 +81,8 @@ pub fn reverse_str(string: &str) -> String {
 }
 
 /// Converts a driver card part to a decimal number
-pub fn driver_card_part_to_dec(driver_card_part: &str) -> u64 {
-    let driver_card_part_hex = string_to_hex_string(driver_card_part);
+pub fn string_to_hex_to_dec(string: &str) -> u64 {
+    let driver_card_part_hex = string_to_hex_string(string);
 
     return u64::from_str_radix(&driver_card_part_hex, 16).unwrap();
 }
@@ -89,7 +113,7 @@ pub fn get_teltonika_records_handler(truck_id: Option<String>) -> TeltonikaRecor
 }
 
 /// Starts a mock server for the Vehicle Management Service
-pub fn start_vehicle_management_mock() {
+pub fn start_vehicle_management_mock() -> MockServer {
     let mock_server = MockServer::start();
     let mut server_address = String::from("http://");
     server_address.push_str(mock_server.address().to_string().as_str());
@@ -104,7 +128,7 @@ pub fn start_vehicle_management_mock() {
         then.status(200)
             .header("Content-Type", "application/json")
             .json_body_obj(&[PublicTruck {
-                id: Some(Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap()),
+                id: Some(Uuid::from_str("3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c").unwrap()),
                 name: Some(String::from("1")),
                 plate_number: String::from("ABC-123"),
                 vin: String::from("W1T96302X10704959"),
@@ -117,9 +141,16 @@ pub fn start_vehicle_management_mock() {
             .header("X-API-KEY", "API_KEY");
         then.status(201);
     });
+
+    let _create_truck_locations_mock = mock_server.mock(|when, then| {
+        when.method(POST)
+            .path_matches(Regex::new(r"/v1/trucks/.{36}/locations").unwrap())
+            .header("X-API-KEY", "API_KEY");
+        then.status(201);
+    });
     let _create_truck_driver_card_mock = mock_server.mock(|when, then| {
         when.method(POST)
-            .path_matches(Regex::new(r"/v1/trucks/.{36}/driverCards").unwrap())
+            .path_matches(Regex::new(r"^/v1/trucks/.{36}/driverCards$").unwrap())
             .header("X-API-KEY", "API_KEY");
         then.status(201)
             .header("Content-Type", "application/json")
@@ -131,4 +162,25 @@ pub fn start_vehicle_management_mock() {
             .header("X-API-KEY", "API_KEY");
         then.status(201);
     });
+    let _list_driver_cards_mock = mock_server.mock(|when, then| {
+        when.method(GET)
+            .path("/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards")
+            .header("X-API-KEY", "API_KEY");
+        then.status(200)
+            .header("Content-Type", "application/json")
+            .json_body_obj(&[TruckDriverCard {
+                id: "1069619335000001".to_string().clone(),
+            }]);
+    });
+    let _delete_driver_card_mock = mock_server.mock(|when, then| {
+        when.method(DELETE)
+            .path(format!(
+                "/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards/{}",
+                "1069619335000001".to_string().clone()
+            ))
+            .header("X-API-KEY", "API_KEY");
+        then.status(204);
+    });
+
+    mock_server
 }

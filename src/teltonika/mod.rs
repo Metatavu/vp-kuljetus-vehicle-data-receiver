@@ -1,10 +1,6 @@
-pub mod driver_one_card_id_event_handler;
-pub mod driver_one_drive_state_event_handler;
-pub mod speed_event_handler;
-mod teltonika_event_handlers;
-pub mod teltonika_records_handler;
-mod teltonika_vin_handler;
-
+pub mod connection;
+pub mod events;
+pub mod records;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
 use vehicle_management_service::models::{TruckDriveStateEnum, TruckDriverCard};
 

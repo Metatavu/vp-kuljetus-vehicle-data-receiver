@@ -7,8 +7,11 @@ use vehicle_management_service::{
     models::TruckSpeed,
 };
 
-use super::{avl_event_io_value_to_u64, teltonika_event_handlers::TeltonikaEventHandler};
-use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
+use super::teltonika_event_handlers::TeltonikaEventHandler;
+use crate::{
+    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u64,
+    utils::get_vehicle_management_api_config,
+};
 
 pub struct SpeedEventHandler;
 

@@ -1,6 +1,6 @@
 use nom_teltonika::AVLEventIOValue;
 
-use super::avl_event_io_value_to_be_bytes;
+use crate::teltonika::avl_event_io_value_to_be_bytes;
 
 /// Struct to hold the binary parts of a Teltonika VIN
 pub struct TeltonikaVinHandler {

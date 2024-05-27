@@ -1,20 +1,24 @@
 use std::path::Path;
 
-use super::{
-    avl_event_io_value_to_u8, driver_one_card_id_event_handler::DriverOneCardIdEventHandler,
-    driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler,
-    speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers,
-    teltonika_vin_handler::TeltonikaVinHandler,
-};
 use crate::{
-    telematics_cache::Cacheable, teltonika_handler::DRIVER_ONE_CARD_PRESENCE_EVENT_ID,
+    telematics_cache::Cacheable,
+    teltonika::{
+        avl_event_io_value_to_u8,
+        events::{
+            DriverOneCardIdEventHandler, DriverOneDriveStateEventHandler, SpeedEventHandler,
+            TeltonikaEventHandlers,
+        },
+        DRIVER_ONE_CARD_PRESENCE_EVENT_ID,
+    },
     utils::get_vehicle_management_api_config,
 };
-use log::{debug, warn};
+use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
     apis::trucks_api::CreateTruckLocationParams, models::TruckLocation,
 };
+
+use super::TeltonikaVinHandler;
 
 /// Handler for Teltonika records.
 pub struct TeltonikaRecordsHandler {
@@ -91,10 +95,14 @@ impl TeltonikaRecordsHandler {
 
     /// Returns the driver one card presence from a list of Teltonika [AVLRecord]s.
     ///
-    /// Will return [None] if the trigger event ID is not [DRIVER_ONE_CARD_PRESENCE_EVENT_ID].
+    /// # Arguments
+    /// * `teltonika_records` - The list of [AVLRecord]s to get the driver one card presence from.
+    ///
+    /// # Returns
+    /// * The driver one card presence if found, otherwise [None].
     pub fn get_driver_one_card_presence_from_records(
         &self,
-        mut teltonika_records: Vec<AVLRecord>,
+        teltonika_records: &mut Vec<AVLRecord>,
     ) -> Option<bool> {
         teltonika_records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         let driver_one_card_presence_events: Vec<&AVLRecord> = teltonika_records
@@ -129,19 +137,6 @@ impl TeltonikaRecordsHandler {
     pub async fn handle_record(&self, record: &AVLRecord) {
         self.handle_record_location(record).await;
         debug!("Record trigger event ID: {}", record.trigger_event_id);
-        if record.trigger_event_id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID {
-            if let Some(driver_one_card_presence_event) = record
-                .io_events
-                .iter()
-                .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID)
-            {
-            } else {
-                warn!(
-                    "Received record with trigger event ID: {}, but matching event was missing!",
-                    record.trigger_event_id
-                );
-            }
-        }
         for handler in self.event_handlers.iter() {
             let trigger_event_id = handler.get_trigger_event_id();
             if trigger_event_id.is_some() && record.trigger_event_id != trigger_event_id.unwrap() {

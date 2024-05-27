@@ -1,16 +1,23 @@
 mod telematics_cache;
-mod teltonika_connection;
-mod teltonika_handler;
+mod teltonika;
 mod utils;
 
 use log::info;
-use std::error::Error;
+use std::{error::Error, path::Path};
 use tokio::net::TcpListener;
 
 use crate::{
-    teltonika_connection::TeltonikaConnection,
-    utils::{read_bool_env_variable, read_string_env_variable},
+    teltonika::connection::TeltonikaConnection,
+    utils::{read_env_variable, read_optional_env_variable},
 };
+
+/// Default card remove threshold in milliseconds
+const DEFAULT_CARD_REMOVE_THRESHOLD: u16 = 15_000;
+const BASE_FILE_PATH_ENV_KEY: &str = "BASE_FILE_PATH";
+const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
+const CARD_REMOVE_THRESHOLD_ENV_KEY: &str = "CARD_REMOVE_THRESHOLD";
+const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
+const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
 /// VP-Kuljetus Vehicle Data Receiver
 ///
@@ -20,14 +27,16 @@ use crate::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    let file_path = read_string_env_variable("BASE_FILE_PATH");
-    let write_to_file = read_bool_env_variable("WRITE_TO_FILE");
+    let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
+    let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
+    let card_remove_threshold: u16 = read_optional_env_variable(CARD_REMOVE_THRESHOLD_ENV_KEY)
+        .unwrap_or(DEFAULT_CARD_REMOVE_THRESHOLD);
 
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
-    read_string_env_variable("VEHICLE_MANAGEMENT_SERVICE_API_KEY");
+    read_env_variable::<String>(VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY);
 
     // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
-    read_string_env_variable("API_BASE_URL");
+    read_env_variable::<String>(API_BASE_URL_ENV_KEY);
 
     let address = "0.0.0.0:8080";
 
@@ -41,10 +50,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
             true => file_path.clone(),
             false => "".to_string(),
         };
+        let card_remove_threshold = card_remove_threshold.clone();
 
         tokio::spawn(async move {
-            let mut teltonika_connection = TeltonikaConnection::new(socket);
-            if let Err(_) = teltonika_connection.handle_connection(base_file_path).await {
+            if let Err(_) = TeltonikaConnection::handle_connection(
+                socket,
+                Path::new(&base_file_path),
+                card_remove_threshold,
+            )
+            .await
+            {
                 return;
             };
         });
@@ -53,6 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
+    pub mod integration_tests;
     use crate::{
         telematics_cache::Cacheable,
         utils::{
@@ -63,7 +79,7 @@ mod tests {
             imei::{build_valid_imei_packet, get_random_imei_of_length, *},
             str_to_bytes,
             test_utils::{
-                driver_card_id_to_two_part_events, driver_card_part_to_dec,
+                driver_card_id_to_two_part_events, string_to_hex_to_dec,
                 get_teltonika_records_handler, read_imei, split_at_half,
                 start_vehicle_management_mock, string_to_hex_string,
             },
@@ -401,7 +417,7 @@ mod tests {
         record_handler.purge_cache().await;
         {
             let base_cache_path = record_handler.get_base_cache_path();
-            let locations_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+            let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
             assert_eq!(0, locations_cache.len());
         }
     }
@@ -558,8 +574,8 @@ mod tests {
         // Step 2 in the documentation
         assert_eq!(driver_card_id_msb_hex, "3130363936313933");
         assert_eq!(driver_card_id_lsb_hex, "3335303030303031");
-        let driver_card_id_msb_dec = driver_card_part_to_dec(&driver_card_id_msb);
-        let driver_card_id_lsb_dec = driver_card_part_to_dec(&driver_card_id_lsb);
+        let driver_card_id_msb_dec = string_to_hex_to_dec(&driver_card_id_msb);
+        let driver_card_id_lsb_dec = string_to_hex_to_dec(&driver_card_id_lsb);
         // Step 1 in the documentation
         assert_eq!(driver_card_id_msb_dec, 3544392526090811699);
         assert_eq!(driver_card_id_lsb_dec, 3689908453225017393);
