@@ -97,5 +97,11 @@ pub mod avl_record_builder {
             self.io_events = io_events;
             return self;
         }
+
+        /// Adds a list of [`AVLEventIO`]s the to the [`AVLRecord`]
+        pub fn add_io_events(mut self, io_events: Vec<AVLEventIO>) -> AVLRecordBuilder {
+            self.io_events.extend(io_events);
+            return self;
+        }
     }
 }

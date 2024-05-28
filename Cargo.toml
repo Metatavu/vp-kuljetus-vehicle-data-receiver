@@ -21,6 +21,7 @@ uuid = { version = "1.8.0", features = ["v4"] }
 httpmock = "0.7.0"
 rand = "0.8.5"
 tempfile = "3.10.1"
+tokio-test = "0.4.4"
 
 [dependencies.vehicle-management-service]
 path = "./vehicle_management_service"

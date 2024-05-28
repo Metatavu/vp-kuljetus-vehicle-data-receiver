@@ -7,11 +7,12 @@ use vehicle_management_service::{
     models::TruckDriverCard,
 };
 
-use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
-
-use super::{
-    driver_card_events_to_truck_driver_card, teltonika_event_handlers::TeltonikaEventHandler,
+use crate::{
+    telematics_cache::Cacheable, teltonika::driver_card_events_to_truck_driver_card,
+    utils::get_vehicle_management_api_config,
 };
+
+use super::teltonika_event_handlers::TeltonikaEventHandler;
 
 pub struct DriverOneCardIdEventHandler;
 

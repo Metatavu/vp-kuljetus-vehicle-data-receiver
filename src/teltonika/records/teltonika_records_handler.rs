@@ -1,17 +1,24 @@
 use std::path::Path;
 
-use super::{
-    driver_one_card_id_event_handler::DriverOneCardIdEventHandler,
-    driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler,
-    speed_event_handler::SpeedEventHandler, teltonika_event_handlers::TeltonikaEventHandlers,
-    teltonika_vin_handler::TeltonikaVinHandler,
+use crate::{
+    telematics_cache::Cacheable,
+    teltonika::{
+        avl_event_io_value_to_u8,
+        events::{
+            DriverOneCardIdEventHandler, DriverOneDriveStateEventHandler, SpeedEventHandler,
+            TeltonikaEventHandlers,
+        },
+        DRIVER_ONE_CARD_PRESENCE_EVENT_ID,
+    },
+    utils::get_vehicle_management_api_config,
 };
-use crate::{telematics_cache::Cacheable, utils::get_vehicle_management_api_config};
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
     apis::trucks_api::CreateTruckLocationParams, models::TruckLocation,
 };
+
+use super::TeltonikaVinHandler;
 
 /// Handler for Teltonika records.
 pub struct TeltonikaRecordsHandler {
@@ -84,6 +91,37 @@ impl TeltonikaRecordsHandler {
         }
 
         return teltonika_vin.get_vin();
+    }
+
+    /// Returns the driver one card presence from a list of Teltonika [AVLRecord]s.
+    ///
+    /// # Arguments
+    /// * `teltonika_records` - The list of [AVLRecord]s to get the driver one card presence from.
+    ///
+    /// # Returns
+    /// * The driver one card presence if found, otherwise [None].
+    pub fn get_driver_one_card_presence_from_records(
+        &self,
+        teltonika_records: &mut Vec<AVLRecord>,
+    ) -> Option<bool> {
+        teltonika_records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        let driver_one_card_presence_events: Vec<&AVLRecord> = teltonika_records
+            .iter()
+            .filter(|record| record.trigger_event_id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID)
+            .collect();
+        if let Some(latest_event) = driver_one_card_presence_events.first() {
+            let latest_event = latest_event
+                .io_events
+                .iter()
+                .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
+
+            return match latest_event {
+                Some(event) => Some(avl_event_io_value_to_u8(&event.value) == 1),
+                None => None,
+            };
+        }
+
+        return None;
     }
 
     /// Handles a list of Teltonika [AVLRecord]s.
