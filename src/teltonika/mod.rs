@@ -1,6 +1,7 @@
 pub mod connection;
 pub mod events;
 pub mod records;
+use log::debug;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
 use vehicle_management_service::models::{TruckDriveStateEnum, TruckDriverCard};
 
@@ -39,15 +40,26 @@ fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
 
 /// Converts a list of [AVLEventIO] to a [TruckDriverCard].
 ///
+/// If either the MSB or LSB part of the driver card is 0, it is considered invalid and None is returned.
+/// TODO: Investigate if in the case of valid driver card id the length of MSB and LSB fields are always same.
+///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_events_to_truck_driver_card(events: &Vec<&AVLEventIO>) -> TruckDriverCard {
-    let driver_card_msb_part = driver_card_part_from_event(events, 195);
-    let driver_card_lsb_part = driver_card_part_from_event(events, 196);
+fn driver_card_events_to_truck_driver_card(events: &Vec<&AVLEventIO>) -> Option<TruckDriverCard> {
+    let Some(driver_card_msb_part) = driver_card_part_from_event(events, 195) else {
+        debug!("Driver card MSB part was 0");
+
+        return None;
+    };
+    let Some(driver_card_lsb_part) = driver_card_part_from_event(events, 196) else {
+        debug!("Driver card MSB part was 0");
+
+        return None;
+    };
     let id = format!("{}{}", driver_card_msb_part, driver_card_lsb_part);
 
     assert!(id.len() == 16);
 
-    return TruckDriverCard { id };
+    return Some(TruckDriverCard { id });
 }
 /// Converts a Driver Card part [AVLEventIO] to a String.
 ///
@@ -65,14 +77,21 @@ fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
 
 /// Returns a driver card part as String from a list of [AVLEventIO].
 ///
+/// If either the driver card part is 0, it is considered invalid and None is returned.
+/// TODO: Investigate if in the case of valid driver card id the length of MSB and LSB fields are always same.
+///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_part_from_event(events: &Vec<&AVLEventIO>, event_id: u16) -> String {
+fn driver_card_part_from_event(events: &Vec<&AVLEventIO>, event_id: u16) -> Option<String> {
     let driver_card_part = events
         .iter()
         .find(|event| event.id == event_id)
         .expect(&format!("Driver card part event not found {event_id}"));
 
-    return driver_card_part_event_to_string(driver_card_part);
+    if driver_card_part.value == AVLEventIOValue::U64(0) {
+        return None;
+    }
+
+    return Some(driver_card_part_event_to_string(driver_card_part));
 }
 
 /// Trait for converting an [AVLEventIOValue] to a value used by Vehicle Management API.

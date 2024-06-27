@@ -63,7 +63,7 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
         _: i64,
     ) -> Option<TruckDriverCard> {
         match trigger_event_id {
-            187 => Some(driver_card_events_to_truck_driver_card(events)),
+            187 => driver_card_events_to_truck_driver_card(events),
             _ => None,
         }
     }

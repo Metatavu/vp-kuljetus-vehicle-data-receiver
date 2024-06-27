@@ -79,9 +79,9 @@ mod tests {
             imei::{build_valid_imei_packet, get_random_imei_of_length, *},
             str_to_bytes,
             test_utils::{
-                driver_card_id_to_two_part_events, string_to_hex_to_dec,
-                get_teltonika_records_handler, read_imei, split_at_half,
-                start_vehicle_management_mock, string_to_hex_string,
+                driver_card_id_to_two_part_events, get_teltonika_records_handler, read_imei,
+                split_at_half, start_vehicle_management_mock, string_to_hex_string,
+                string_to_hex_to_dec,
             },
         },
     };
@@ -553,6 +553,38 @@ mod tests {
 
             assert_eq!(0, driver_cards_cache.len());
         }
+    }
+
+    #[tokio::test]
+    async fn test_empty_driver_card_id() {
+        start_vehicle_management_mock();
+        let record_handler = get_teltonika_records_handler(None);
+        let record = AVLRecordBuilder::new()
+            .with_io_events(vec![
+                AVLEventIO {
+                    id: 187,
+                    value: nom_teltonika::AVLEventIOValue::U8(1),
+                },
+                AVLEventIO {
+                    id: 195,
+                    value: nom_teltonika::AVLEventIOValue::U64(0),
+                },
+                AVLEventIO {
+                    id: 196,
+                    value: nom_teltonika::AVLEventIOValue::U64(0),
+                },
+            ])
+            .with_trigger_event_id(187)
+            .build();
+        let packet = AVLFrameBuilder::new()
+            .with_records([record].to_vec())
+            .build();
+
+        record_handler.handle_records(packet.records).await;
+
+        let base_cache_path = record_handler.get_base_cache_path();
+        let driver_cards_cache = TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
+        assert_eq!(0, driver_cards_cache.len());
     }
 
     /// Tests the conversion of a driver card ID to two part events as described in [Teltonika documentation](https://wiki.teltonika-gps.com/view/DriverID)
