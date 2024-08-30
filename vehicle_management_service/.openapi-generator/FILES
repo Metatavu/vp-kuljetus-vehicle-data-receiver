@@ -12,7 +12,6 @@ src/apis/spec_auth_api.rs
 src/apis/spec_management_ui_api.rs
 src/apis/spec_vehicle_data_receiver_api.rs
 src/apis/system_api.rs
-src/apis/telematics_api.rs
 src/apis/towables_api.rs
 src/apis/trucks_api.rs
 src/apis/vehicles_api.rs
@@ -20,12 +19,13 @@ src/lib.rs
 src/models/error.rs
 src/models/mod.rs
 src/models/public_truck.rs
-src/models/telematic_data.rs
+src/models/sort_order.rs
 src/models/towable.rs
 src/models/truck.rs
 src/models/truck_drive_state.rs
 src/models/truck_drive_state_enum.rs
 src/models/truck_driver_card.rs
 src/models/truck_location.rs
+src/models/truck_sort_by_field.rs
 src/models/truck_speed.rs
 src/models/vehicle.rs

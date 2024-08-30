@@ -9,6 +9,7 @@
  */
 
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 /// 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
@@ -28,15 +29,15 @@ pub enum TruckDriveStateEnum {
 
 }
 
-impl ToString for TruckDriveStateEnum {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TruckDriveStateEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Rest => String::from("REST"),
-            Self::DriverAvailable => String::from("DRIVER_AVAILABLE"),
-            Self::Work => String::from("WORK"),
-            Self::Drive => String::from("DRIVE"),
-            Self::Error => String::from("ERROR"),
-            Self::NotAvailable => String::from("NOT_AVAILABLE"),
+            Self::Rest => write!(f, "REST"),
+            Self::DriverAvailable => write!(f, "DRIVER_AVAILABLE"),
+            Self::Work => write!(f, "WORK"),
+            Self::Drive => write!(f, "DRIVE"),
+            Self::Error => write!(f, "ERROR"),
+            Self::NotAvailable => write!(f, "NOT_AVAILABLE"),
         }
     }
 }

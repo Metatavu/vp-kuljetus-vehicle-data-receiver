@@ -9,6 +9,7 @@
  */
 
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 /// Error : Error object
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]

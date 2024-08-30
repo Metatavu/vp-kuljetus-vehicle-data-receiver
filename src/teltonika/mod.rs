@@ -44,7 +44,10 @@ fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
 /// TODO: Investigate if in the case of valid driver card id the length of MSB and LSB fields are always same.
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_events_to_truck_driver_card(events: &Vec<&AVLEventIO>) -> Option<TruckDriverCard> {
+fn driver_card_events_to_truck_driver_card(
+    timestamp: i64,
+    events: &Vec<&AVLEventIO>,
+) -> Option<TruckDriverCard> {
     let Some(driver_card_msb_part) = driver_card_part_from_event(events, 195) else {
         debug!("Driver card MSB part was 0");
 
@@ -59,7 +62,7 @@ fn driver_card_events_to_truck_driver_card(events: &Vec<&AVLEventIO>) -> Option<
 
     assert!(id.len() == 16);
 
-    return Some(TruckDriverCard { id });
+    return Some(TruckDriverCard { id, timestamp });
 }
 /// Converts a Driver Card part [AVLEventIO] to a String.
 ///

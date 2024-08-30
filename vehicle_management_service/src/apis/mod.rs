@@ -96,7 +96,6 @@ pub mod spec_auth_api;
 pub mod spec_management_ui_api;
 pub mod spec_vehicle_data_receiver_api;
 pub mod system_api;
-pub mod telematics_api;
 pub mod towables_api;
 pub mod trucks_api;
 pub mod vehicles_api;

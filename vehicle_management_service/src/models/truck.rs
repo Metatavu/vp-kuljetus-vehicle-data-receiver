@@ -9,6 +9,7 @@
  */
 
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 /// Truck : Represent single truck
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]

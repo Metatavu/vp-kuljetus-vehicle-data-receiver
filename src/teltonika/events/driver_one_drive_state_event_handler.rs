@@ -46,7 +46,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>>
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
     ) -> Option<TruckDriveState> {
-        let Some(driver_card) = driver_card_events_to_truck_driver_card(events) else {
+        let Some(driver_card) = driver_card_events_to_truck_driver_card(timestamp, events) else {
             debug!("Driver card MSB or LSB was 0");
 
             return None;
