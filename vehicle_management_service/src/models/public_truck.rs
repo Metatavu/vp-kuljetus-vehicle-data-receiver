@@ -9,6 +9,7 @@
  */
 
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 /// PublicTruck : Represent public info of single truck
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]

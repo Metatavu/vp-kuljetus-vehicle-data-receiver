@@ -154,7 +154,10 @@ pub fn start_vehicle_management_mock() -> MockServer {
             .header("X-API-KEY", "API_KEY");
         then.status(201)
             .header("Content-Type", "application/json")
-            .json_body_obj(&TruckDriverCard { id: String::new() });
+            .json_body_obj(&TruckDriverCard {
+                id: String::new(),
+                timestamp: chrono::Utc::now().timestamp(),
+            });
     });
     let _create_truck_drive_state_mock = mock_server.mock(|when, then| {
         when.method(POST)
@@ -170,6 +173,7 @@ pub fn start_vehicle_management_mock() -> MockServer {
             .header("Content-Type", "application/json")
             .json_body_obj(&[TruckDriverCard {
                 id: "1069619335000001".to_string().clone(),
+                timestamp: chrono::Utc::now().timestamp(),
             }]);
     });
     let _delete_driver_card_mock = mock_server.mock(|when, then| {

@@ -9,6 +9,7 @@
  */
 
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 /// Towable : Represent single towable
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]

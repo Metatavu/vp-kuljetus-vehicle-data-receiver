@@ -437,6 +437,7 @@ mod tests {
             })
             .with_trigger_event_id(187)
             .build();
+        let record_timestamp = &record.timestamp.timestamp();
         let packet = AVLFrameBuilder::new()
             .with_records([record].to_vec())
             .build();
@@ -450,6 +451,10 @@ mod tests {
             let cached_driver_card_event = driver_cards_cache.get(0);
             assert_eq!(1, driver_cards_cache.len());
             assert!(cached_driver_card_event.is_some());
+            assert_eq!(
+                *record_timestamp,
+                cached_driver_card_event.unwrap().timestamp
+            );
             let cached_driver_card_event = cached_driver_card_event.unwrap();
             assert_eq!(valid_driver_card_id, cached_driver_card_event.id);
         }

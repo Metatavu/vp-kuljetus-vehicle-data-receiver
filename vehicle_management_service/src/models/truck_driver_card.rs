@@ -9,18 +9,23 @@
  */
 
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TruckDriverCard {
     /// Driver card ID
     #[serde(rename = "id")]
     pub id: String,
+    /// Timestamp for driver card insertion. Unix timestamp in milliseconds.
+    #[serde(rename = "timestamp")]
+    pub timestamp: i64,
 }
 
 impl TruckDriverCard {
-    pub fn new(id: String) -> TruckDriverCard {
+    pub fn new(id: String, timestamp: i64) -> TruckDriverCard {
         TruckDriverCard {
             id,
+            timestamp,
         }
     }
 }

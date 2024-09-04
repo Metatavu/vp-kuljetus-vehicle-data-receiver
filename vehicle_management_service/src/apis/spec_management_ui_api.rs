@@ -10,7 +10,7 @@
 
 
 use reqwest;
-
+use serde::{Deserialize, Serialize};
 use crate::{apis::ResponseContent, models};
 use super::{Error, configuration};
 
@@ -125,6 +125,10 @@ pub struct ListTrucksParams {
     pub plate_number: Option<String>,
     /// Filter results by archived status
     pub archived: Option<bool>,
+    /// Sort results by field
+    pub sort_by: Option<models::TruckSortByField>,
+    /// Sort direction
+    pub sort_direction: Option<models::SortOrder>,
     /// First result.
     pub first: Option<i32>,
     /// Max results.
@@ -710,6 +714,8 @@ pub async fn list_trucks(configuration: &configuration::Configuration, params: L
     // unbox the parameters
     let plate_number = params.plate_number;
     let archived = params.archived;
+    let sort_by = params.sort_by;
+    let sort_direction = params.sort_direction;
     let first = params.first;
     let max = params.max;
 
@@ -724,6 +730,12 @@ pub async fn list_trucks(configuration: &configuration::Configuration, params: L
     }
     if let Some(ref local_var_str) = archived {
         local_var_req_builder = local_var_req_builder.query(&[("archived", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = sort_by {
+        local_var_req_builder = local_var_req_builder.query(&[("sortBy", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = sort_direction {
+        local_var_req_builder = local_var_req_builder.query(&[("sortDirection", &local_var_str.to_string())]);
     }
     if let Some(ref local_var_str) = first {
         local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
