@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use log::{info, warn};
 use uuid::Uuid;
 use vehicle_management_service::apis::{
@@ -90,12 +91,18 @@ pub async fn get_truck_driver_card_id(truck_id: String) -> Option<String> {
 /// # Arguments
 /// * `truck_id` - Truck ID
 /// * `driver_card_id` - Driver card ID
-pub async fn delete_truck_driver_card_by_id(truck_id: String, driver_card_id: String) {
+/// * `removed_at` - Time when the driver card was removed
+pub async fn delete_truck_driver_card_by_id(
+    truck_id: String,
+    driver_card_id: String,
+    removed_at: DateTime<Utc>,
+) {
     match delete_truck_driver_card(
         &get_vehicle_management_api_config(),
         DeleteTruckDriverCardParams {
             truck_id: truck_id.clone(),
             driver_card_id: driver_card_id.clone(),
+            x_driver_card_removed_at: removed_at.to_string(),
         },
     )
     .await

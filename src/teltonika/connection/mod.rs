@@ -119,7 +119,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
     /// # Arguments
     /// * `records` - Records to be checked for driver card removal events
     async fn handle_driver_one_card_removal(&mut self, mut records: &mut Vec<AVLRecord>) {
-        if let Some(driver_one_card_present_in_frame) = self
+        if let Some((driver_one_card_present_in_frame, timestamp)) = self
             .records_handler
             .get_driver_one_card_presence_from_records(&mut records)
         {
@@ -138,7 +138,10 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                     else {
                         return;
                     };
-                    delete_truck_driver_card_by_id(truck_id.clone(), driver_card_id).await;
+                    if let Some(timestamp) = timestamp {
+                        delete_truck_driver_card_by_id(truck_id.clone(), driver_card_id, timestamp)
+                            .await;
+                    }
                 }
 
                 return;

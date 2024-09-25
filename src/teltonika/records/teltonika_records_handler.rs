@@ -12,6 +12,7 @@ use crate::{
     },
     utils::get_vehicle_management_api_config,
 };
+use chrono::{DateTime, Utc};
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
@@ -99,24 +100,27 @@ impl TeltonikaRecordsHandler {
     /// * `teltonika_records` - The list of [AVLRecord]s to get the driver one card presence from.
     ///
     /// # Returns
-    /// * The driver one card presence if found, otherwise [None].
+    /// * Tuple where first value is the driver one card presence and second value is the latest [AVLRecord] with the driver one card presence event.
     pub fn get_driver_one_card_presence_from_records(
         &self,
         teltonika_records: &mut Vec<AVLRecord>,
-    ) -> Option<bool> {
+    ) -> Option<(bool, Option<DateTime<Utc>>)> {
         teltonika_records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        let driver_one_card_presence_events: Vec<&AVLRecord> = teltonika_records
+        let driver_one_card_presence_records: Vec<&AVLRecord> = teltonika_records
             .iter()
             .filter(|record| record.trigger_event_id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID)
             .collect();
-        if let Some(latest_event) = driver_one_card_presence_events.first() {
-            let latest_event = latest_event
+        if let Some(latest_record) = driver_one_card_presence_records.first() {
+            let latest_event = latest_record
                 .io_events
                 .iter()
                 .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
 
             return match latest_event {
-                Some(event) => Some(avl_event_io_value_to_u8(&event.value) == 1),
+                Some(event) => Some((
+                    avl_event_io_value_to_u8(&event.value) == 1,
+                    Some(latest_record.timestamp),
+                )),
                 None => None,
             };
         }
