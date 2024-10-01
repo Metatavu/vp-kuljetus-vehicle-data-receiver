@@ -70,7 +70,9 @@ pub struct DeleteTruckDriverCardParams {
     /// truck ID
     pub truck_id: String,
     /// driver card ID
-    pub driver_card_id: String
+    pub driver_card_id: String,
+    /// Timestamp when the driver card was removed from the truck
+    pub x_driver_card_removed_at: String
 }
 
 /// struct for passing parameters to the method [`find_truck`]
@@ -522,6 +524,7 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
     // unbox the parameters
     let truck_id = params.truck_id;
     let driver_card_id = params.driver_card_id;
+    let x_driver_card_removed_at = params.x_driver_card_removed_at;
 
 
     let local_var_client = &local_var_configuration.client;
@@ -532,6 +535,7 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
     }
+    local_var_req_builder = local_var_req_builder.header("X-Driver-Card-Removed-At", x_driver_card_removed_at.to_string());
     if let Some(ref local_var_apikey) = local_var_configuration.api_key {
         let local_var_key = local_var_apikey.key.clone();
         let local_var_value = match local_var_apikey.prefix {
