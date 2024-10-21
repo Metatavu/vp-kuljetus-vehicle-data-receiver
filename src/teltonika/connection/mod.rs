@@ -86,7 +86,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
     ) -> Result<(TeltonikaStream<S>, String), ()> {
         match stream.read_imei_async().await {
             Ok(imei) => {
-                info!("New client connected with IMEI [{}]", imei);
+                info!(target: &imei, "New client connected");
                 stream
                     .write_imei_approval_async()
                     .await
@@ -131,7 +131,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                 };
                 if now - card_removed_at > self.card_remove_threshold.into() {
                     let Some(truck_id) = &self.truck_id else {
-                        warn!("Attempted to remove driver card from truck with no ID");
+                        warn!(target: self.log_target(), "Attempted to remove driver card from truck with no ID");
                         return;
                     };
                     let Some(driver_card_id) = get_truck_driver_card_id(truck_id.clone()).await
@@ -149,6 +149,10 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
 
             self.driver_one_card_removed_at = None;
         }
+    }
+
+    fn log_target(&self) -> &str {
+        &self.imei
     }
 
     /// Runs the connection with the Teltonika Telematics device
@@ -186,6 +190,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                         let found_truck_id = get_truck_id_by_vin(&self.truck_vin).await;
                         if found_truck_id.is_some() {
                             debug!(
+                                target: self.log_target(),
                                 "Found Truck ID [{}] for VIN [{}]",
                                 found_truck_id.clone().unwrap(),
                                 self.truck_vin.clone().unwrap()
@@ -198,13 +203,15 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
 
                     if let Some(vin) = &self.truck_vin {
                         debug!(
-                            "Received frame with {} records from VIN [{}] with IMEI [{}]",
-                            records_count, vin, self.imei
+                            target: self.log_target(),
+                            "Received frame with {} records from VIN [{}]",
+                            records_count, vin
                         );
                     } else {
                         debug!(
-                            "Received frame with {} records from unknown VIN with IMEI [{}]",
-                            records_count, self.imei
+                            target: self.log_target(),
+                            "Received frame with {} records from unknown VIN",
+                            records_count
                         );
                     }
 
@@ -217,25 +224,25 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                     self.records_handler.handle_records(frame.records).await;
 
                     if let Some(id) = &self.truck_id {
-                        info!("Purging cache for truck ID: [{}]...", id);
+                        info!(target: self.log_target(), "Purging cache for truck ID: [{}]...", id);
                         self.records_handler.purge_cache().await;
                     }
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {
-                        info!("Client with IMEI [{}] disconnected", self.imei);
+                        info!(target: self.log_target(), "Client disconnected");
                         break;
                     }
                     std::io::ErrorKind::InvalidData => {
-                        error!(
-                            "Failed to parse frame from client with IMEI [{}]: {}",
-                            self.imei, err
+                        error!(target: self.log_target(),
+                            "Failed to parse frame from client: {}",
+                            err
                         );
                     }
                     _ => {
-                        error!(
-                            "Unknown error when parsing frame from client with IMEI [{}]: {}",
-                            self.imei, err
+                        error!(target: self.log_target(),
+                            "Unknown error when parsing frame from client: {}",
+                            err
                         );
                         break;
                     }
