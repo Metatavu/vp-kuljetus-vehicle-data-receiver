@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_missing_truck_vin() {
-        let record_handler = get_teltonika_records_handler(None);
+        let record_handler = get_teltonika_records_handler(None, None);
         let record_without_vin = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_partly_missing_truck_vin() {
-        let record_handler = get_teltonika_records_handler(None);
+        let record_handler = get_teltonika_records_handler(None, None);
         let record_without_vin = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_get_truck_vin() {
-        let record_handler = get_teltonika_records_handler(None);
+        let record_handler = get_teltonika_records_handler(None, None);
         let record_with_vin = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_get_truck_vin_with_multiple_vin_records() {
-        let record_handler = get_teltonika_records_handler(None);
+        let record_handler = get_teltonika_records_handler(None, None);
         let record_with_vin_1 = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -320,7 +320,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_speed_event() {
-        let record_handler = get_teltonika_records_handler(None);
+        let record_handler = get_teltonika_records_handler(None, None);
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![AVLEventIO {
@@ -343,7 +343,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_cached_event() {
         start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None);
+        let mut record_handler = get_teltonika_records_handler(None, None);
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![AVLEventIO {
@@ -375,7 +375,7 @@ mod tests {
     #[tokio::test]
     async fn test_record_location_handling() {
         start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None);
+        let mut record_handler = get_teltonika_records_handler(None, None);
         let record_1 = AVLRecordBuilder::new()
             .with_longitude(61.68779453479687)
             .with_latitude(27.27297030282335)
@@ -427,7 +427,7 @@ mod tests {
         let valid_driver_card_id = "1069619335000001".to_string();
         let valid_driver_card_id_2 = "1A696193350YZ001".to_string();
         start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None);
+        let mut record_handler = get_teltonika_records_handler(None, None);
         let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
         let record = AVLRecordBuilder::new()
             .with_io_events(driver_card_events.to_vec())
@@ -520,7 +520,7 @@ mod tests {
     async fn test_driver_one_card_drive_state_handling() {
         let valid_driver_card_id = "1069619335000001".to_string();
         start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None);
+        let mut record_handler = get_teltonika_records_handler(None, None);
         let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
         let record_1 = AVLRecordBuilder::new()
             .with_io_events(driver_card_events.to_vec())
@@ -563,7 +563,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_driver_card_id() {
         start_vehicle_management_mock();
-        let record_handler = get_teltonika_records_handler(None);
+        let record_handler = get_teltonika_records_handler(None, None);
         let record = AVLRecordBuilder::new()
             .with_io_events(vec![
                 AVLEventIO {

@@ -26,22 +26,32 @@ pub struct TeltonikaRecordsHandler {
     base_cache_path: Box<Path>,
     truck_id: Option<String>,
     event_handlers: Vec<TeltonikaEventHandlers>,
+    imei: String,
 }
 
 impl TeltonikaRecordsHandler {
     /// Creates a new [TeltonikaRecordsHandler].
-    pub fn new(base_cache_path: &Path, truck_id: Option<String>) -> Self {
+    pub fn new(base_cache_path: &Path, truck_id: Option<String>, imei: String) -> Self {
         TeltonikaRecordsHandler {
             base_cache_path: base_cache_path.into(),
             truck_id,
             event_handlers: vec![
-                TeltonikaEventHandlers::SpeedEventHandler(SpeedEventHandler),
-                TeltonikaEventHandlers::DriverOneCardIdEventHandler(DriverOneCardIdEventHandler),
-                TeltonikaEventHandlers::DriverOneDriveStateEventHandler(
+                TeltonikaEventHandlers::SpeedEventHandler((SpeedEventHandler, imei.clone())),
+                TeltonikaEventHandlers::DriverOneCardIdEventHandler((
+                    DriverOneCardIdEventHandler,
+                    imei.clone(),
+                )),
+                TeltonikaEventHandlers::DriverOneDriveStateEventHandler((
                     DriverOneDriveStateEventHandler,
-                ),
+                    imei.clone(),
+                )),
             ],
+            imei,
         }
+    }
+
+    fn log_target(&self) -> &str {
+        &self.imei
     }
 
     /// Gets the base cache path for the handler.
@@ -140,7 +150,7 @@ impl TeltonikaRecordsHandler {
     /// This method will iterate over the known event handlers and pass appropriate events to them.
     pub async fn handle_record(&self, record: &AVLRecord) {
         self.handle_record_location(record).await;
-        debug!("Record trigger event ID: {}", record.trigger_event_id);
+        debug!(target: self.log_target(), "Record trigger event ID: {}", record.trigger_event_id);
         for handler in self.event_handlers.iter() {
             let trigger_event_id = handler.get_trigger_event_id();
             if trigger_event_id.is_some() && record.trigger_event_id != trigger_event_id.unwrap() {
@@ -195,7 +205,7 @@ impl TeltonikaRecordsHandler {
     async fn handle_record_location(&self, record: &AVLRecord) {
         let location_data = TruckLocation::from_teltonika_record(record).unwrap();
         if let Some(truck_id) = self.truck_id.clone() {
-            debug!("Handling location for truck: {}", truck_id);
+            debug!(target: self.log_target(), "Handling location for truck: {}", truck_id);
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
                 &get_vehicle_management_api_config(),
                 CreateTruckLocationParams {
@@ -205,7 +215,7 @@ impl TeltonikaRecordsHandler {
             )
             .await;
             if let Err(e) = result {
-                debug!(
+                debug!(target: self.log_target(),
                     "Error sending location: {:?}. Caching it for further use.",
                     e
                 );
@@ -214,7 +224,7 @@ impl TeltonikaRecordsHandler {
                     .expect("Error caching location");
             }
         } else {
-            debug!("Caching location for yet unknown truck");
+            debug!(target: self.log_target(), "Caching location for yet unknown truck");
             location_data
                 .write_to_file(self.base_cache_path.to_str().unwrap())
                 .expect("Error caching location");
@@ -236,7 +246,7 @@ impl TeltonikaRecordsHandler {
             )
             .await;
             if let Err(e) = result {
-                debug!(
+                debug!(target: self.log_target(),
                     "Error sending location: {:?}. Caching it for further use.",
                     e
                 );
@@ -244,7 +254,7 @@ impl TeltonikaRecordsHandler {
             }
         }
         let successful_locations_count = cache.len() - failed_locations.len();
-        debug!(
+        debug!(target: self.log_target(),
             "Purged location cache of {} locations. {} failed to send.",
             successful_locations_count,
             failed_locations.len()

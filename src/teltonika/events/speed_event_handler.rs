@@ -40,6 +40,7 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         _trigger_event_id: u16,
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
+        _imei: &str,
     ) -> Option<TruckSpeed> {
         let event = events.first().expect("Received empty speed event");
         Some(TruckSpeed {

@@ -105,11 +105,15 @@ pub fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 /// Gets a TeltonikaRecordsHandler for testing
 ///
 /// Uses a temporary directory for the cache
-pub fn get_teltonika_records_handler(truck_id: Option<String>) -> TeltonikaRecordsHandler {
+pub fn get_teltonika_records_handler(
+    truck_id: Option<String>,
+    imei: Option<String>,
+) -> TeltonikaRecordsHandler {
     let test_cache_dir = tempdir().unwrap();
     let test_cache_path = test_cache_dir.path();
+    let imei = imei.unwrap_or(String::new());
 
-    return TeltonikaRecordsHandler::new(test_cache_path, truck_id);
+    return TeltonikaRecordsHandler::new(test_cache_path, truck_id, imei);
 }
 
 /// Starts a mock server for the Vehicle Management Service
