@@ -61,6 +61,7 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
         trigger_event_id: u16,
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
+        _: &str,
     ) -> Option<TruckDriverCard> {
         match trigger_event_id {
             187 => driver_card_events_to_truck_driver_card(timestamp, events),
