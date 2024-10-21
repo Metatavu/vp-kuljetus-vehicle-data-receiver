@@ -35,7 +35,6 @@ impl TeltonikaRecordsHandler {
         TeltonikaRecordsHandler {
             base_cache_path: base_cache_path.into(),
             truck_id,
-            imei,
             event_handlers: vec![
                 TeltonikaEventHandlers::SpeedEventHandler((SpeedEventHandler, imei.clone())),
                 TeltonikaEventHandlers::DriverOneCardIdEventHandler((
@@ -47,6 +46,7 @@ impl TeltonikaRecordsHandler {
                     imei.clone(),
                 )),
             ],
+            imei,
         }
     }
 

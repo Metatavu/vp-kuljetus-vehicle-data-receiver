@@ -42,12 +42,12 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
     ) -> Self {
         TeltonikaConnection {
             teltonika_stream: stream,
+            records_handler: TeltonikaRecordsHandler::new(&base_file_path, None, imei.clone()),
             imei,
             truck_id: None,
             truck_vin: None,
             card_remove_threshold,
             driver_one_card_removed_at: None,
-            records_handler: TeltonikaRecordsHandler::new(&base_file_path, None, imei.clone()),
         }
     }
 
