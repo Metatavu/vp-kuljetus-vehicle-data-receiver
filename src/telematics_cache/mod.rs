@@ -1,3 +1,5 @@
+pub mod cache_handler;
+
 use nom_teltonika::AVLRecord;
 use serde::{Deserialize, Serialize};
 use std::{

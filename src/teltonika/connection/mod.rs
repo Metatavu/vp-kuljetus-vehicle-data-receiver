@@ -2,17 +2,14 @@ use base64::Engine;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info, warn};
 use nom_teltonika::{AVLRecord, TeltonikaStream};
-use rand::{thread_rng, Rng};
 use std::{
     fs::{create_dir_all, File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    sync::mpsc::{self, Receiver, Sender},
-    time::sleep,
+    sync::mpsc::{self, Sender},
 };
 
 use crate::{
@@ -20,21 +17,19 @@ use crate::{
         api::{delete_truck_driver_card_by_id, get_truck_driver_card_id, get_truck_id_by_vin},
         avl_packet::AVLPacketToBytes,
     },
-    Message, WORKER_RUNTIME,
+    worker::{Worker, WorkerMessage},
 };
 
-use super::records::TeltonikaRecordsHandler;
+use super::records::{teltonika_vin_handler::get_truck_vin_from_records, TeltonikaRecordsHandler};
 
 pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
     truck_id: Option<String>,
     truck_vin: Option<String>,
-    base_file_path: PathBuf,
-    // records_handler: TeltonikaRecordsHandler,
     card_remove_threshold: u16,
     driver_one_card_removed_at: Option<i64>,
-    sender_channel: Sender<Message>,
+    sender_channel: Sender<WorkerMessage>,
 }
 
 impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
@@ -43,19 +38,12 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
-    /// * `base_file_path` - Base path for the log files
     /// * `card_remove_threshold` - Threshold for removing the driver card
-    pub fn new(
-        stream: TeltonikaStream<S>,
-        imei: String,
-        base_file_path: &Path,
-        card_remove_threshold: u16,
-    ) -> Self {
-        let (tx, rx) = mpsc::channel::<Message>(4000);
+    pub fn new(stream: TeltonikaStream<S>, imei: String, card_remove_threshold: u16) -> Self {
+        let (tx, rx) = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei,
-            base_file_path: base_file_path.to_path_buf(),
             truck_id: None,
             truck_vin: None,
             card_remove_threshold,
@@ -63,38 +51,9 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             sender_channel: tx,
         };
 
-        teltonika_connection.setup_worker(rx);
+        Worker::spawn(rx);
 
         teltonika_connection
-    }
-
-    fn setup_worker(&self, mut receiver_channel: Receiver<Message>) {
-        WORKER_RUNTIME.spawn(async move {
-            while let Some(msg) = receiver_channel.recv().await {
-                match msg {
-                    Message::IncomingFrame {
-                        frame,
-                        truck_id,
-                        base_cache_path,
-                        imei,
-                    } => {
-                        tokio::spawn(async {
-                            let identifier: u32 = thread_rng().gen();
-                            let log_target = imei.clone() + "-" +  identifier.to_string().as_str();
-                            debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
-                            TeltonikaRecordsHandler::handle_records(
-                                frame.records,
-                                truck_id,
-                                base_cache_path,
-                                imei,
-                            ).await;
-                            sleep(Duration::from_secs(5)).await;
-                            debug!(target: &log_target, "Worker finished processing frame");
-                        });
-                    }
-                }
-            }
-        });
     }
 
     /// Handles the connection with the Teltonika Telematics device
@@ -113,7 +72,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
-                let mut connection = Self::new(stream, imei, &file_path, card_remove_threshold);
+                let mut connection = Self::new(stream, imei, card_remove_threshold);
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
@@ -227,8 +186,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         .await;
 
                     if let None = self.truck_vin {
-                        self.truck_vin =
-                            TeltonikaRecordsHandler::get_truck_vin_from_records(&frame.records);
+                        self.truck_vin = get_truck_vin_from_records(&frame.records);
                     }
                     if self.truck_id.is_none() && self.truck_vin.is_some() {
                         let found_truck_id = get_truck_id_by_vin(&self.truck_vin).await;
@@ -263,24 +221,18 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         .write_frame_ack_async(Some(&frame))
                         .await?;
 
-                    let sent = self
+                    if let Err(err) = self
                         .sender_channel
-                        .send(Message::IncomingFrame {
+                        .send(WorkerMessage::IncomingFrame {
                             frame,
                             truck_id: self.truck_id.clone(),
                             base_cache_path: base_log_file_path.clone(),
                             imei: self.imei.clone(),
                         })
-                        .await;
-
-                    if let Err(err) = sent {
+                        .await
+                    {
                         error!(target: self.log_target(), "Failed to send frame to worker: {}", err);
-                    }
-
-                    if let Some(id) = &self.truck_id {
-                        info!(target: self.log_target(), "Purging cache for truck ID: [{}]...", id);
-                        // self.records_handler.purge_cache().await;
-                    }
+                    };
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {

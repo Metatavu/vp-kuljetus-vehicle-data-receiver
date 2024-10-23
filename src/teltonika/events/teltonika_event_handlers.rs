@@ -1,14 +1,16 @@
 use super::{
     driver_one_card_id_event_handler, driver_one_drive_state_event_handler, speed_event_handler,
 };
-use crate::telematics_cache::Cacheable;
+use crate::{
+    telematics_cache::Cacheable,
+    teltonika::events::{
+        DriverOneCardIdEventHandler, DriverOneDriveStateEventHandler, SpeedEventHandler,
+    },
+};
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::Debug,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Debug, path::PathBuf};
 
 /// Enumeration for Teltonika event handlers.
 ///
@@ -30,6 +32,19 @@ pub enum TeltonikaEventHandlers<'a> {
 }
 
 impl<'a> TeltonikaEventHandlers<'a> {
+    pub fn event_handlers(log_target: &str) -> Vec<TeltonikaEventHandlers> {
+        vec![
+            TeltonikaEventHandlers::SpeedEventHandler((SpeedEventHandler, log_target)),
+            TeltonikaEventHandlers::DriverOneCardIdEventHandler((
+                DriverOneCardIdEventHandler,
+                log_target,
+            )),
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((
+                DriverOneDriveStateEventHandler,
+                log_target,
+            )),
+        ]
+    }
     /// Gets the event ID for the handler.
     pub fn get_event_ids(&self) -> Vec<u16> {
         match self {
@@ -108,7 +123,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
     }
 
     /// Purges the cache.
-    pub async fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>) {
+    pub async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, imei)) => {
                 handler.purge_cache(truck_id, base_cache_path, imei).await
@@ -226,7 +241,7 @@ where
     /// * `truck_id` - The truck ID to purge the cache for.
     /// * `base_cache_path` - The base path to the cache directory.
     /// * `imei` - The IMEI of the device.
-    async fn purge_cache(&self, truck_id: String, base_cache_path: Box<Path>, imei: &str) {
+    async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, imei: &str) {
         let cache = T::read_from_file(base_cache_path.to_str().unwrap());
         let mut failed_events: Vec<T> = Vec::new();
 
