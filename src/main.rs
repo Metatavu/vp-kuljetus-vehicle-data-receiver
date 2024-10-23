@@ -28,8 +28,8 @@ const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let file_path: String = String::new();
-    let write_to_file: bool = false;
+    let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
+    let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
     let card_remove_threshold: u16 = read_optional_env_variable(CARD_REMOVE_THRESHOLD_ENV_KEY)
         .unwrap_or(DEFAULT_CARD_REMOVE_THRESHOLD);
 
@@ -323,27 +323,27 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn test_cache_speed_event() {
-    //     let record_handler = get_teltonika_records_handler(None, None);
-    //     let record = AVLRecordBuilder::new()
-    //         .with_priority(Priority::High)
-    //         .with_io_events(vec![AVLEventIO {
-    //             id: 191,
-    //             value: nom_teltonika::AVLEventIOValue::U16(10),
-    //         }])
-    //         .build();
-    //     let packet = AVLFrameBuilder::new().add_record(record).build();
+    #[tokio::test]
+    async fn test_cache_speed_event() {
+        let record_handler = get_teltonika_records_handler(None, None);
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![AVLEventIO {
+                id: 191,
+                value: nom_teltonika::AVLEventIOValue::U16(10),
+            }])
+            .build();
+        let packet = AVLFrameBuilder::new().add_record(record).build();
 
-    //     record_handler.handle_records(packet.records).await;
+        record_handler.handle_records(packet.records).await;
 
-    //     let base_cache_path = record_handler.get_base_cache_path();
-    //     let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
-    //     let first_cached_speed = speeds_cache.first();
+        let base_cache_path = record_handler.base_cache_path();
+        let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+        let first_cached_speed = speeds_cache.first();
 
-    //     assert_eq!(1, speeds_cache.len());
-    //     assert_eq!(10.0, first_cached_speed.unwrap().speed);
-    // }
+        assert_eq!(1, speeds_cache.len());
+        assert_eq!(10.0, first_cached_speed.unwrap().speed);
+    }
 
     // #[tokio::test]
     // async fn test_send_cached_event() {
@@ -361,7 +361,7 @@ mod tests {
     //     record_handler.handle_records(packet.records).await;
 
     //     {
-    //         let base_cache_path = record_handler.get_base_cache_path();
+    //         let base_cache_path = record_handler.base_cache_path();
     //         let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
     //         let first_cached_speed = speeds_cache.first();
 
