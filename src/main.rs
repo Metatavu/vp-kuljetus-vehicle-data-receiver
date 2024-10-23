@@ -2,9 +2,14 @@ mod telematics_cache;
 mod teltonika;
 mod utils;
 
+use lazy_static::lazy_static;
 use log::info;
-use std::{error::Error, path::Path};
-use tokio::net::TcpListener;
+use nom_teltonika::AVLFrame;
+use std::path::{Path, PathBuf};
+use tokio::{
+    net::TcpListener,
+    runtime::{self, Runtime},
+};
 
 use crate::{
     teltonika::connection::TeltonikaConnection,
@@ -19,51 +24,85 @@ const CARD_REMOVE_THRESHOLD_ENV_KEY: &str = "CARD_REMOVE_THRESHOLD";
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
+pub enum Message {
+    IncomingFrame {
+        frame: AVLFrame,
+        truck_id: Option<String>,
+        base_cache_path: PathBuf,
+        imei: String,
+    },
+}
+
+lazy_static! {
+    static ref WORKER_RUNTIME: Runtime = runtime::Builder::new_multi_thread()
+        .thread_name("worker-pool")
+        .enable_all()
+        .build()
+        .unwrap();
+}
+
 /// VP-Kuljetus Vehicle Data Receiver
 ///
 /// This application handles incoming TCP connections from Teltonika Telematics devices,
 /// processes the data and sends it to the VP-Kuljetus Vehicle Management Service API.
 ///
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
-    let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
+    let file_path: String = String::new();
+    let write_to_file: bool = false;
     let card_remove_threshold: u16 = read_optional_env_variable(CARD_REMOVE_THRESHOLD_ENV_KEY)
         .unwrap_or(DEFAULT_CARD_REMOVE_THRESHOLD);
 
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY);
 
-    // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
+    // // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(API_BASE_URL_ENV_KEY);
 
     let address = "0.0.0.0:8080";
 
-    let listener = TcpListener::bind(&address).await?;
+    let main_runtime = runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .thread_name("main-pool")
+        .enable_all()
+        .build()?;
 
-    info!("Listening on: {}", address);
-
-    loop {
-        let (socket, _) = listener.accept().await?;
-        let base_file_path = match write_to_file {
-            true => file_path.clone(),
-            false => "".to_string(),
+    main_runtime.block_on(async move {
+        let listener = match TcpListener::bind(&address).await {
+            Ok(l) => l,
+            Err(e) => {
+                panic!("Failed to bind to address: {}", e);
+            }
         };
-        let card_remove_threshold = card_remove_threshold.clone();
 
-        tokio::spawn(async move {
-            if let Err(_) = TeltonikaConnection::handle_connection(
-                socket,
-                Path::new(&base_file_path),
-                card_remove_threshold,
-            )
-            .await
-            {
-                return;
+        info!("Listening on: {}", address);
+
+        loop {
+            let socket = match listener.accept().await {
+                Ok((sock, _)) => sock,
+                Err(e) => {
+                    panic!("Failed to accept connection: {}", e);
+                }
             };
-        });
-    }
+            let base_file_path = match write_to_file {
+                true => file_path.clone(),
+                false => "".to_string(),
+            };
+            let card_remove_threshold = card_remove_threshold.clone();
+            tokio::spawn(async move {
+                if let Err(_) = TeltonikaConnection::handle_connection(
+                    socket,
+                    Path::new(&base_file_path),
+                    card_remove_threshold,
+                )
+                .await
+                {
+                    return;
+                };
+            });
+        }
+    });
+    Ok(())
 }
 
 #[cfg(test)]

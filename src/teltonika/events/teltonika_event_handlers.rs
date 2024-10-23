@@ -5,28 +5,31 @@ use crate::telematics_cache::Cacheable;
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, path::Path};
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+};
 
 /// Enumeration for Teltonika event handlers.
 ///
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
-pub enum TeltonikaEventHandlers {
-    SpeedEventHandler((speed_event_handler::SpeedEventHandler, String)),
+pub enum TeltonikaEventHandlers<'a> {
+    SpeedEventHandler((speed_event_handler::SpeedEventHandler, &'a str)),
     DriverOneCardIdEventHandler(
         (
             driver_one_card_id_event_handler::DriverOneCardIdEventHandler,
-            String,
+            &'a str,
         ),
     ),
     DriverOneDriveStateEventHandler(
         (
             driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler,
-            String,
+            &'a str,
         ),
     ),
 }
 
-impl TeltonikaEventHandlers {
+impl<'a> TeltonikaEventHandlers<'a> {
     /// Gets the event ID for the handler.
     pub fn get_event_ids(&self) -> Vec<u16> {
         match self {
@@ -62,7 +65,7 @@ impl TeltonikaEventHandlers {
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
-        base_cache_path: Box<Path>,
+        base_cache_path: PathBuf,
     ) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, imei)) => {
@@ -158,7 +161,7 @@ where
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         truck_id: Option<String>,
-        base_cache_path: Box<Path>,
+        base_cache_path: PathBuf,
         imei: &str,
     ) {
         let event_data = self.process_event_data(trigger_event_id, &events, timestamp, imei);
@@ -185,7 +188,7 @@ where
     /// * `event` - The Teltonika event to cache.
     /// * `timestamp` - The timestamp of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    fn cache_event_data(&self, event: T, base_cache_path: Box<Path>) {
+    fn cache_event_data(&self, event: T, base_cache_path: PathBuf) {
         let cache_result = event.write_to_file(base_cache_path.to_owned().to_str().unwrap());
         if let Err(e) = cache_result {
             panic!("Error caching event: {:?}", e);

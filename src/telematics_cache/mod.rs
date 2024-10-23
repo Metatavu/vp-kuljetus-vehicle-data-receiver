@@ -8,8 +8,10 @@ use std::{
 
 /// Base trait for all cacheable telematics data
 pub trait Cacheable {
+    fn get_file_path() -> String
+    where
+        Self: Sized;
     /// File path to store the cache
-    const FILE_PATH: &'static str;
 
     fn from_teltonika_record(record: &AVLRecord) -> Option<Self>
     where
@@ -22,8 +24,11 @@ pub trait Cacheable {
     ///
     /// # Returns
     /// * A file handle to the cache file
-    fn get_cache_file_handle(base_cache_path: &str) -> std::fs::File {
-        let cache_file_path = format!("{}/{}", base_cache_path, Self::FILE_PATH);
+    fn get_cache_file_handle(base_cache_path: &str) -> std::fs::File
+    where
+        Self: Sized,
+    {
+        let cache_file_path = format!("{}/{}", base_cache_path, Self::get_file_path());
         create_dir_all(Path::new(&base_cache_path)).unwrap();
         std::fs::OpenOptions::new()
             .append(true)
@@ -72,7 +77,10 @@ pub trait Cacheable {
     ///
     /// # Arguments
     /// * `base_cache_path` - The base path to the cache directory
-    fn clear_cache(base_cache_path: &str) {
+    fn clear_cache(base_cache_path: &str)
+    where
+        Self: Sized,
+    {
         let file = Self::get_cache_file_handle(base_cache_path);
         if let Err(_) = file.set_len(0) {
             panic!("Error truncating cache file!");
