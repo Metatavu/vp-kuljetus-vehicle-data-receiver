@@ -49,6 +49,11 @@ impl CacheHandler {
         let (cache, cache_size) = TruckLocation::read_from_file(base_cache_path, purge_cache_size);
         let mut failed_locations = Vec::new();
 
+        let purge_cache_size = cache.len();
+        debug!(target: &self.log_target,
+            "Purging location cache of {purge_cache_size}/{cache_size} locations.",
+        );
+
         for cached_location in cache.iter() {
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
                 &get_vehicle_management_api_config(),
@@ -58,19 +63,17 @@ impl CacheHandler {
                 },
             )
             .await;
-            if let Err(e) = result {
+            if let Err(err) = result {
                 debug!(target: &self.log_target,
-                    "Error sending location: {:?}. Caching it for further use.",
-                    e
+                    "Error sending location: {err:?}. Caching it for further use.",
                 );
                 failed_locations.push(cached_location.clone());
             }
         }
         let successful_locations_count = cache.len() - failed_locations.len();
+        let failed_locations_count = failed_locations.len();
         debug!(target: &self.log_target,
-            "Purged location cache of {} locations. {} failed to send.",
-            successful_locations_count,
-            failed_locations.len()
+            "Purged location cache of {successful_locations_count} locations. {failed_locations_count} failed to send.",
         );
         TruckLocation::clear_cache(base_cache_path);
         for failed_location in failed_locations.iter() {
