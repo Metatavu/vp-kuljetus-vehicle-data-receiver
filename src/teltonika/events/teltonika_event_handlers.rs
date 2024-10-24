@@ -171,12 +171,13 @@ where
         None
     }
 
-    /// Handles a Teltonika event.
+    /// Handles incoming Teltonika events.
     ///
     /// This method will process the event data, send it to the API and cache it if sending fails or truck id is not yet known.
     ///
     /// # Arguments
-    /// * `event` - The Teltonika event to handle.
+    /// * `trigger_event_id` - The trigger event ID of the [nom_teltonika::AVLRecord].
+    /// * `events` - The Teltonika events to handle.
     /// * `timestamp` - The timestamp of the event.
     /// * `truck_id` - The truck ID of the event.
     /// * `base_cache_path` - The base path to the cache directory.
@@ -198,8 +199,8 @@ where
         if let Some(truck_id) = truck_id {
             debug!(target: imei, "Handling event for truck: {}", truck_id);
             let send_event_result = self.send_event(&event_data, truck_id).await;
-            if let Err(e) = send_event_result {
-                error!(target: imei, "Error sending event: {:?}. Caching it for further use.", e);
+            if let Err(err) = send_event_result {
+                error!(target: imei, "Error sending event: {err:?}. Caching it for further use.");
                 self.cache_event_data(event_data, base_cache_path);
             }
         } else {
@@ -208,7 +209,7 @@ where
         };
     }
 
-    /// Caches the event data.
+    /// Caches the event data. e.g. writes to file.
     ///
     /// # Arguments
     /// * `event` - The Teltonika event to cache.
@@ -231,7 +232,8 @@ where
     /// Processes the event data.
     ///
     /// # Arguments
-    /// * `event` - The Teltonika event data to process.
+    /// * `trigger_event_id` - The trigger event ID of the [nom_teltonika::AVLRecord].
+    /// * `events` - The Teltonika events data to process.
     /// * `truck_id` - The truck ID of the event.
     /// * `timestamp` - The timestamp of the event.
     /// * `imei` - The IMEI of the device.
@@ -262,6 +264,7 @@ where
         let (cache, cache_size) =
             T::read_from_file(base_cache_path.to_str().unwrap(), purge_cache_size);
         let mut failed_events: Vec<T> = Vec::new();
+        let purge_cache_size = cache.len();
 
         let event_ids = self
             .get_event_ids()
@@ -270,27 +273,22 @@ where
             .collect::<Vec<String>>()
             .join(", ");
         debug!(target: imei,
-            "Purging cache of {} events for event ids: {}",
-            cache.len(),
-            event_ids
+            "Purging cache of {purge_cache_size}/{cache_size} events for event ids: {event_ids}",
         );
 
         for cached_event in cache.iter() {
             let sent_event = self.send_event(cached_event, truck_id.clone()).await;
             if let Err(err) = sent_event {
                 debug!(target: imei,
-                    "Failed to send event: {:?}. Adding it to failed events.",
-                    err
+                    "Failed to send event: {err:#?}. Adding it to failed events.",
                 );
                 failed_events.push(cached_event.clone());
             }
         }
         let successful_events_count = cache.len() - failed_events.len();
+        let failed_events_count = failed_events.len();
         debug!(target: imei,
-            "Purged {} events for event ids: {} from cache with {} failures",
-            successful_events_count,
-            event_ids,
-            failed_events.len()
+            "Purged {successful_events_count} events for event ids: {event_ids} from cache with {failed_events_count} failures",
         );
         T::clear_cache(base_cache_path.to_str().unwrap());
 
