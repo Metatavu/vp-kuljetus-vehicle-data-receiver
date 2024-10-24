@@ -76,6 +76,12 @@ pub trait Cacheable {
         let full_content: Vec<Self> =
             serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
         let cache_size = full_content.len();
+
+        // Treat 0 as no cache size limit
+        if purge_cache_size == 0 {
+            return (full_content, cache_size);
+        }
+
         let cache = full_content.into_iter().take(purge_cache_size).collect();
 
         return (cache, cache_size);
@@ -93,5 +99,70 @@ pub trait Cacheable {
         if let Err(_) = file.set_len(0) {
             panic!("Error truncating cache file!");
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::utils::test_utils::get_temp_dir_path;
+
+    use super::Cacheable;
+
+    impl Cacheable for HashMap<String, String> {
+        fn get_file_path() -> String
+        where
+            Self: Sized,
+        {
+            String::from("hash_map_cache.json")
+        }
+
+        fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self>
+        where
+            Self: Sized,
+        {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn test_cacheable() {
+        let temp_dir = get_temp_dir_path();
+        let mut cacheable = HashMap::new();
+
+        cacheable.insert("key".to_string(), "value".to_string());
+        cacheable.write_to_file(&temp_dir).unwrap();
+
+        let (cache, cache_size) = HashMap::read_from_file(&temp_dir, 0);
+        assert_eq!(cache_size, 1);
+
+        let cache = cache.into_iter().next().unwrap();
+        assert_eq!(cache.get("key").unwrap(), "value");
+
+        HashMap::clear_cache("cache");
+        let (cache, _) = HashMap::read_from_file("cache", 0);
+        assert_eq!(cache.len(), 0);
+    }
+
+    #[test]
+    fn test_purge_cache_size() {
+        let temp_dir = get_temp_dir_path();
+
+        for i in 0..10 {
+            let mut cacheable = HashMap::new();
+            cacheable.insert(i.to_string(), i.to_string());
+            cacheable.write_to_file(&temp_dir).unwrap();
+        }
+
+        let (cache, cache_size) = HashMap::read_from_file(&temp_dir, 5);
+        assert_eq!(cache_size, 10);
+        assert_eq!(cache.len(), 5);
+
+        HashMap::clear_cache(&temp_dir);
+
+        let (cache, cache_size) = HashMap::read_from_file(&temp_dir, 0);
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache_size, 0);
     }
 }

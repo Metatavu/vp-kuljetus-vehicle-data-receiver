@@ -199,3 +199,13 @@ pub fn start_vehicle_management_mock() -> MockServer {
 
     mock_server
 }
+
+#[cfg(test)]
+pub fn get_temp_dir() -> tempfile::TempDir {
+    return tempdir().unwrap();
+}
+
+#[cfg(test)]
+pub fn get_temp_dir_path() -> String {
+    return get_temp_dir().path().to_str().unwrap().to_string();
+}
