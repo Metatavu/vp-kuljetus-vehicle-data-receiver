@@ -123,16 +123,27 @@ impl<'a> TeltonikaEventHandlers<'a> {
     }
 
     /// Purges the cache.
-    pub async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf) {
+    pub async fn purge_cache(
+        &self,
+        truck_id: String,
+        base_cache_path: PathBuf,
+        purge_cache_size: usize,
+    ) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, imei)) => {
-                handler.purge_cache(truck_id, base_cache_path, imei).await
+                handler
+                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .await
             }
             TeltonikaEventHandlers::DriverOneCardIdEventHandler((handler, imei)) => {
-                handler.purge_cache(truck_id, base_cache_path, imei).await
+                handler
+                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .await
             }
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, imei)) => {
-                handler.purge_cache(truck_id, base_cache_path, imei).await
+                handler
+                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .await
             }
         }
     }
@@ -241,8 +252,15 @@ where
     /// * `truck_id` - The truck ID to purge the cache for.
     /// * `base_cache_path` - The base path to the cache directory.
     /// * `imei` - The IMEI of the device.
-    async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, imei: &str) {
-        let cache = T::read_from_file(base_cache_path.to_str().unwrap());
+    async fn purge_cache(
+        &self,
+        truck_id: String,
+        base_cache_path: PathBuf,
+        imei: &str,
+        purge_cache_size: usize,
+    ) {
+        let (cache, cache_size) =
+            T::read_from_file(base_cache_path.to_str().unwrap(), purge_cache_size);
         let mut failed_events: Vec<T> = Vec::new();
 
         let event_ids = self

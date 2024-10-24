@@ -49,7 +49,7 @@ pub trait Cacheable {
         Self: Serialize + Sized + for<'a> Deserialize<'a> + Clone,
     {
         let mut file = Self::get_cache_file_handle(base_cache_path);
-        let mut existing_cache = Self::read_from_file(base_cache_path);
+        let (mut existing_cache, _) = Self::read_from_file(base_cache_path, 0);
         existing_cache.push(self.clone());
         let json = serde_json::to_string(&existing_cache).unwrap();
         if let Err(_) = file.set_len(0) {
@@ -62,17 +62,23 @@ pub trait Cacheable {
     ///
     /// # Arguments
     /// * `base_cache_path` - The base path to the cache directory
+    /// * `purge_cache_size` - The size of the cache to purge
     ///
     /// # Returns
     /// * A vector of cacheable objects
-    fn read_from_file(base_cache_path: &str) -> Vec<Self>
+    fn read_from_file(base_cache_path: &str, purge_cache_size: usize) -> (Vec<Self>, usize)
     where
         Self: Sized + for<'a> Deserialize<'a>,
     {
         let file = Self::get_cache_file_handle(&base_cache_path);
         let reader = BufReader::new(file);
 
-        return serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
+        let full_content: Vec<Self> =
+            serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
+        let cache_size = full_content.len();
+        let cache = full_content.into_iter().take(purge_cache_size).collect();
+
+        return (cache, cache_size);
     }
 
     /// Clears the cache file

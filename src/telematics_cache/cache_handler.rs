@@ -10,6 +10,9 @@ use crate::{
     utils::get_vehicle_management_api_config,
 };
 
+pub const PURGE_CHUNK_SIZE_ENV_KEY: &str = "PURGE_CHUNK_SIZE";
+pub const DEFAULT_PURGE_CHUNK_SIZE: usize = 10;
+
 pub struct CacheHandler {
     log_target: String,
     truck_id: String,
@@ -26,20 +29,24 @@ impl CacheHandler {
     }
 
     /// Purges the cached telematics data for a truck.
-    pub async fn purge_cache(&self) {
-        self.purge_location_cache().await;
+    pub async fn purge_cache(&self, purge_cache_size: usize) {
+        self.purge_location_cache(purge_cache_size).await;
 
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             handler
-                .purge_cache(self.truck_id.clone(), self.base_cache_path.clone())
+                .purge_cache(
+                    self.truck_id.clone(),
+                    self.base_cache_path.clone(),
+                    purge_cache_size,
+                )
                 .await;
         }
     }
 
     /// Purges the cached locations data.
-    async fn purge_location_cache(&self) {
+    async fn purge_location_cache(&self, purge_cache_size: usize) {
         let base_cache_path = self.base_cache_path.to_str().unwrap();
-        let cache = TruckLocation::read_from_file(base_cache_path);
+        let (cache, cache_size) = TruckLocation::read_from_file(base_cache_path, purge_cache_size);
         let mut failed_locations = Vec::new();
 
         for cached_location in cache.iter() {

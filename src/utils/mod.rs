@@ -76,6 +76,23 @@ fn parse_env_variable<T: FromStr>(value: String) -> T {
     }
 }
 
+/// Reads environment variable and parses it to the desired type with a default value
+///
+/// If the environment variable is not set, the default value is returned.
+///
+/// # Arguments
+/// * `key` - The environment variable key
+/// * `default_value` - The default value
+///
+/// # Returns
+/// * `T` - The parsed environment variable or the default value
+pub fn read_env_variable_with_default_value<T: FromStr>(key: &str, default_value: T) -> T {
+    match read_optional_env_variable(key) {
+        Some(value) => value,
+        None => default_value,
+    }
+}
+
 /// Gets the API configuration for VP-Kuljetus Vehicle Management Service
 ///
 /// # Returns
