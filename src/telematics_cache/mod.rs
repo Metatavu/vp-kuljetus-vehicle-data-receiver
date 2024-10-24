@@ -140,8 +140,8 @@ mod tests {
         let cache = cache.into_iter().next().unwrap();
         assert_eq!(cache.get("key").unwrap(), "value");
 
-        HashMap::clear_cache("cache");
-        let (cache, _) = HashMap::read_from_file("cache", 0);
+        HashMap::clear_cache(&temp_dir);
+        let (cache, _) = HashMap::read_from_file(&temp_dir, 0);
         assert_eq!(cache.len(), 0);
     }
 

@@ -160,6 +160,7 @@ pub trait TeltonikaEventHandler<T, E>
 where
     T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
     E: Debug,
+    Vec<T>: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
 {
     /// Gets the event ID for the handler.
     fn get_event_ids(&self) -> Vec<u16>;
@@ -292,10 +293,8 @@ where
         );
         T::clear_cache(base_cache_path.to_str().unwrap());
 
-        for failed_event in failed_events.iter() {
-            failed_event
-                .write_to_file(base_cache_path.to_owned().to_str().unwrap())
-                .expect("Failed to write cache");
-        }
+        failed_events
+            .write_to_file(base_cache_path.to_str().unwrap())
+            .expect("Failed to write cache");
     }
 }

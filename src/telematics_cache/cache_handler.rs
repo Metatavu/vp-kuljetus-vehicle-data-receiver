@@ -76,10 +76,8 @@ impl CacheHandler {
             "Purged location cache of {successful_locations_count} locations. {failed_locations_count} failed to send.",
         );
         TruckLocation::clear_cache(base_cache_path);
-        for failed_location in failed_locations.iter() {
-            failed_location
-                .write_to_file(base_cache_path)
-                .expect("Error caching location");
-        }
+        failed_locations
+            .write_to_file(base_cache_path)
+            .expect("Error caching locations");
     }
 }

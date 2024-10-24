@@ -179,3 +179,20 @@ impl Cacheable for TruckLocation {
         })
     }
 }
+
+/// Implementation of [Cacheable] for [TruckLocation].
+impl Cacheable for Vec<TruckLocation> {
+    fn get_file_path() -> String
+    where
+        Self: Sized,
+    {
+        String::from("truck_location_cache.json")
+    }
+
+    fn from_teltonika_record(_: &AVLRecord) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
+    }
+}
