@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use httpmock::{
     Method::{DELETE, GET, POST},
-    MockServer, Regex,
+    Mock, MockServer, Regex,
 };
 use nom_teltonika::AVLEventIO;
 use tempfile::tempdir;
@@ -123,6 +123,105 @@ pub fn get_teltonika_records_handler(
     return TeltonikaRecordsHandler::new(imei, truck_id, test_cache_path);
 }
 
+pub fn mock_server() -> MockServer {
+    let mock_server = MockServer::start();
+    let mut server_address = String::from("http://");
+    server_address.push_str(mock_server.address().to_string().as_str());
+
+    std::env::set_var("API_BASE_URL", &server_address);
+    std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+
+    mock_server
+}
+
+pub trait MockServerExt {
+    fn public_trucks_mock(&self) -> Mock;
+    fn create_truck_speed_mock(&self) -> Mock;
+    fn create_truck_locations_mock(&self) -> Mock;
+    fn create_truck_driver_card_mock(&self) -> Mock;
+    fn create_truck_drive_state_mock(&self) -> Mock;
+    fn list_driver_cards_mock(&self) -> Mock;
+    fn delete_driver_card_mock(&self) -> Mock;
+}
+impl MockServerExt for MockServer {
+    fn public_trucks_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(GET)
+                .path("/v1/publicTrucks")
+                .header("X-API-KEY", "API_KEY");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&[PublicTruck {
+                    id: Some(Uuid::from_str("3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c").unwrap()),
+                    name: Some(String::from("1")),
+                    plate_number: String::from("ABC-123"),
+                    vin: String::from("W1T96302X10704959"),
+                }]);
+        })
+    }
+    fn create_truck_speed_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/v1/trucks/.{36}/speeds").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201);
+        })
+    }
+    fn create_truck_locations_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/v1/trucks/.{36}/locations").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201);
+        })
+    }
+    fn create_truck_driver_card_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"^/v1/trucks/.{36}/driverCards$").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&TruckDriverCard {
+                    id: String::new(),
+                    timestamp: chrono::Utc::now().timestamp(),
+                });
+        })
+    }
+    fn create_truck_drive_state_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/v1/trucks/.{36}/driveState").unwrap())
+                .header("X-API-KEY", "API_KEY");
+            then.status(201);
+        })
+    }
+    fn list_driver_cards_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(GET)
+                .path("/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards")
+                .header("X-API-KEY", "API_KEY");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&[TruckDriverCard {
+                    id: "1069619335000001".to_string().clone(),
+                    timestamp: chrono::Utc::now().timestamp(),
+                }]);
+        })
+    }
+    fn delete_driver_card_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(DELETE)
+                .path(format!(
+                    "/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards/{}",
+                    "1069619335000001".to_string().clone()
+                ))
+                .header("X-API-KEY", "API_KEY");
+            then.status(204);
+        })
+    }
+}
+
 /// Starts a mock server for the Vehicle Management Service
 pub fn start_vehicle_management_mock() -> MockServer {
     let mock_server = MockServer::start();
@@ -208,4 +307,32 @@ pub fn get_temp_dir() -> tempfile::TempDir {
 #[cfg(test)]
 pub fn get_temp_dir_path() -> String {
     return get_temp_dir().path().to_str().unwrap().to_string();
+}
+
+/// Wait until the condition is met or timeout of 5s is reached.
+///
+/// This function will keep calling the condition closure every 100ms until the condition returns true or the timeout of 5s is reached.
+///
+/// # Arguments
+/// * `condition` - A closure that returns a tuple of a boolean and a value
+///
+/// # Returns
+/// The value returned by the condition closure
+#[cfg(test)]
+pub fn wait_until<T>(condition: impl Fn() -> (bool, T)) -> T {
+    use std::{thread, time::Duration};
+
+    let interval = Duration::from_millis(100);
+    let timeout = Duration::from_secs(5);
+    let start = std::time::Instant::now();
+    loop {
+        let (result, data) = condition();
+        if result {
+            return data;
+        }
+        if start.elapsed() > timeout {
+            panic!("Timeout");
+        }
+        thread::sleep(interval);
+    }
 }

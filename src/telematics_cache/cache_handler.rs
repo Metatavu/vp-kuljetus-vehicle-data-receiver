@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub const PURGE_CHUNK_SIZE_ENV_KEY: &str = "PURGE_CHUNK_SIZE";
-pub const DEFAULT_PURGE_CHUNK_SIZE: usize = 10;
+pub const DEFAULT_PURGE_CHUNK_SIZE: usize = 0;
 
 pub struct CacheHandler {
     log_target: String,

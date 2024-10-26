@@ -17,7 +17,7 @@ use crate::{
         api::{delete_truck_driver_card_by_id, get_truck_driver_card_id, get_truck_id_by_vin},
         avl_packet::AVLPacketToBytes,
     },
-    worker::{Worker, WorkerMessage},
+    worker::{self, WorkerMessage},
 };
 
 use super::records::{teltonika_vin_handler::get_truck_vin_from_records, TeltonikaRecordsHandler};
@@ -51,7 +51,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             sender_channel: tx,
         };
 
-        Worker::spawn(rx);
+        worker::spawn(rx);
 
         teltonika_connection
     }

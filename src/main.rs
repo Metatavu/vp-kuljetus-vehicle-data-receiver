@@ -91,9 +91,9 @@ mod tests {
             imei::{build_valid_imei_packet, get_random_imei_of_length, *},
             str_to_bytes,
             test_utils::{
-                driver_card_id_to_two_part_events, get_teltonika_records_handler, read_imei,
-                split_at_half, start_vehicle_management_mock, string_to_hex_string,
-                string_to_hex_to_dec,
+                driver_card_id_to_two_part_events, get_teltonika_records_handler, mock_server,
+                read_imei, split_at_half, start_vehicle_management_mock, string_to_hex_string,
+                string_to_hex_to_dec, MockServerExt,
             },
         },
     };
@@ -301,7 +301,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_truck_id_with_valid_vin() {
-        start_vehicle_management_mock();
+        mock_server().public_trucks_mock();
         let vin = Some(String::from("W1T96302X10704959"));
         let truck = vehicle_management_service::apis::public_trucks_api::list_public_trucks(
             &get_vehicle_management_api_config(),
