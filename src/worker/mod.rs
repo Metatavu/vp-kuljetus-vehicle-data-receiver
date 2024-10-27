@@ -238,7 +238,6 @@ mod tests {
         let mut handles = Vec::new();
         let truck_id = Uuid::new_v4().to_string();
         for i in 0..=10 {
-            let truck_id = truck_id.clone();
             let tx = tx.clone();
             let packet = packet.clone();
             let temp_dir = temp_dir.clone();
@@ -246,7 +245,7 @@ mod tests {
                 sleep(Duration::from_secs(i + 1)).await;
                 tx.send(super::WorkerMessage::IncomingFrame {
                     frame: packet,
-                    truck_id: truck_id.into(),
+                    truck_id: None,
                     base_cache_path: Path::new(&temp_dir).to_path_buf(),
                     imei: "123456789012345".to_string(),
                 })
@@ -257,18 +256,33 @@ mod tests {
         join_all(handles).await;
 
         wait_until(|| {
-            println!("Speed hits: {}", create_truck_speed_mock.hits());
-            println!("Locations hits: {}", create_truck_locations_mock.hits());
-            (
-                create_truck_speed_mock.hits() >= 100 && create_truck_locations_mock.hits() >= 100,
-                (),
-            )
+            let cache = TruckSpeed::read_from_file(&temp_dir, 0);
+            return (cache.1 == 100, cache.0);
         });
+        let mut handles = Vec::new();
 
-        let create_truck_speed_requests_count = create_truck_speed_mock.hits();
-        let create_truck_locations_requests_count = create_truck_locations_mock.hits();
+        for i in 0..=10 {
+            let truck_id = truck_id.clone();
+            let tx = tx.clone();
+            let packet = packet.clone();
+            let temp_dir = temp_dir.clone();
+            handles.push(tokio::spawn(async move {
+                sleep(Duration::from_secs(i + 1)).await;
+                tx.send(super::WorkerMessage::IncomingFrame {
+                    frame: packet,
+                    truck_id: truck_id.to_string().into(),
+                    base_cache_path: Path::new(&temp_dir).to_path_buf(),
+                    imei: "123456789012345".to_string(),
+                })
+                .await
+                .unwrap();
+            }));
+        }
+        join_all(handles).await;
 
-        assert!(create_truck_speed_requests_count >= 100);
-        assert!(create_truck_locations_requests_count >= 100);
+        wait_until(|| {
+            let cache = TruckSpeed::read_from_file(&temp_dir, 0);
+            return (cache.1 == 0, cache.0);
+        });
     }
 }
