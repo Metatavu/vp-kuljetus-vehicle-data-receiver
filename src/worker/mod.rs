@@ -86,7 +86,7 @@ fn handle_incoming_frame(
 
 #[cfg(test)]
 mod tests {
-    use std::{env::temp_dir, path::Path, time::Duration};
+    use std::{path::Path, time::Duration};
 
     use futures::future::join_all;
     use nom_teltonika::{AVLEventIO, Priority};
