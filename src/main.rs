@@ -362,9 +362,11 @@ mod tests {
 
     //     {
     //         let base_cache_path = record_handler.base_cache_path();
-    //         let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+    //         let (speeds_cache, speeds_cache_size) =
+    //             TruckSpeed::read_from_file(base_cache_path.to_str().unwrap(), 0);
     //         let first_cached_speed = speeds_cache.first();
 
+    //         assert_eq!(speeds_cache.len(), speeds_cache_size);
     //         assert_eq!(1, speeds_cache.len());
     //         assert_eq!(10.0, first_cached_speed.unwrap().speed);
     //     }

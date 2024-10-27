@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use log::LevelFilter;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue, Priority};
 use tempfile::tempdir;
 use tokio_test::io::Builder;
@@ -19,17 +18,6 @@ use crate::{
     },
 };
 
-fn setup_logger() {
-    env_logger::builder()
-        .is_test(true)
-        .filter_module("hyper", LevelFilter::Off)
-        .filter_module("reqwest", LevelFilter::Off)
-        .filter_module("httpmock", LevelFilter::Off)
-        .filter_level(LevelFilter::Debug)
-        .try_init()
-        .unwrap();
-}
-
 /// This is not an actual integration test, but mimics the behavior of a Teltonika device sending a packet with a driver card ID and then removing it.
 ///
 /// TODO: Refactor most of the tests to be actual integration tests. See [Rust docs](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html)
@@ -39,7 +27,6 @@ async fn test_driver_one_card_removal() {
     let driver_card_events = driver_card_id_to_two_part_events(driver_card_id.clone()).to_vec();
     let vin_events = vin_to_three_part_events("W1T96302X10704959".to_string()).to_vec();
     start_vehicle_management_mock();
-    setup_logger();
     let imei = build_valid_imei_packet(&get_random_imei_of_length(10));
     let temp_dir = tempdir().unwrap();
     let frame_with_card = AVLFrameBuilder::new()

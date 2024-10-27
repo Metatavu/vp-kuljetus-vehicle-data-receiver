@@ -91,6 +91,7 @@ mod tests {
     use futures::future::join_all;
     use nom_teltonika::{AVLEventIO, Priority};
     use tokio::time::sleep;
+    use uuid::Uuid;
     use vehicle_management_service::models::TruckSpeed;
 
     use crate::{
@@ -98,7 +99,7 @@ mod tests {
         utils::{
             avl_frame_builder::AVLFrameBuilder,
             avl_record_builder::avl_record_builder::AVLRecordBuilder,
-            test_utils::{get_temp_dir, get_temp_dir_path, wait_until},
+            test_utils::{get_temp_dir, get_temp_dir_path, mock_server, wait_until, MockServerExt},
         },
     };
 
@@ -206,10 +207,68 @@ mod tests {
 
         let cache_size = wait_until(|| {
             let (_, cache_size) = TruckSpeed::read_from_file(&temp_dir, 0);
-            println!("Cache size: {}", cache_size);
             return (cache_size == 100, cache_size);
         });
 
         assert_eq!(cache_size, 100);
+    }
+
+    #[tokio::test]
+    async fn test_worker_parallel_load_with_truck_id() {
+        let mock_server = mock_server();
+        let create_truck_speed_mock = mock_server.create_truck_speed_mock();
+        let create_truck_locations_mock = mock_server.create_truck_locations_mock();
+
+        let record_amount = 10;
+        let temp_dir = get_temp_dir_path();
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        super::spawn(rx);
+        let mut records = Vec::new();
+        for i in 0..record_amount {
+            let record = AVLRecordBuilder::new()
+                .with_priority(Priority::High)
+                .with_io_events(vec![AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(i),
+                }])
+                .build();
+            records.push(record);
+        }
+        let packet = AVLFrameBuilder::new().with_records(records).build();
+        let mut handles = Vec::new();
+        let truck_id = Uuid::new_v4().to_string();
+        for i in 0..=10 {
+            let truck_id = truck_id.clone();
+            let tx = tx.clone();
+            let packet = packet.clone();
+            let temp_dir = temp_dir.clone();
+            handles.push(tokio::spawn(async move {
+                sleep(Duration::from_secs(i + 1)).await;
+                tx.send(super::WorkerMessage::IncomingFrame {
+                    frame: packet,
+                    truck_id: truck_id.into(),
+                    base_cache_path: Path::new(&temp_dir).to_path_buf(),
+                    imei: "123456789012345".to_string(),
+                })
+                .await
+                .unwrap();
+            }));
+        }
+        join_all(handles).await;
+
+        wait_until(|| {
+            println!("Speed hits: {}", create_truck_speed_mock.hits());
+            println!("Locations hits: {}", create_truck_locations_mock.hits());
+            (
+                create_truck_speed_mock.hits() >= 100 && create_truck_locations_mock.hits() >= 100,
+                (),
+            )
+        });
+
+        let create_truck_speed_requests_count = create_truck_speed_mock.hits();
+        let create_truck_locations_requests_count = create_truck_locations_mock.hits();
+
+        assert!(create_truck_speed_requests_count >= 100);
+        assert!(create_truck_locations_requests_count >= 100);
     }
 }
