@@ -216,8 +216,8 @@ mod tests {
     #[tokio::test]
     async fn test_worker_parallel_load_with_truck_id() {
         let mock_server = mock_server();
-        let create_truck_speed_mock = mock_server.create_truck_speed_mock();
-        let create_truck_locations_mock = mock_server.create_truck_locations_mock();
+        mock_server.create_truck_speed_mock();
+        mock_server.create_truck_locations_mock();
 
         let record_amount = 10;
         let temp_dir = get_temp_dir_path();
