@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::{
     telematics_cache::Cacheable,
@@ -31,7 +31,8 @@ impl TeltonikaRecordsHandler {
     }
 
     /// Gets the base cache path.
-    pub fn base_cache_path(&self) -> &Path {
+    #[cfg(test)]
+    pub fn base_cache_path(&self) -> &std::path::Path {
         self.base_cache_path.as_path()
     }
 
