@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use lazy_static::lazy_static;
 use log::debug;
@@ -7,7 +7,6 @@ use rand::{thread_rng, Rng};
 use tokio::{
     runtime::{Builder, Runtime},
     sync::mpsc::Receiver,
-    time::sleep,
 };
 
 use crate::{
@@ -19,6 +18,9 @@ use crate::{
 };
 
 lazy_static! {
+    /// Multi-threaded Tokio runtime for the worker pool
+    ///
+    /// The worker pool is responsible for processing incoming or cached AVL frames on the background.
     static ref WORKER_RUNTIME: Runtime = Builder::new_multi_thread()
         .thread_name("worker-pool")
         .enable_all()
@@ -26,6 +28,7 @@ lazy_static! {
         .unwrap();
 }
 
+/// Message that is sent to the worker pool
 pub enum WorkerMessage {
     IncomingFrame {
         frame: AVLFrame,
@@ -35,6 +38,10 @@ pub enum WorkerMessage {
     },
 }
 
+/// Spawns a future that listens for incoming messages on the receiver channel
+///
+/// This is called once a new connection is established and we start receiving records from the device.
+/// A multi-products single-consumer (MPSC) channel is created, receiver is passed to this function and the sender is used to send messages from the connection handler to the worker pool.
 pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
     WORKER_RUNTIME.spawn(async move {
         while let Some(msg) = receiver_channel.recv().await {
@@ -50,6 +57,9 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
     });
 }
 
+/// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
+///
+/// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
 fn handle_incoming_frame(
     frame: AVLFrame,
     truck_id: Option<String>,
@@ -59,7 +69,9 @@ fn handle_incoming_frame(
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
+
         debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
+
         TeltonikaRecordsHandler::new(
             log_target.clone(),
             truck_id.clone(),
@@ -67,7 +79,9 @@ fn handle_incoming_frame(
         )
         .handle_records(frame.records)
         .await;
+
         debug!(target: &log_target, "Worker finished processing frame");
+
         if truck_id.is_some() {
             let purge_cache_size = read_env_variable_with_default_value(
                 PURGE_CHUNK_SIZE_ENV_KEY,
@@ -79,7 +93,7 @@ fn handle_incoming_frame(
                 .await;
             debug!(target: &log_target, "Worker finished purging cache",);
         }
-        sleep(Duration::from_secs(5)).await;
+
         debug!(target: &log_target, "Worker finished processing frame");
     });
 }
