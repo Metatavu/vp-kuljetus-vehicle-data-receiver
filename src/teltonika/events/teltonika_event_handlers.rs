@@ -217,7 +217,7 @@ where
     /// * `timestamp` - The timestamp of the event.
     /// * `base_cache_path` - The base path to the cache directory.
     fn cache_event_data(&self, event: T, base_cache_path: PathBuf) {
-        let cache_result = event.write_to_file(base_cache_path.to_owned().to_str().unwrap());
+        let cache_result = event.write_to_file(base_cache_path);
         if let Err(e) = cache_result {
             panic!("Error caching event: {:?}", e);
         }
@@ -262,8 +262,8 @@ where
         imei: &str,
         purge_cache_size: usize,
     ) {
-        let (cache, cache_size) =
-            T::read_from_file(base_cache_path.to_str().unwrap(), purge_cache_size);
+        let (cache, cache_size) = T::take_from_file(base_cache_path.clone(), purge_cache_size);
+
         let mut failed_events: Vec<T> = Vec::new();
         let purge_cache_size = cache.len();
 
@@ -291,10 +291,6 @@ where
         debug!(target: imei,
             "Purged {successful_events_count} events for event ids: {event_ids} from cache with {failed_events_count} failures",
         );
-        T::clear_cache(base_cache_path.to_str().unwrap());
-
-        failed_events
-            .write_to_file(base_cache_path.to_str().unwrap())
-            .expect("Failed to write cache");
+        T::write_vec_to_file(failed_events, base_cache_path).expect("Failed to write cache");
     }
 }

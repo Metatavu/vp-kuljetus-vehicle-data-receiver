@@ -304,7 +304,7 @@ mod tests {
         record_handler.handle_records(packet.records).await;
 
         let base_cache_path = record_handler.base_cache_path();
-        let (speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap(), 0);
+        let (speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.to_path_buf(), 0);
         let first_cached_speed = speeds_cache.first();
 
         assert_eq!(1, speeds_cache.len());

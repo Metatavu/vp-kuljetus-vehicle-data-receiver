@@ -146,13 +146,13 @@ impl TeltonikaRecordsHandler {
                     e
                 );
                 location_data
-                    .write_to_file(&self.base_cache_path.to_str().unwrap())
+                    .write_to_file(self.base_cache_path.clone())
                     .expect("Error caching location");
             }
         } else {
             debug!(target: &self.log_target, "Caching location for yet unknown truck");
             location_data
-                .write_to_file(&self.base_cache_path.to_str().unwrap())
+                .write_to_file(self.base_cache_path.clone())
                 .expect("Error caching location");
         }
     }

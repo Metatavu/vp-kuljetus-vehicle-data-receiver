@@ -5,4 +5,4 @@
 
 
 ### Code Coverage
-Code coverage is generated with `cargo llvm-cov --open --ignore-filename-regex build`. See [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) docs for more.
+Code coverage is generated with `cargo llvm-cov --open --ignore-filename-regex vehicle_management_service --html`. See [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) docs for more.

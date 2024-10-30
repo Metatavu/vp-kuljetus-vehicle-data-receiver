@@ -100,7 +100,7 @@ fn handle_incoming_frame(
 
 #[cfg(test)]
 mod tests {
-    use std::{path::Path, time::Duration};
+    use std::time::Duration;
 
     use futures::future::join_all;
     use nom_teltonika::{AVLEventIO, Priority};
@@ -113,13 +113,15 @@ mod tests {
         utils::{
             avl_frame_builder::AVLFrameBuilder,
             avl_record_builder::avl_record_builder::AVLRecordBuilder,
-            test_utils::{get_temp_dir, get_temp_dir_path, mock_server, wait_until, MockServerExt},
+            test_utils::{
+                get_temp_dir_path, mock_server, wait_until, wait_until_timeout, MockServerExt,
+            },
         },
     };
 
     #[tokio::test]
     async fn test_worker() {
-        let temp_dir = get_temp_dir();
+        let temp_dir = get_temp_dir_path();
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         super::spawn(rx);
         let record = AVLRecordBuilder::new()
@@ -133,15 +135,14 @@ mod tests {
         tx.send(super::WorkerMessage::IncomingFrame {
             frame: packet,
             truck_id: None,
-            base_cache_path: temp_dir.path().to_path_buf().clone(),
+            base_cache_path: temp_dir.clone(),
             imei: "123456789012345".to_string(),
         })
         .await
         .unwrap();
 
         let cache = wait_until(|| {
-            let (cache, cache_size) =
-                TruckSpeed::read_from_file(&temp_dir.path().to_str().unwrap(), 0);
+            let (cache, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
             return (cache_size == 1, cache);
         });
         assert_eq!(cache.first().unwrap().speed, 10_f32);
@@ -150,7 +151,7 @@ mod tests {
     #[tokio::test]
     async fn test_worker_load() {
         let record_amount = 1000;
-        let temp_dir = get_temp_dir();
+        let temp_dir = get_temp_dir_path();
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         super::spawn(rx);
         let mut records = Vec::new();
@@ -168,14 +169,14 @@ mod tests {
         tx.send(super::WorkerMessage::IncomingFrame {
             frame: packet,
             truck_id: None,
-            base_cache_path: temp_dir.path().to_path_buf().clone(),
+            base_cache_path: temp_dir.clone(),
             imei: "123456789012345".to_string(),
         })
         .await
         .unwrap();
 
         let cache_size = wait_until(|| {
-            let (_, cache_size) = TruckSpeed::read_from_file(&temp_dir.path().to_str().unwrap(), 0);
+            let (_, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
             return (cache_size == 1000, cache_size);
         });
 
@@ -210,7 +211,7 @@ mod tests {
                 tx.send(super::WorkerMessage::IncomingFrame {
                     frame: packet,
                     truck_id: None,
-                    base_cache_path: Path::new(&temp_dir).to_path_buf(),
+                    base_cache_path: temp_dir.clone(),
                     imei: "123456789012345".to_string(),
                 })
                 .await
@@ -220,7 +221,7 @@ mod tests {
         join_all(handles).await;
 
         let cache_size = wait_until(|| {
-            let (_, cache_size) = TruckSpeed::read_from_file(&temp_dir, 0);
+            let (_, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
             return (cache_size == 100, cache_size);
         });
 
@@ -260,7 +261,7 @@ mod tests {
                 tx.send(super::WorkerMessage::IncomingFrame {
                     frame: packet,
                     truck_id: None,
-                    base_cache_path: Path::new(&temp_dir).to_path_buf(),
+                    base_cache_path: temp_dir.clone(),
                     imei: "123456789012345".to_string(),
                 })
                 .await
@@ -270,7 +271,7 @@ mod tests {
         join_all(handles).await;
 
         wait_until(|| {
-            let cache = TruckSpeed::read_from_file(&temp_dir, 0);
+            let cache = TruckSpeed::read_from_file(temp_dir.clone(), 0);
             return (cache.1 == 100, cache.0);
         });
         let mut handles = Vec::new();
@@ -285,7 +286,7 @@ mod tests {
                 tx.send(super::WorkerMessage::IncomingFrame {
                     frame: packet,
                     truck_id: truck_id.to_string().into(),
-                    base_cache_path: Path::new(&temp_dir).to_path_buf(),
+                    base_cache_path: temp_dir.clone(),
                     imei: "123456789012345".to_string(),
                 })
                 .await
@@ -294,9 +295,12 @@ mod tests {
         }
         join_all(handles).await;
 
-        wait_until(|| {
-            let cache = TruckSpeed::read_from_file(&temp_dir, 0);
-            return (cache.1 == 0, cache.0);
-        });
+        wait_until_timeout(
+            || {
+                let cache = TruckSpeed::read_from_file(temp_dir.clone(), 0);
+                return (cache.1 == 0, cache.0);
+            },
+            10000,
+        );
     }
 }

@@ -135,6 +135,17 @@ pub fn mock_server() -> MockServer {
 }
 
 pub trait MockServerExt {
+    fn start_all_mocks(&self) -> [Mock; 7] {
+        [
+            self.public_trucks_mock(),
+            self.create_truck_speed_mock(),
+            self.create_truck_locations_mock(),
+            self.create_truck_driver_card_mock(),
+            self.create_truck_drive_state_mock(),
+            self.list_driver_cards_mock(),
+            self.delete_driver_card_mock(),
+        ]
+    }
     fn public_trucks_mock(&self) -> Mock;
     fn create_truck_speed_mock(&self) -> Mock;
     fn create_truck_locations_mock(&self) -> Mock;
@@ -222,91 +233,14 @@ impl MockServerExt for MockServer {
     }
 }
 
-/// Starts a mock server for the Vehicle Management Service
-pub fn start_vehicle_management_mock() -> MockServer {
-    let mock_server = MockServer::start();
-    let mut server_address = String::from("http://");
-    server_address.push_str(mock_server.address().to_string().as_str());
-
-    std::env::set_var("API_BASE_URL", &server_address);
-    std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
-
-    let _public_trucks_mock = mock_server.mock(|when, then| {
-        when.method(GET)
-            .path("/v1/publicTrucks")
-            .header("X-API-KEY", "API_KEY");
-        then.status(200)
-            .header("Content-Type", "application/json")
-            .json_body_obj(&[PublicTruck {
-                id: Some(Uuid::from_str("3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c").unwrap()),
-                name: Some(String::from("1")),
-                plate_number: String::from("ABC-123"),
-                vin: String::from("W1T96302X10704959"),
-            }]);
-    });
-
-    let _create_truck_speed_mock = mock_server.mock(|when, then| {
-        when.method(POST)
-            .path_matches(Regex::new(r"/v1/trucks/.{36}/speeds").unwrap())
-            .header("X-API-KEY", "API_KEY");
-        then.status(201);
-    });
-
-    let _create_truck_locations_mock = mock_server.mock(|when, then| {
-        when.method(POST)
-            .path_matches(Regex::new(r"/v1/trucks/.{36}/locations").unwrap())
-            .header("X-API-KEY", "API_KEY");
-        then.status(201);
-    });
-    let _create_truck_driver_card_mock = mock_server.mock(|when, then| {
-        when.method(POST)
-            .path_matches(Regex::new(r"^/v1/trucks/.{36}/driverCards$").unwrap())
-            .header("X-API-KEY", "API_KEY");
-        then.status(201)
-            .header("Content-Type", "application/json")
-            .json_body_obj(&TruckDriverCard {
-                id: String::new(),
-                timestamp: chrono::Utc::now().timestamp(),
-            });
-    });
-    let _create_truck_drive_state_mock = mock_server.mock(|when, then| {
-        when.method(POST)
-            .path_matches(Regex::new(r"/v1/trucks/.{36}/driveState").unwrap())
-            .header("X-API-KEY", "API_KEY");
-        then.status(201);
-    });
-    let _list_driver_cards_mock = mock_server.mock(|when, then| {
-        when.method(GET)
-            .path("/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards")
-            .header("X-API-KEY", "API_KEY");
-        then.status(200)
-            .header("Content-Type", "application/json")
-            .json_body_obj(&[TruckDriverCard {
-                id: "1069619335000001".to_string().clone(),
-                timestamp: chrono::Utc::now().timestamp(),
-            }]);
-    });
-    let _delete_driver_card_mock = mock_server.mock(|when, then| {
-        when.method(DELETE)
-            .path(format!(
-                "/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards/{}",
-                "1069619335000001".to_string().clone()
-            ))
-            .header("X-API-KEY", "API_KEY");
-        then.status(204);
-    });
-
-    mock_server
-}
-
 #[cfg(test)]
 pub fn get_temp_dir() -> tempfile::TempDir {
     return tempdir().unwrap();
 }
 
 #[cfg(test)]
-pub fn get_temp_dir_path() -> String {
-    return get_temp_dir().path().to_str().unwrap().to_string();
+pub fn get_temp_dir_path() -> std::path::PathBuf {
+    return get_temp_dir().path().to_path_buf();
 }
 
 /// Wait until the condition is met or timeout of 5s is reached.
@@ -324,6 +258,35 @@ pub fn wait_until<T>(condition: impl Fn() -> (bool, T)) -> T {
 
     let interval = Duration::from_millis(100);
     let timeout = Duration::from_secs(5);
+    let start = std::time::Instant::now();
+    loop {
+        let (result, data) = condition();
+        if result {
+            return data;
+        }
+        if start.elapsed() > timeout {
+            panic!("Timeout");
+        }
+        thread::sleep(interval);
+    }
+}
+
+/// Wait until the condition is met or given timeout is reached.
+///
+/// This function will keep calling the condition closure every 100ms until the condition returns true or the given timeout is reached.
+///
+/// # Arguments
+/// * `condition` - A closure that returns a tuple of a boolean and a value
+/// * `timeout` - Timeout in milliseconds
+///
+/// # Returns
+/// The value returned by the condition closure
+#[cfg(test)]
+pub fn wait_until_timeout<T>(condition: impl Fn() -> (bool, T), timeout: u64) -> T {
+    use std::{thread, time::Duration};
+
+    let interval = Duration::from_millis(100);
+    let timeout = Duration::from_millis(timeout);
     let start = std::time::Instant::now();
     loop {
         let (result, data) = condition();
