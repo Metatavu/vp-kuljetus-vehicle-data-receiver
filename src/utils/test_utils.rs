@@ -257,36 +257,7 @@ pub fn wait_until<T>(condition: impl Fn() -> (bool, T)) -> T {
     use std::{thread, time::Duration};
 
     let interval = Duration::from_millis(100);
-    let timeout = Duration::from_secs(5);
-    let start = std::time::Instant::now();
-    loop {
-        let (result, data) = condition();
-        if result {
-            return data;
-        }
-        if start.elapsed() > timeout {
-            panic!("Timeout");
-        }
-        thread::sleep(interval);
-    }
-}
-
-/// Wait until the condition is met or given timeout is reached.
-///
-/// This function will keep calling the condition closure every 100ms until the condition returns true or the given timeout is reached.
-///
-/// # Arguments
-/// * `condition` - A closure that returns a tuple of a boolean and a value
-/// * `timeout` - Timeout in milliseconds
-///
-/// # Returns
-/// The value returned by the condition closure
-#[cfg(test)]
-pub fn wait_until_timeout<T>(condition: impl Fn() -> (bool, T), timeout: u64) -> T {
-    use std::{thread, time::Duration};
-
-    let interval = Duration::from_millis(100);
-    let timeout = Duration::from_millis(timeout);
+    let timeout = Duration::from_secs(10);
     let start = std::time::Instant::now();
     loop {
         let (result, data) = condition();

@@ -100,14 +100,17 @@ mod tests {
 
     use crate::{
         telematics_cache::{cache_handler::CacheHandler, Cacheable},
-        utils::test_utils::{get_temp_dir_path, mock_server, MockServerExt},
+        utils::{
+            imei::get_random_imei_of_length,
+            test_utils::{get_temp_dir_path, mock_server, MockServerExt},
+        },
     };
 
     #[tokio::test]
     async fn test_purge_cache() {
         let _mocks = mock_server().start_all_mocks();
         let base_cache_path = get_temp_dir_path();
-        let imei = "test_imei".to_string();
+        let imei = get_random_imei_of_length(15);
         let truck_id = Uuid::new_v4().to_string();
         let cache_handler = CacheHandler::new(imei, truck_id, base_cache_path.clone());
 

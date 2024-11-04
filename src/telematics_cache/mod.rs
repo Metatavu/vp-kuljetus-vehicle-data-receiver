@@ -39,7 +39,7 @@ pub trait Cacheable {
         );
         create_dir_all(Path::new(&base_cache_path)).unwrap();
         std::fs::OpenOptions::new()
-            .append(true)
+            .write(true)
             .create(true)
             .read(true)
             .open(Path::new(&cache_file_path))
