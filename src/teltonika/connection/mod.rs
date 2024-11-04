@@ -7,48 +7,53 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-use crate::utils::{
-    api::{delete_truck_driver_card_by_id, get_truck_driver_card_id, get_truck_id_by_vin},
-    avl_packet::AVLPacketToBytes,
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::mpsc::{self, Sender},
 };
 
-use super::records::TeltonikaRecordsHandler;
+use crate::{
+    utils::{
+        api::{delete_truck_driver_card_by_id, get_truck_driver_card_id, get_truck_id_by_vin},
+        avl_packet::AVLPacketToBytes,
+    },
+    worker::{self, WorkerMessage},
+};
+
+use super::records::{teltonika_vin_handler::get_truck_vin_from_records, TeltonikaRecordsHandler};
 
 pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
     truck_id: Option<String>,
     truck_vin: Option<String>,
-    records_handler: TeltonikaRecordsHandler,
     card_remove_threshold: u16,
     driver_one_card_removed_at: Option<i64>,
+    sender_channel: Sender<WorkerMessage>,
 }
 
-impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
+impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// Creates a new instance of [`TeltonikaConnection`]
     ///
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
-    /// * `base_file_path` - Base path for the log files
     /// * `card_remove_threshold` - Threshold for removing the driver card
-    pub fn new(
-        stream: TeltonikaStream<S>,
-        imei: String,
-        base_file_path: &Path,
-        card_remove_threshold: u16,
-    ) -> Self {
-        TeltonikaConnection {
+    pub fn new(stream: TeltonikaStream<S>, imei: String, card_remove_threshold: u16) -> Self {
+        let (tx, rx) = mpsc::channel::<WorkerMessage>(4000);
+        let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
-            records_handler: TeltonikaRecordsHandler::new(&base_file_path, None, imei.clone()),
             imei,
             truck_id: None,
             truck_vin: None,
             card_remove_threshold,
             driver_one_card_removed_at: None,
-        }
+            sender_channel: tx,
+        };
+
+        worker::spawn(rx);
+
+        teltonika_connection
     }
 
     /// Handles the connection with the Teltonika Telematics device
@@ -67,7 +72,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
-                let mut connection = Self::new(stream, imei, &file_path, card_remove_threshold);
+                let mut connection = Self::new(stream, imei, card_remove_threshold);
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
@@ -119,9 +124,8 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
     /// # Arguments
     /// * `records` - Records to be checked for driver card removal events
     async fn handle_driver_one_card_removal(&mut self, mut records: &mut Vec<AVLRecord>) {
-        if let Some((driver_one_card_present_in_frame, timestamp)) = self
-            .records_handler
-            .get_driver_one_card_presence_from_records(&mut records)
+        if let Some((driver_one_card_present_in_frame, timestamp)) =
+            TeltonikaRecordsHandler::get_driver_one_card_presence_from_records(&mut records)
         {
             let now = Utc::now().timestamp_millis();
             if !driver_one_card_present_in_frame {
@@ -182,9 +186,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                         .await;
 
                     if let None = self.truck_vin {
-                        self.truck_vin = self
-                            .records_handler
-                            .get_truck_vin_from_records(&frame.records);
+                        self.truck_vin = get_truck_vin_from_records(&frame.records);
                     }
                     if self.truck_id.is_none() && self.truck_vin.is_some() {
                         let found_truck_id = get_truck_id_by_vin(&self.truck_vin).await;
@@ -195,8 +197,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                                 found_truck_id.clone().unwrap(),
                                 self.truck_vin.clone().unwrap()
                             );
-                            self.records_handler
-                                .set_truck_id(found_truck_id.clone().map(|id| id.to_string()));
                             self.truck_id = found_truck_id.map(|id| id.to_string());
                         }
                     }
@@ -221,12 +221,18 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin> TeltonikaConnection<S> {
                         .write_frame_ack_async(Some(&frame))
                         .await?;
 
-                    self.records_handler.handle_records(frame.records).await;
-
-                    if let Some(id) = &self.truck_id {
-                        info!(target: self.log_target(), "Purging cache for truck ID: [{}]...", id);
-                        self.records_handler.purge_cache().await;
-                    }
+                    if let Err(err) = self
+                        .sender_channel
+                        .send(WorkerMessage::IncomingFrame {
+                            frame,
+                            truck_id: self.truck_id.clone(),
+                            base_cache_path: base_log_file_path.clone(),
+                            imei: self.imei.clone(),
+                        })
+                        .await
+                    {
+                        error!(target: self.log_target(), "Failed to send frame to worker: {}", err);
+                    };
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {

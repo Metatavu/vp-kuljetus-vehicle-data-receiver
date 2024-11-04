@@ -71,7 +71,25 @@ impl TeltonikaEventHandler<TruckDriverCard, Error<CreateTruckDriverCardError>>
 }
 
 impl Cacheable for TruckDriverCard {
-    const FILE_PATH: &'static str = "truck_driver_card_cache.json";
+    fn get_file_path() -> String
+    where
+        Self: Sized,
+    {
+        String::from("truck_driver_card_cache.json")
+    }
+
+    fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self> {
+        None
+    }
+}
+
+impl Cacheable for Vec<TruckDriverCard> {
+    fn get_file_path() -> String
+    where
+        Self: Sized,
+    {
+        String::from("truck_driver_card_cache.json")
+    }
 
     fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self> {
         None

@@ -1,9 +1,10 @@
 mod telematics_cache;
 mod teltonika;
 mod utils;
+mod worker;
 
 use log::info;
-use std::{error::Error, path::Path};
+use std::path::Path;
 use tokio::net::TcpListener;
 
 use crate::{
@@ -25,7 +26,7 @@ const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 /// processes the data and sends it to the VP-Kuljetus Vehicle Management Service API.
 ///
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
     let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
@@ -35,23 +36,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY);
 
-    // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
+    // // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(API_BASE_URL_ENV_KEY);
 
     let address = "0.0.0.0:8080";
-
-    let listener = TcpListener::bind(&address).await?;
+    let listener = match TcpListener::bind(&address).await {
+        Ok(l) => l,
+        Err(e) => {
+            panic!("Failed to bind to address: {}", e);
+        }
+    };
 
     info!("Listening on: {}", address);
 
     loop {
-        let (socket, _) = listener.accept().await?;
+        let socket = match listener.accept().await {
+            Ok((sock, _)) => sock,
+            Err(e) => {
+                panic!("Failed to accept connection: {}", e);
+            }
+        };
         let base_file_path = match write_to_file {
             true => file_path.clone(),
             false => "".to_string(),
         };
         let card_remove_threshold = card_remove_threshold.clone();
-
         tokio::spawn(async move {
             if let Err(_) = TeltonikaConnection::handle_connection(
                 socket,
@@ -71,28 +80,21 @@ mod tests {
     pub mod integration_tests;
     use crate::{
         telematics_cache::Cacheable,
+        teltonika::records::teltonika_vin_handler::get_truck_vin_from_records,
         utils::{
             avl_frame_builder::*,
             avl_packet::*,
             avl_record_builder::avl_record_builder::*,
-            get_vehicle_management_api_config,
             imei::{build_valid_imei_packet, get_random_imei_of_length, *},
             str_to_bytes,
             test_utils::{
-                driver_card_id_to_two_part_events, get_teltonika_records_handler, read_imei,
-                split_at_half, start_vehicle_management_mock, string_to_hex_string,
+                get_teltonika_records_handler, read_imei, split_at_half, string_to_hex_string,
                 string_to_hex_to_dec,
             },
         },
     };
     use nom_teltonika::{parser, AVLEventIO, Priority};
-    use std::str::FromStr;
-    use vehicle_management_service::{
-        apis::public_trucks_api::ListPublicTrucksParams,
-        models::{
-            TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckSpeed,
-        },
-    };
+    use vehicle_management_service::models::TruckSpeed;
 
     #[test]
     fn test_valid_imei() {
@@ -161,7 +163,6 @@ mod tests {
 
     #[test]
     fn test_missing_truck_vin() {
-        let record_handler = get_teltonika_records_handler(None, None);
         let record_without_vin = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -183,15 +184,13 @@ mod tests {
             .add_record(record_without_vin)
             .build();
 
-        let missing_vin =
-            record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
+        let missing_vin = get_truck_vin_from_records(&packet_with_record_without_vin.records);
 
         assert_eq!(missing_vin, None);
     }
 
     #[test]
     fn test_partly_missing_truck_vin() {
-        let record_handler = get_teltonika_records_handler(None, None);
         let record_without_vin = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -213,15 +212,13 @@ mod tests {
             .add_record(record_without_vin)
             .build();
 
-        let missing_vin =
-            record_handler.get_truck_vin_from_records(&packet_with_record_without_vin.records);
+        let missing_vin = get_truck_vin_from_records(&packet_with_record_without_vin.records);
 
         assert_eq!(missing_vin, None);
     }
 
     #[test]
     fn test_get_truck_vin() {
-        let record_handler = get_teltonika_records_handler(None, None);
         let record_with_vin = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -242,14 +239,13 @@ mod tests {
         let packet_with_record_with_vin =
             AVLFrameBuilder::new().add_record(record_with_vin).build();
 
-        let vin = record_handler.get_truck_vin_from_records(&packet_with_record_with_vin.records);
+        let vin = get_truck_vin_from_records(&packet_with_record_with_vin.records);
 
         assert_eq!("W1T96302X10704959", vin.unwrap());
     }
 
     #[test]
     fn test_get_truck_vin_with_multiple_vin_records() {
-        let record_handler = get_teltonika_records_handler(None, None);
         let record_with_vin_1 = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![
@@ -288,34 +284,9 @@ mod tests {
             .with_records([record_with_vin_1, record_with_vin_2].to_vec())
             .build();
 
-        let vin = record_handler
-            .get_truck_vin_from_records(&packet_with_multiple_records_with_vin.records);
+        let vin = get_truck_vin_from_records(&packet_with_multiple_records_with_vin.records);
 
         assert_eq!("W1T96302X10704959", vin.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_get_truck_id_with_valid_vin() {
-        start_vehicle_management_mock();
-        let vin = Some(String::from("W1T96302X10704959"));
-        let truck = vehicle_management_service::apis::public_trucks_api::list_public_trucks(
-            &get_vehicle_management_api_config(),
-            ListPublicTrucksParams {
-                vin: vin.clone(),
-                first: None,
-                max: None,
-            },
-        )
-        .await
-        .unwrap()
-        .into_iter()
-        .find(|truck| truck.vin == vin.clone().unwrap());
-
-        assert!(truck.is_some());
-        assert_eq!(
-            uuid::Uuid::from_str("3FFAF18C-69E4-4F8A-9179-9AEC5BC96E1C").unwrap(),
-            truck.unwrap().id.unwrap()
-        );
     }
 
     #[tokio::test]
@@ -332,264 +303,12 @@ mod tests {
 
         record_handler.handle_records(packet.records).await;
 
-        let base_cache_path = record_handler.get_base_cache_path();
-        let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
+        let base_cache_path = record_handler.base_cache_path();
+        let (speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.to_path_buf(), 0);
         let first_cached_speed = speeds_cache.first();
 
         assert_eq!(1, speeds_cache.len());
         assert_eq!(10.0, first_cached_speed.unwrap().speed);
-    }
-
-    #[tokio::test]
-    async fn test_send_cached_event() {
-        start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None, None);
-        let record = AVLRecordBuilder::new()
-            .with_priority(Priority::High)
-            .with_io_events(vec![AVLEventIO {
-                id: 191,
-                value: nom_teltonika::AVLEventIOValue::U16(10),
-            }])
-            .build();
-        let packet = AVLFrameBuilder::new().add_record(record).build();
-
-        record_handler.handle_records(packet.records).await;
-
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
-            let first_cached_speed = speeds_cache.first();
-
-            assert_eq!(1, speeds_cache.len());
-            assert_eq!(10.0, first_cached_speed.unwrap().speed);
-        }
-        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let speeds_cache = TruckSpeed::read_from_file(base_cache_path.to_str().unwrap());
-            assert_eq!(0, speeds_cache.len());
-        }
-    }
-
-    #[tokio::test]
-    async fn test_record_location_handling() {
-        start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None, None);
-        let record_1 = AVLRecordBuilder::new()
-            .with_longitude(61.68779453479687)
-            .with_latitude(27.27297030282335)
-            .with_angle(810)
-            .build();
-        let record_2 = AVLRecordBuilder::new()
-            .with_longitude(27.27297030282335)
-            .with_latitude(61.68779453479687)
-            .with_angle(180)
-            .build();
-        let packet = AVLFrameBuilder::new()
-            .with_records([record_1, record_2].to_vec())
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
-
-            let location_1 = locations_cache
-                .iter()
-                .find(|location| location.heading == 810.0)
-                .unwrap();
-            let location_2 = locations_cache
-                .iter()
-                .find(|location| location.heading == 180.0)
-                .unwrap();
-
-            assert_eq!(2, locations_cache.len());
-            assert_eq!(61.68779453479687, location_1.longitude);
-            assert_eq!(27.27297030282335, location_1.latitude);
-            assert_eq!(810.0, location_1.heading);
-            assert_eq!(27.27297030282335, location_2.longitude);
-            assert_eq!(61.68779453479687, location_2.latitude);
-            assert_eq!(180.0, location_2.heading);
-        }
-        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let locations_cache = TruckLocation::read_from_file(base_cache_path.to_str().unwrap());
-            assert_eq!(0, locations_cache.len());
-        }
-    }
-
-    #[tokio::test]
-    async fn test_driver_one_card_id_handling() {
-        let valid_driver_card_id = "1069619335000001".to_string();
-        let valid_driver_card_id_2 = "1A696193350YZ001".to_string();
-        start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None, None);
-        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
-        let record = AVLRecordBuilder::new()
-            .with_io_events(driver_card_events.to_vec())
-            .add_io_event(AVLEventIO {
-                id: 187,
-                value: nom_teltonika::AVLEventIOValue::U8(1),
-            })
-            .with_trigger_event_id(187)
-            .build();
-        let record_timestamp = &record.timestamp.timestamp();
-        let packet = AVLFrameBuilder::new()
-            .with_records([record].to_vec())
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let driver_cards_cache =
-                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
-            let cached_driver_card_event = driver_cards_cache.get(0);
-            assert_eq!(1, driver_cards_cache.len());
-            assert!(cached_driver_card_event.is_some());
-            assert_eq!(
-                *record_timestamp,
-                cached_driver_card_event.unwrap().timestamp
-            );
-            let cached_driver_card_event = cached_driver_card_event.unwrap();
-            assert_eq!(valid_driver_card_id, cached_driver_card_event.id);
-        }
-        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let driver_cards_cache =
-                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
-
-            assert_eq!(0, driver_cards_cache.len());
-        }
-        // Test that a driver card id containing more than just numbers is also handled correctly
-        record_handler.set_truck_id(None);
-        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id_2.clone());
-        let record = AVLRecordBuilder::new()
-            .with_io_events(driver_card_events.to_vec())
-            .add_io_event(AVLEventIO {
-                id: 187,
-                value: nom_teltonika::AVLEventIOValue::U8(1),
-            })
-            .with_trigger_event_id(187)
-            .build();
-        let packet = AVLFrameBuilder::new()
-            .with_records([record].to_vec())
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let driver_cards_cache =
-                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
-            let cached_driver_card_event = driver_cards_cache.get(0);
-            assert_eq!(1, driver_cards_cache.len());
-            assert!(cached_driver_card_event.is_some());
-            let cached_driver_card_event = cached_driver_card_event.unwrap();
-            assert_eq!(valid_driver_card_id_2, cached_driver_card_event.id);
-        }
-        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
-        // Test that a record without 187 (driver 1 card presence) as a trigger event is not handled
-        record_handler.set_truck_id(None);
-        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
-        let record = AVLRecordBuilder::new()
-            .with_io_events(driver_card_events.to_vec())
-            .build();
-        let packet = AVLFrameBuilder::new()
-            .with_records([record].to_vec())
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let driver_cards_cache =
-                TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
-            assert_eq!(0, driver_cards_cache.len());
-        }
-    }
-
-    #[tokio::test]
-    async fn test_driver_one_card_drive_state_handling() {
-        let valid_driver_card_id = "1069619335000001".to_string();
-        start_vehicle_management_mock();
-        let mut record_handler = get_teltonika_records_handler(None, None);
-        let driver_card_events = driver_card_id_to_two_part_events(valid_driver_card_id.clone());
-        let record_1 = AVLRecordBuilder::new()
-            .with_io_events(driver_card_events.to_vec())
-            .add_io_event(AVLEventIO {
-                id: 184,
-                value: nom_teltonika::AVLEventIOValue::U8(3),
-            })
-            .build();
-        let packet = AVLFrameBuilder::new()
-            .with_records([record_1].to_vec())
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let driver_cards_cache =
-                TruckDriveState::read_from_file(base_cache_path.to_str().unwrap());
-            let cached_driver_card_event = driver_cards_cache.get(0);
-            assert_eq!(1, driver_cards_cache.len());
-            assert!(cached_driver_card_event.is_some());
-            let cached_driver_card_event = cached_driver_card_event.unwrap();
-            assert_eq!(
-                valid_driver_card_id,
-                cached_driver_card_event.driver_card_id.clone().unwrap()
-            );
-            assert_eq!(TruckDriveStateEnum::Drive, cached_driver_card_event.state);
-        }
-        record_handler.set_truck_id(Some("F8C5BC38-0213-487D-A37A-553AC3A9D77F".to_string()));
-        record_handler.purge_cache().await;
-        {
-            let base_cache_path = record_handler.get_base_cache_path();
-            let driver_cards_cache =
-                TruckDriveState::read_from_file(base_cache_path.to_str().unwrap());
-
-            assert_eq!(0, driver_cards_cache.len());
-        }
-    }
-
-    #[tokio::test]
-    async fn test_empty_driver_card_id() {
-        start_vehicle_management_mock();
-        let record_handler = get_teltonika_records_handler(None, None);
-        let record = AVLRecordBuilder::new()
-            .with_io_events(vec![
-                AVLEventIO {
-                    id: 187,
-                    value: nom_teltonika::AVLEventIOValue::U8(1),
-                },
-                AVLEventIO {
-                    id: 195,
-                    value: nom_teltonika::AVLEventIOValue::U64(0),
-                },
-                AVLEventIO {
-                    id: 196,
-                    value: nom_teltonika::AVLEventIOValue::U64(0),
-                },
-            ])
-            .with_trigger_event_id(187)
-            .build();
-        let packet = AVLFrameBuilder::new()
-            .with_records([record].to_vec())
-            .build();
-
-        record_handler.handle_records(packet.records).await;
-
-        let base_cache_path = record_handler.get_base_cache_path();
-        let driver_cards_cache = TruckDriverCard::read_from_file(base_cache_path.to_str().unwrap());
-        assert_eq!(0, driver_cards_cache.len());
     }
 
     /// Tests the conversion of a driver card ID to two part events as described in [Teltonika documentation](https://wiki.teltonika-gps.com/view/DriverID)

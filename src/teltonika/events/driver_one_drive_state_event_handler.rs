@@ -68,7 +68,25 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>>
 }
 
 impl Cacheable for TruckDriveState {
-    const FILE_PATH: &'static str = "truck_drive_state_cache.json";
+    fn get_file_path() -> String
+    where
+        Self: Sized,
+    {
+        String::from("truck_drive_state_cache.json")
+    }
+
+    fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
+        None
+    }
+}
+
+impl Cacheable for Vec<TruckDriveState> {
+    fn get_file_path() -> String
+    where
+        Self: Sized,
+    {
+        String::from("truck_drive_state_cache.json")
+    }
 
     fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
         None
