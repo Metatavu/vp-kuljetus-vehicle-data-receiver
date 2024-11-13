@@ -62,7 +62,11 @@ fn driver_card_events_to_truck_driver_card(
 
     assert!(id.len() == 16);
 
-    return Some(TruckDriverCard { id, timestamp });
+    return Some(TruckDriverCard {
+        id,
+        timestamp,
+        removed_at: None,
+    });
 }
 /// Converts a Driver Card part [AVLEventIO] to a String.
 ///

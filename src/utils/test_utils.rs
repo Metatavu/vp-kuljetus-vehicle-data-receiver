@@ -196,6 +196,7 @@ impl MockServerExt for MockServer {
                 .json_body_obj(&TruckDriverCard {
                     id: String::new(),
                     timestamp: chrono::Utc::now().timestamp(),
+                    removed_at: None,
                 });
         })
     }
@@ -217,6 +218,7 @@ impl MockServerExt for MockServer {
                 .json_body_obj(&[TruckDriverCard {
                     id: "1069619335000001".to_string().clone(),
                     timestamp: chrono::Utc::now().timestamp(),
+                    removed_at: None,
                 }]);
         })
     }

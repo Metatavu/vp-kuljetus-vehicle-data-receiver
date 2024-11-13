@@ -136,6 +136,7 @@ mod tests {
             truck_driver_cards.push(TruckDriverCard {
                 id: String::from("1099483935000001"),
                 timestamp,
+                removed_at: None,
             });
             truck_drive_states.push(TruckDriveState {
                 id: None,

@@ -102,7 +102,7 @@ pub async fn delete_truck_driver_card_by_id(
         DeleteTruckDriverCardParams {
             truck_id: truck_id.clone(),
             driver_card_id: driver_card_id.clone(),
-            x_driver_card_removed_at: removed_at.to_string(),
+            x_removed_at: removed_at.to_string(),
         },
     )
     .await
