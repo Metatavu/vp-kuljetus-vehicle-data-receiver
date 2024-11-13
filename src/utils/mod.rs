@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
 use vehicle_management_service::apis::configuration::Configuration;
 
 pub mod api;
@@ -10,6 +12,11 @@ pub mod avl_record_builder;
 pub mod imei;
 #[cfg(test)]
 pub mod test_utils;
+
+lazy_static! {
+    /// The default API configuration for VP-Kuljetus Vehicle Management Service
+    pub static ref VEHICLE_MANAGEMENT_API_CONFIG: Configuration = get_vehicle_management_api_config();
+}
 
 /// Converts a hex string to a byte vector
 ///
@@ -106,5 +113,36 @@ pub fn get_vehicle_management_api_config() -> Configuration {
         base_path: read_env_variable("API_BASE_URL"),
         api_key: Some(api_key),
         ..Default::default()
+    }
+}
+
+/// Converts a timestamp (seconds) to a DateTime<Utc>.
+///
+/// Panics if the timestamp is invalid.
+///
+/// # Arguments
+/// * `timestamp` - The timestamp in seconds
+///
+/// # Returns
+/// * `DateTime<Utc>` - The DateTime<Utc> representation of the timestamp
+pub fn date_time_from_timestamp(timestamp: i64) -> DateTime<Utc> {
+    return DateTime::from_timestamp(timestamp, 0).expect(&format!("Invalid timestamp {timestamp}"));
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{LocalResult, TimeZone};
+
+    #[test]
+    fn test_date_time_from_timestamp() {
+        let now = match chrono::Utc.with_ymd_and_hms(2024, 11, 13, 8, 5, 32) {
+            LocalResult::None => panic!("Invalid date time"),
+            LocalResult::Single(dt) => dt,
+            LocalResult::Ambiguous(_, _) => panic!("Ambiguous date time"),
+        };
+        let timestamp = now.timestamp();
+        let date_time = super::date_time_from_timestamp(timestamp);
+
+        assert_eq!(date_time, now);
     }
 }

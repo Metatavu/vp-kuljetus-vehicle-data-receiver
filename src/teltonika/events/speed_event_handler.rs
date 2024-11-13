@@ -9,8 +9,7 @@ use vehicle_management_service::{
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
 use crate::{
-    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u64,
-    utils::get_vehicle_management_api_config,
+    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u64, utils::get_vehicle_management_api_config,
 };
 
 pub struct SpeedEventHandler;
@@ -20,11 +19,7 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         vec![191]
     }
 
-    async fn send_event(
-        &self,
-        event_data: &TruckSpeed,
-        truck_id: String,
-    ) -> Result<(), Error<CreateTruckSpeedError>> {
+    async fn send_event(&self, event_data: &TruckSpeed, truck_id: String) -> Result<(), Error<CreateTruckSpeedError>> {
         vehicle_management_service::apis::trucks_api::create_truck_speed(
             &get_vehicle_management_api_config(),
             CreateTruckSpeedParams {

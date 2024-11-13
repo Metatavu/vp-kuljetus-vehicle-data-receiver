@@ -11,9 +11,7 @@ use crate::{
         avl_packet::AVLPacketToBytes,
         avl_record_builder::avl_record_builder::AVLRecordBuilder,
         imei::{build_valid_imei_packet, get_random_imei_of_length},
-        test_utils::{
-            driver_card_id_to_two_part_events, mock_server, vin_to_three_part_events, MockServerExt,
-        },
+        test_utils::{driver_card_id_to_two_part_events, mock_server, vin_to_three_part_events, MockServerExt},
     },
 };
 
@@ -22,9 +20,9 @@ use crate::{
 /// TODO: Refactor most of the tests to be actual integration tests. See [Rust docs](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html)
 #[tokio::test]
 async fn test_driver_one_card_removal() {
-    let driver_card_id = "1069619335000001".to_string();
+    let driver_card_id = String::from("1069619335000001");
     let driver_card_events = driver_card_id_to_two_part_events(driver_card_id.clone()).to_vec();
-    let vin_events = vin_to_three_part_events("W1T96302X10704959".to_string()).to_vec();
+    let vin_events = vin_to_three_part_events(String::from("W1T96302X10704959")).to_vec();
     let _mocks = mock_server().start_all_mocks();
     let imei = build_valid_imei_packet(&get_random_imei_of_length(10));
     let temp_dir = tempdir().unwrap();
@@ -66,7 +64,7 @@ async fn test_driver_one_card_removal() {
         .read(&frame_without_card.to_bytes())
         .write(&(frame_without_card.records.len() as u32).to_be_bytes())
         .build();
-    let result = TeltonikaConnection::handle_connection(mock_stream, temp_dir.path(), 1_000).await;
+    let result = TeltonikaConnection::handle_connection(mock_stream, temp_dir.path()).await;
 
     assert!(result.is_ok());
 }

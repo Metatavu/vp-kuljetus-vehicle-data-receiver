@@ -72,7 +72,7 @@ pub struct DeleteTruckDriverCardParams {
     /// driver card ID
     pub driver_card_id: String,
     /// Timestamp when the driver card was removed from the truck
-    pub x_driver_card_removed_at: String
+    pub x_removed_at: String
 }
 
 /// struct for passing parameters to the method [`find_truck`]
@@ -356,7 +356,7 @@ pub async fn create_truck(configuration: &configuration::Configuration, params: 
     }
 }
 
-/// Create new truck driver card
+/// Create new truck driver card.  If a card with same truck ID and card ID is already found with removedAt set, the existing card is restored. If a card with different truck ID and card ID is already found with removedAt set, the previous card is immediately deleted and the new card is created. If a card with the same truck ID and card ID is found with removedAt not set, the request is rejected with a 409 Conflict response. 
 pub async fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
     let local_var_configuration = configuration;
 
@@ -517,14 +517,14 @@ pub async fn delete_truck(configuration: &configuration::Configuration, params: 
     }
 }
 
-/// Deletes single truck driver card. Cards are deleted when they are removed from the truck.
+/// Deletes single truck driver card. Driver cards are deleted when they are removed from the truck.  The card is first soft-deleted by setting removedAt to value sent in X-Removed-At header. A background process then checks frequently for driver cards removed over a configurable grace period ago and deletes them permanently. This is done to prevent false positive driver card states coming in from telematics device. 
 pub async fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
     let truck_id = params.truck_id;
     let driver_card_id = params.driver_card_id;
-    let x_driver_card_removed_at = params.x_driver_card_removed_at;
+    let x_removed_at = params.x_removed_at;
 
 
     let local_var_client = &local_var_configuration.client;
@@ -535,7 +535,7 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
     }
-    local_var_req_builder = local_var_req_builder.header("X-Driver-Card-Removed-At", x_driver_card_removed_at.to_string());
+    local_var_req_builder = local_var_req_builder.header("X-Removed-At", x_removed_at.to_string());
     if let Some(ref local_var_apikey) = local_var_configuration.api_key {
         let local_var_key = local_var_apikey.key.clone();
         let local_var_value = match local_var_apikey.prefix {

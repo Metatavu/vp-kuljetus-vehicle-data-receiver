@@ -19,6 +19,9 @@ pub struct TruckDriverCard {
     /// Timestamp for driver card insertion. Unix timestamp in milliseconds.
     #[serde(rename = "timestamp")]
     pub timestamp: i64,
+    /// Removed at. Used to check for grace period for driver card removal.
+    #[serde(rename = "removedAt", skip_serializing_if = "Option::is_none")]
+    pub removed_at: Option<String>,
 }
 
 impl TruckDriverCard {
@@ -26,6 +29,7 @@ impl TruckDriverCard {
         TruckDriverCard {
             id,
             timestamp,
+            removed_at: None,
         }
     }
 }

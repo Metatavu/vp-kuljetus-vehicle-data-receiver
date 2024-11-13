@@ -32,11 +32,7 @@ pub trait Cacheable {
     where
         Self: Sized,
     {
-        let cache_file_path = format!(
-            "{}/{}",
-            base_cache_path.to_str().unwrap(),
-            Self::get_file_path()
-        );
+        let cache_file_path = format!("{}/{}", base_cache_path.to_str().unwrap(), Self::get_file_path());
         create_dir_all(Path::new(&base_cache_path)).unwrap();
         std::fs::OpenOptions::new()
             .write(true)
@@ -95,8 +91,7 @@ pub trait Cacheable {
         let file = Self::get_cache_file_handle(base_cache_path.clone());
         let reader = BufReader::new(file);
 
-        let full_content: Vec<Self> =
-            serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
+        let full_content: Vec<Self> = serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
         let cache_size = full_content.len();
 
         // Treat 0 as no cache size limit
@@ -105,10 +100,7 @@ pub trait Cacheable {
             return (full_content, cache_size);
         }
         let full_content_iterable = full_content.into_iter();
-        let cache = full_content_iterable
-            .clone()
-            .take(purge_cache_size)
-            .collect();
+        let cache = full_content_iterable.clone().take(purge_cache_size).collect();
 
         let remaining_cache = full_content_iterable.skip(purge_cache_size).collect();
         Self::clear_cache(base_cache_path.clone());
@@ -132,8 +124,7 @@ pub trait Cacheable {
         let file = Self::get_cache_file_handle(base_cache_path);
         let reader = BufReader::new(file);
 
-        let full_content: Vec<Self> =
-            serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
+        let full_content: Vec<Self> = serde_json::from_reader(reader).unwrap_or_else(|_| Vec::new());
         let cache_size = full_content.len();
 
         // Treat 0 as no cache size limit
@@ -165,9 +156,7 @@ pub trait Cacheable {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::utils::{
-        avl_record_builder::avl_record_builder::AVLRecordBuilder, test_utils::get_temp_dir_path,
-    };
+    use crate::utils::{avl_record_builder::avl_record_builder::AVLRecordBuilder, test_utils::get_temp_dir_path};
 
     use super::Cacheable;
 

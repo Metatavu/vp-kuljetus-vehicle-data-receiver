@@ -18,9 +18,7 @@ use super::teltonika_event_handlers::TeltonikaEventHandler;
 
 pub struct DriverOneDriveStateEventHandler;
 
-impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>>
-    for DriverOneDriveStateEventHandler
-{
+impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for DriverOneDriveStateEventHandler {
     fn get_event_ids(&self) -> Vec<u16> {
         vec![184, 195, 196]
     }

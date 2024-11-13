@@ -10,9 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    telematics_cache::cache_handler::{
-        CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY,
-    },
+    telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
     teltonika::records::TeltonikaRecordsHandler,
     utils::read_env_variable_with_default_value,
 };
@@ -60,33 +58,22 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(
-    frame: AVLFrame,
-    truck_id: Option<String>,
-    base_cache_path: PathBuf,
-    imei: String,
-) {
+fn handle_incoming_frame(frame: AVLFrame, truck_id: Option<String>, base_cache_path: PathBuf, imei: String) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
 
         debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
 
-        TeltonikaRecordsHandler::new(
-            log_target.clone(),
-            truck_id.clone(),
-            base_cache_path.clone(),
-        )
-        .handle_records(frame.records)
-        .await;
+        TeltonikaRecordsHandler::new(log_target.clone(), truck_id.clone(), base_cache_path.clone())
+            .handle_records(frame.records)
+            .await;
 
         debug!(target: &log_target, "Worker finished processing frame");
 
         if truck_id.is_some() {
-            let purge_cache_size = read_env_variable_with_default_value(
-                PURGE_CHUNK_SIZE_ENV_KEY,
-                DEFAULT_PURGE_CHUNK_SIZE,
-            );
+            let purge_cache_size =
+                read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);
             debug!(target: &log_target, "Purging cache for truck {}", truck_id.clone().unwrap());
             CacheHandler::new(log_target.clone(), truck_id.unwrap(), base_cache_path)
                 .purge_cache(purge_cache_size)

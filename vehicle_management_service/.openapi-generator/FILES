@@ -7,10 +7,6 @@ git_push.sh
 src/apis/configuration.rs
 src/apis/mod.rs
 src/apis/public_trucks_api.rs
-src/apis/spec_app_api.rs
-src/apis/spec_auth_api.rs
-src/apis/spec_management_ui_api.rs
-src/apis/spec_vehicle_data_receiver_api.rs
 src/apis/system_api.rs
 src/apis/towables_api.rs
 src/apis/trucks_api.rs

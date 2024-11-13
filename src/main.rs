@@ -7,16 +7,10 @@ use log::info;
 use std::path::Path;
 use tokio::net::TcpListener;
 
-use crate::{
-    teltonika::connection::TeltonikaConnection,
-    utils::{read_env_variable, read_optional_env_variable},
-};
+use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable};
 
-/// Default card remove threshold in milliseconds
-const DEFAULT_CARD_REMOVE_THRESHOLD: u16 = 15_000;
 const BASE_FILE_PATH_ENV_KEY: &str = "BASE_FILE_PATH";
 const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
-const CARD_REMOVE_THRESHOLD_ENV_KEY: &str = "CARD_REMOVE_THRESHOLD";
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
@@ -30,8 +24,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
     let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
-    let card_remove_threshold: u16 = read_optional_env_variable(CARD_REMOVE_THRESHOLD_ENV_KEY)
-        .unwrap_or(DEFAULT_CARD_REMOVE_THRESHOLD);
 
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY);
@@ -60,15 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             true => file_path.clone(),
             false => "".to_string(),
         };
-        let card_remove_threshold = card_remove_threshold.clone();
         tokio::spawn(async move {
-            if let Err(_) = TeltonikaConnection::handle_connection(
-                socket,
-                Path::new(&base_file_path),
-                card_remove_threshold,
-            )
-            .await
-            {
+            if let Err(_) = TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path)).await {
                 return;
             };
         });
@@ -88,8 +73,7 @@ mod tests {
             imei::{build_valid_imei_packet, get_random_imei_of_length, *},
             str_to_bytes,
             test_utils::{
-                get_teltonika_records_handler, read_imei, split_at_half, string_to_hex_string,
-                string_to_hex_to_dec,
+                get_teltonika_records_handler, read_imei, split_at_half, string_to_hex_string, string_to_hex_to_dec,
             },
         },
     };
@@ -180,9 +164,7 @@ mod tests {
                 },
             ])
             .build();
-        let packet_with_record_without_vin = AVLFrameBuilder::new()
-            .add_record(record_without_vin)
-            .build();
+        let packet_with_record_without_vin = AVLFrameBuilder::new().add_record(record_without_vin).build();
 
         let missing_vin = get_truck_vin_from_records(&packet_with_record_without_vin.records);
 
@@ -208,9 +190,7 @@ mod tests {
                 },
             ])
             .build();
-        let packet_with_record_without_vin = AVLFrameBuilder::new()
-            .add_record(record_without_vin)
-            .build();
+        let packet_with_record_without_vin = AVLFrameBuilder::new().add_record(record_without_vin).build();
 
         let missing_vin = get_truck_vin_from_records(&packet_with_record_without_vin.records);
 
@@ -236,8 +216,7 @@ mod tests {
                 },
             ])
             .build();
-        let packet_with_record_with_vin =
-            AVLFrameBuilder::new().add_record(record_with_vin).build();
+        let packet_with_record_with_vin = AVLFrameBuilder::new().add_record(record_with_vin).build();
 
         let vin = get_truck_vin_from_records(&packet_with_record_with_vin.records);
 
