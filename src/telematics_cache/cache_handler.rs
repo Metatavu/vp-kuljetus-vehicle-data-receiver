@@ -1,13 +1,10 @@
 use std::path::PathBuf;
 
 use log::debug;
-use vehicle_management_service::{
-    apis::trucks_api::CreateTruckLocationParams, models::TruckLocation,
-};
+use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
 
 use crate::{
-    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers,
-    utils::get_vehicle_management_api_config,
+    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
 };
 
 /// Environment variable key for the cache purge size.
@@ -42,11 +39,7 @@ impl CacheHandler {
 
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             handler
-                .purge_cache(
-                    self.truck_id.clone(),
-                    self.base_cache_path.clone(),
-                    purge_cache_size,
-                )
+                .purge_cache(self.truck_id.clone(), self.base_cache_path.clone(), purge_cache_size)
                 .await;
         }
     }
@@ -56,8 +49,7 @@ impl CacheHandler {
     /// # Arguments
     /// * `purge_cache_size` - The amount of cached data that will be processed from the cache files at once.
     async fn purge_location_cache(&self, purge_cache_size: usize) {
-        let (cache, cache_size) =
-            TruckLocation::take_from_file(self.base_cache_path.clone(), purge_cache_size);
+        let (cache, cache_size) = TruckLocation::take_from_file(self.base_cache_path.clone(), purge_cache_size);
         let mut failed_locations = Vec::new();
 
         let purge_cache_size = cache.len();
@@ -154,10 +146,8 @@ mod tests {
 
         let (locations_cache, _) = TruckLocation::read_from_file(base_cache_path.clone(), 0);
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);
-        let (truck_driver_cards_cache, _) =
-            TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
-        let (truck_drive_states_cache, _) =
-            TruckDriveState::read_from_file(base_cache_path.clone(), 0);
+        let (truck_driver_cards_cache, _) = TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
+        let (truck_drive_states_cache, _) = TruckDriveState::read_from_file(base_cache_path.clone(), 0);
 
         assert_eq!(locations_cache.len(), 10);
         assert_eq!(truck_speeds_cache.len(), 10);
@@ -168,10 +158,8 @@ mod tests {
 
         let (locations_cache, _) = TruckLocation::read_from_file(base_cache_path.clone(), 0);
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);
-        let (truck_driver_cards_cache, _) =
-            TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
-        let (truck_drive_states_cache, _) =
-            TruckDriveState::read_from_file(base_cache_path.clone(), 0);
+        let (truck_driver_cards_cache, _) = TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
+        let (truck_drive_states_cache, _) = TruckDriveState::read_from_file(base_cache_path.clone(), 0);
 
         assert_eq!(locations_cache.len(), 5);
         assert_eq!(truck_speeds_cache.len(), 5);

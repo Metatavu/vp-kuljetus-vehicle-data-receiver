@@ -112,10 +112,7 @@ pub fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 ///
 /// # Returns
 /// * `TeltonikaRecordsHandler` - TeltonikaRecordsHandler instance
-pub fn get_teltonika_records_handler(
-    truck_id: Option<String>,
-    imei: Option<String>,
-) -> TeltonikaRecordsHandler {
+pub fn get_teltonika_records_handler(truck_id: Option<String>, imei: Option<String>) -> TeltonikaRecordsHandler {
     let test_cache_dir = tempdir().unwrap();
     let test_cache_path = test_cache_dir.path().to_path_buf();
     let imei = imei.unwrap_or(String::new());
@@ -157,9 +154,7 @@ pub trait MockServerExt {
 impl MockServerExt for MockServer {
     fn public_trucks_mock(&self) -> Mock {
         self.mock(|when, then| {
-            when.method(GET)
-                .path("/v1/publicTrucks")
-                .header("X-API-KEY", "API_KEY");
+            when.method(GET).path("/v1/publicTrucks").header("X-API-KEY", "API_KEY");
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[PublicTruck {

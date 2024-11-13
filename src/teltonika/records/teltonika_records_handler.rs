@@ -1,18 +1,11 @@
 use std::path::PathBuf;
 
 use crate::{
-    telematics_cache::Cacheable,
-    teltonika::{
-        avl_event_io_value_to_u8, events::TeltonikaEventHandlers, DRIVER_ONE_CARD_PRESENCE_EVENT_ID,
-    },
-    utils::get_vehicle_management_api_config,
+    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
 };
-use chrono::{DateTime, Utc};
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
-use vehicle_management_service::{
-    apis::trucks_api::CreateTruckLocationParams, models::TruckLocation,
-};
+use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
 
 /// Handler for Teltonika records.
 pub struct TeltonikaRecordsHandler {
@@ -34,39 +27,6 @@ impl TeltonikaRecordsHandler {
     #[cfg(test)]
     pub fn base_cache_path(&self) -> &std::path::Path {
         self.base_cache_path.as_path()
-    }
-
-    /// Returns the driver one card presence from a list of Teltonika [AVLRecord]s.
-    ///
-    /// # Arguments
-    /// * `teltonika_records` - The list of [AVLRecord]s to get the driver one card presence from.
-    ///
-    /// # Returns
-    /// * Tuple where first value is the driver one card presence and second value is the latest [AVLRecord] with the driver one card presence event.
-    pub fn get_driver_one_card_presence_from_records(
-        teltonika_records: &mut Vec<AVLRecord>,
-    ) -> Option<(bool, Option<DateTime<Utc>>)> {
-        teltonika_records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        let driver_one_card_presence_records: Vec<&AVLRecord> = teltonika_records
-            .iter()
-            .filter(|record| record.trigger_event_id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID)
-            .collect();
-        if let Some(latest_record) = driver_one_card_presence_records.first() {
-            let latest_event = latest_record
-                .io_events
-                .iter()
-                .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
-
-            return match latest_event {
-                Some(event) => Some((
-                    avl_event_io_value_to_u8(&event.value) == 1,
-                    Some(latest_record.timestamp),
-                )),
-                None => None,
-            };
-        }
-
-        return None;
     }
 
     /// Handles a list of Teltonika [AVLRecord]s.

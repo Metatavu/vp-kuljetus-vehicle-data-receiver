@@ -1,7 +1,7 @@
 use base64::Engine;
 use chrono::{Datelike, Utc};
-use log::{debug, error, info, warn};
-use nom_teltonika::{AVLRecord, TeltonikaStream};
+use log::{debug, error, info};
+use nom_teltonika::TeltonikaStream;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
     io::Write,
@@ -13,22 +13,17 @@ use tokio::{
 };
 
 use crate::{
-    utils::{
-        api::{delete_truck_driver_card_by_id, get_truck_driver_card_id, get_truck_id_by_vin},
-        avl_packet::AVLPacketToBytes,
-    },
+    utils::{api::get_truck_id_by_vin, avl_packet::AVLPacketToBytes},
     worker::{self, WorkerMessage},
 };
 
-use super::records::{teltonika_vin_handler::get_truck_vin_from_records, TeltonikaRecordsHandler};
+use super::records::teltonika_vin_handler::get_truck_vin_from_records;
 
 pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
     truck_id: Option<String>,
     truck_vin: Option<String>,
-    card_remove_threshold: u16,
-    driver_one_card_removed_at: Option<i64>,
     sender_channel: Sender<WorkerMessage>,
 }
 
@@ -38,16 +33,13 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
-    /// * `card_remove_threshold` - Threshold for removing the driver card
-    pub fn new(stream: TeltonikaStream<S>, imei: String, card_remove_threshold: u16) -> Self {
+    pub fn new(stream: TeltonikaStream<S>, imei: String) -> Self {
         let (tx, rx) = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei,
             truck_id: None,
             truck_vin: None,
-            card_remove_threshold,
-            driver_one_card_removed_at: None,
             sender_channel: tx,
         };
 
@@ -63,16 +55,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
-    /// * `card_remove_threshold` - Threshold for removing the driver card
-    pub async fn handle_connection(
-        stream: S,
-        base_file_path: &Path,
-        card_remove_threshold: u16,
-    ) -> Result<(), ()> {
+    pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), ()> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
-                let mut connection = Self::new(stream, imei, card_remove_threshold);
+                let mut connection = Self::new(stream, imei);
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
@@ -86,9 +73,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     ///
     /// # Arguments
     /// * `stream` - Teltonika stream
-    async fn handle_imei(
-        mut stream: TeltonikaStream<S>,
-    ) -> Result<(TeltonikaStream<S>, String), ()> {
+    async fn handle_imei(mut stream: TeltonikaStream<S>) -> Result<(TeltonikaStream<S>, String), ()> {
         match stream.read_imei_async().await {
             Ok(imei) => {
                 info!(target: &imei, "New client connected");
@@ -115,46 +100,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         }
     }
 
-    /// Handles the removal of the driver card
-    ///
-    /// Teltonika Telematics devices are configured to send eventual records of driver one card presence whenever the value changes.
-    /// It is possible that we sometimes receive false events of driver card removal,
-    /// so we need to check whether is has actually been removed longer than the [`driver_card_removal_threshold`]
-    ///
-    /// # Arguments
-    /// * `records` - Records to be checked for driver card removal events
-    async fn handle_driver_one_card_removal(&mut self, mut records: &mut Vec<AVLRecord>) {
-        if let Some((driver_one_card_present_in_frame, timestamp)) =
-            TeltonikaRecordsHandler::get_driver_one_card_presence_from_records(&mut records)
-        {
-            let now = Utc::now().timestamp_millis();
-            if !driver_one_card_present_in_frame {
-                let Some(card_removed_at) = self.driver_one_card_removed_at else {
-                    self.driver_one_card_removed_at = Some(now);
-                    return;
-                };
-                if now - card_removed_at > self.card_remove_threshold.into() {
-                    let Some(truck_id) = &self.truck_id else {
-                        warn!(target: self.log_target(), "Attempted to remove driver card from truck with no ID");
-                        return;
-                    };
-                    let Some(driver_card_id) = get_truck_driver_card_id(truck_id.clone()).await
-                    else {
-                        return;
-                    };
-                    if let Some(timestamp) = timestamp {
-                        delete_truck_driver_card_by_id(truck_id.clone(), driver_card_id, timestamp)
-                            .await;
-                    }
-                }
-
-                return;
-            }
-
-            self.driver_one_card_removed_at = None;
-        }
-    }
-
     fn log_target(&self) -> &str {
         &self.imei
     }
@@ -166,10 +111,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     ///
     /// # Arguments
     /// * `base_log_file_path` - Base path for the log files
-    async fn run(
-        &mut self,
-        base_log_file_path: &PathBuf,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn run(&mut self, base_log_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         let start_of_connection = Utc::now();
         let mut file_handle = self.get_log_file_handle(base_log_file_path);
 
@@ -180,10 +122,8 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             }
 
             match self.teltonika_stream.read_frame_async().await {
-                Ok(mut frame) => {
+                Ok(frame) => {
                     let records_count = frame.records.len();
-                    self.handle_driver_one_card_removal(&mut frame.records)
-                        .await;
 
                     if let None = self.truck_vin {
                         self.truck_vin = get_truck_vin_from_records(&frame.records);
@@ -217,9 +157,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     self.write_data_to_log_file(&mut file_handle, &frame.to_bytes());
 
-                    self.teltonika_stream
-                        .write_frame_ack_async(Some(&frame))
-                        .await?;
+                    self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
 
                     if let Err(err) = self
                         .sender_channel
@@ -285,10 +223,8 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     fn get_log_file_handle(&self, log_file_path: &Path) -> Option<File> {
         if cfg!(not(test)) && log_file_path.file_name().unwrap() != "" {
             let today = Utc::now().format("%Y-%m-%d").to_string();
-            create_dir_all(&log_file_path).expect(&format!(
-                "Failed to create log file directory `{:#?}`",
-                &log_file_path
-            ));
+            create_dir_all(&log_file_path)
+                .expect(&format!("Failed to create log file directory `{:#?}`", &log_file_path));
             return Some(
                 OpenOptions::new()
                     .read(true)
