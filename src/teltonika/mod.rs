@@ -57,14 +57,10 @@ fn avl_event_io_value_to_u32(value: &AVLEventIOValue) -> u32 {
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
 fn driver_card_events_to_truck_driver_card(timestamp: i64, events: &Vec<&AVLEventIO>) -> Option<TruckDriverCard> {
-    let Some(card_present) = events
+    let card_present = events
         .iter()
-        .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID)
-    else {
-        debug!("Driver one card presence event not found");
+        .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
 
-        return None;
-    };
     let Some(driver_card_msb_part) = driver_card_part_from_event(events, 195) else {
         debug!("Driver card MSB part was 0");
 
@@ -77,10 +73,9 @@ fn driver_card_events_to_truck_driver_card(timestamp: i64, events: &Vec<&AVLEven
     };
     let id = format!("{}{}", driver_card_msb_part, driver_card_lsb_part);
 
-    let removed_at = if avl_event_io_value_to_u8(&card_present.value) == 0 {
-        Some(date_time_from_timestamp(timestamp).to_rfc3339())
-    } else {
-        None
+    let removed_at = match card_present {
+        Some(card_present) => get_card_removal_time_from_event(card_present, timestamp),
+        None => None,
     };
 
     assert!(id.len() == 16);
@@ -90,6 +85,23 @@ fn driver_card_events_to_truck_driver_card(timestamp: i64, events: &Vec<&AVLEven
         timestamp,
         removed_at,
     });
+}
+
+/// Returns the time of driver card removal from an [AVLEventIO] event.
+///
+/// If the value of the event is 0 (card is not present), the records timestamp is returned.
+///
+/// # Arguments
+/// - `event` - The driver card present event to.
+/// - `timestamp` - The timestamp of the record.
+///
+/// # Returns
+/// The time of driver card removal as a String in RFC3339 format or None if the card is present.
+fn get_card_removal_time_from_event(event: &AVLEventIO, timestamp: i64) -> Option<String> {
+    match avl_event_io_value_to_u8(&event.value) {
+        0 => Some(date_time_from_timestamp(timestamp).to_rfc3339()),
+        _ => None,
+    }
 }
 
 /// Converts a Driver Card part [AVLEventIO] to a String.
@@ -192,5 +204,24 @@ mod tests {
         assert_eq!(avl_event_io_value_to_u64(&AVLEventIOValue::U32(1)), 1);
         assert_eq!(avl_event_io_value_to_u64(&AVLEventIOValue::U16(1)), 1);
         assert_eq!(avl_event_io_value_to_u64(&AVLEventIOValue::U8(1)), 1);
+    }
+
+    #[test]
+    fn test_get_driver_card_removal_time_from_event() {
+        use super::get_card_removal_time_from_event;
+        use nom_teltonika::{AVLEventIO, AVLEventIOValue};
+
+        let driver_one_card_not_present_event = AVLEventIO {
+            id: 187,
+            value: AVLEventIOValue::U8(0),
+        };
+        let driver_one_card_present_event = AVLEventIO {
+            id: 187,
+            value: AVLEventIOValue::U8(1),
+        };
+        let timestamp = 1616425200;
+
+        assert!(get_card_removal_time_from_event(&driver_one_card_not_present_event, timestamp).is_some());
+        assert!(get_card_removal_time_from_event(&driver_one_card_present_event, timestamp).is_none())
     }
 }
