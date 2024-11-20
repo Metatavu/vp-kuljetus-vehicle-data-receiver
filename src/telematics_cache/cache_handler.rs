@@ -122,7 +122,11 @@ mod tests {
                 0.0 + i as f64,
             ));
             truck_speeds.push(TruckSpeed::new(timestamp, 0.0 + i as f32));
-            truck_driver_cards.push(TruckDriverCard::new(String::from("1099483935000001"), timestamp));
+            truck_driver_cards.push(TruckDriverCard {
+                id: String::from("1099483935000001"),
+                timestamp,
+                removed_at: None,
+            });
             truck_drive_states.push(TruckDriveState {
                 id: None,
                 timestamp,
