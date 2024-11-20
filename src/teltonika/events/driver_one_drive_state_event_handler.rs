@@ -2,7 +2,7 @@ use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
     apis::{
-        trucks_api::{CreateDriveStateError, CreateDriveStateParams},
+        trucks_api::{create_drive_state, CreateDriveStateError, CreateDriveStateParams},
         Error,
     },
     models::{TruckDriveState, TruckDriveStateEnum},
@@ -28,7 +28,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         event_data: &TruckDriveState,
         truck_id: String,
     ) -> Result<(), Error<CreateDriveStateError>> {
-        vehicle_management_service::apis::trucks_api::create_drive_state(
+        create_drive_state(
             &get_vehicle_management_api_config(),
             CreateDriveStateParams {
                 truck_id: truck_id.clone(),

@@ -20,16 +20,16 @@ pub struct TruckOdometerReading {
     #[serde(rename = "timestamp")]
     pub timestamp: i64,
     /// Odometer reading in meters. See [Teltonika FMC650 Data Sending Parameters ID - Tachograph Data Elements](https://wiki.teltonika-gps.com/view/FMC650_Teltonika_Data_Sending_Parameters_ID#Tachograph_data_elements)
-    #[serde(rename = "odometer")]
-    pub odometer: f64,
+    #[serde(rename = "odometerReading")]
+    pub odometer_reading: i32,
 }
 
 impl TruckOdometerReading {
-    pub fn new(timestamp: i64, odometer: f64) -> TruckOdometerReading {
+    pub fn new(timestamp: i64, odometer_reading: i32) -> TruckOdometerReading {
         TruckOdometerReading {
             id: None,
             timestamp,
-            odometer,
+            odometer_reading,
         }
     }
 }

@@ -1,7 +1,7 @@
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
-        trucks_api::{CreateTruckSpeedError, CreateTruckSpeedParams},
+        trucks_api::{create_truck_speed, CreateTruckSpeedError, CreateTruckSpeedParams},
         Error,
     },
     models::TruckSpeed,
@@ -20,7 +20,7 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
     }
 
     async fn send_event(&self, event_data: &TruckSpeed, truck_id: String) -> Result<(), Error<CreateTruckSpeedError>> {
-        vehicle_management_service::apis::trucks_api::create_truck_speed(
+        create_truck_speed(
             &get_vehicle_management_api_config(),
             CreateTruckSpeedParams {
                 truck_id,
@@ -38,11 +38,10 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         _imei: &str,
     ) -> Option<TruckSpeed> {
         let event = events.first().expect("Received empty speed event");
-        Some(TruckSpeed {
-            id: None,
-            speed: avl_event_io_value_to_u64(&event.value) as f32,
+        Some(TruckSpeed::new(
             timestamp,
-        })
+            avl_event_io_value_to_u64(&event.value) as f32,
+        ))
     }
 }
 
