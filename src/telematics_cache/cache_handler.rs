@@ -87,7 +87,7 @@ impl CacheHandler {
 mod tests {
     use uuid::Uuid;
     use vehicle_management_service::models::{
-        TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckSpeed,
+        TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckOdometerReading, TruckSpeed,
     };
 
     use crate::{
@@ -110,21 +110,18 @@ mod tests {
         let mut truck_speeds = Vec::new();
         let mut truck_driver_cards = Vec::new();
         let mut truck_drive_states = Vec::new();
+        let mut truck_odometer_readings = Vec::new();
+
         for i in 0..10 {
             let date_time = chrono::Utc::now() + chrono::Duration::minutes(i);
             let timestamp = date_time.timestamp();
-            locations.push(TruckLocation {
-                id: None,
+            locations.push(TruckLocation::new(
                 timestamp,
-                latitude: 0.0 + i as f64,
-                longitude: 0.0 + i as f64,
-                heading: 0.0 + i as f64,
-            });
-            truck_speeds.push(TruckSpeed {
-                id: None,
-                timestamp,
-                speed: 0.0 + i as f32,
-            });
+                0.0 + i as f64,
+                0.0 + i as f64,
+                0.0 + i as f64,
+            ));
+            truck_speeds.push(TruckSpeed::new(timestamp, 0.0 + i as f32));
             truck_driver_cards.push(TruckDriverCard {
                 id: String::from("1099483935000001"),
                 timestamp,
@@ -137,22 +134,26 @@ mod tests {
                 driver_id: None,
                 driver_card_id: None,
             });
+            truck_odometer_readings.push(TruckOdometerReading::new(timestamp, i as i32));
         }
 
         TruckLocation::write_vec_to_file(locations, base_cache_path.clone()).unwrap();
         TruckSpeed::write_vec_to_file(truck_speeds, base_cache_path.clone()).unwrap();
         TruckDriverCard::write_vec_to_file(truck_driver_cards, base_cache_path.clone()).unwrap();
         TruckDriveState::write_vec_to_file(truck_drive_states, base_cache_path.clone()).unwrap();
+        TruckOdometerReading::write_vec_to_file(truck_odometer_readings, base_cache_path.clone()).unwrap();
 
         let (locations_cache, _) = TruckLocation::read_from_file(base_cache_path.clone(), 0);
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);
         let (truck_driver_cards_cache, _) = TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
         let (truck_drive_states_cache, _) = TruckDriveState::read_from_file(base_cache_path.clone(), 0);
+        let (truck_odometer_readings_cache, _) = TruckOdometerReading::read_from_file(base_cache_path.clone(), 0);
 
         assert_eq!(locations_cache.len(), 10);
         assert_eq!(truck_speeds_cache.len(), 10);
         assert_eq!(truck_driver_cards_cache.len(), 10);
         assert_eq!(truck_drive_states_cache.len(), 10);
+        assert_eq!(truck_odometer_readings_cache.len(), 10);
 
         cache_handler.purge_cache(5).await;
 
@@ -160,10 +161,12 @@ mod tests {
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);
         let (truck_driver_cards_cache, _) = TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
         let (truck_drive_states_cache, _) = TruckDriveState::read_from_file(base_cache_path.clone(), 0);
+        let (truck_odometer_readings_cache, _) = TruckOdometerReading::read_from_file(base_cache_path.clone(), 0);
 
         assert_eq!(locations_cache.len(), 5);
         assert_eq!(truck_speeds_cache.len(), 5);
         assert_eq!(truck_driver_cards_cache.len(), 5);
         assert_eq!(truck_drive_states_cache.len(), 5);
+        assert_eq!(truck_odometer_readings_cache.len(), 5);
     }
 }

@@ -2,7 +2,7 @@ use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
     apis::{
-        trucks_api::{CreateDriveStateError, CreateDriveStateParams},
+        trucks_api::{create_drive_state, CreateDriveStateError, CreateDriveStateParams},
         Error,
     },
     models::{TruckDriveState, TruckDriveStateEnum},
@@ -28,7 +28,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         event_data: &TruckDriveState,
         truck_id: String,
     ) -> Result<(), Error<CreateDriveStateError>> {
-        vehicle_management_service::apis::trucks_api::create_drive_state(
+        create_drive_state(
             &get_vehicle_management_api_config(),
             CreateDriveStateParams {
                 truck_id: truck_id.clone(),
@@ -62,6 +62,81 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
             driver_id: None,
             driver_card_id: Some(driver_card.id),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nom_teltonika::AVLEventIO;
+
+    use crate::{
+        teltonika::events::teltonika_event_handlers::TeltonikaEventHandler, utils::imei::get_random_imei_of_length,
+    };
+
+    use super::DriverOneDriveStateEventHandler;
+
+    #[test]
+    fn test_process_event_data_with_card_present() {
+        let handler = DriverOneDriveStateEventHandler;
+        let timestamp = 1731485132;
+        let imei = get_random_imei_of_length(15);
+        let mut events = Vec::new();
+        events.push(&AVLEventIO {
+            id: 187,
+            value: nom_teltonika::AVLEventIOValue::U8(1),
+        });
+        events.push(&AVLEventIO {
+            id: 184,
+            value: nom_teltonika::AVLEventIOValue::U8(0),
+        });
+        events.push(&AVLEventIO {
+            id: 195,
+            value: nom_teltonika::AVLEventIOValue::U64(3544392526090811699),
+        });
+        events.push(&AVLEventIO {
+            id: 196,
+            value: nom_teltonika::AVLEventIOValue::U64(3689908453225017393),
+        });
+
+        let event_with_card_present = handler.process_event_data(0, &events, timestamp, &imei);
+        // There is driver state event so the processed event should be Some
+        assert!(event_with_card_present.is_some());
+    }
+
+    #[test]
+    fn test_process_event_data_without_card_presence() {
+        let handler = DriverOneDriveStateEventHandler;
+        let timestamp = 1731485132;
+        let imei = get_random_imei_of_length(15);
+        let mut events = Vec::new();
+        events.push(&AVLEventIO {
+            id: 187,
+            value: nom_teltonika::AVLEventIOValue::U8(0),
+        });
+        events.push(&AVLEventIO {
+            id: 184,
+            value: nom_teltonika::AVLEventIOValue::U8(0),
+        });
+        events.push(&AVLEventIO {
+            id: 195,
+            value: nom_teltonika::AVLEventIOValue::U64(3544392526090811699),
+        });
+        events.push(&AVLEventIO {
+            id: 196,
+            value: nom_teltonika::AVLEventIOValue::U64(3689908453225017393),
+        });
+
+        let event_without_card_present = handler.process_event_data(0, &events, timestamp, &imei);
+
+        // There is driver state event so the processed event should be Some
+        assert!(event_without_card_present.is_some());
+
+        events.remove(0);
+
+        let event_without_card_present_event = handler.process_event_data(0, &events, timestamp, &imei);
+
+        // There is driver state event so the processed event should be Some
+        assert!(event_without_card_present_event.is_some());
     }
 }
 

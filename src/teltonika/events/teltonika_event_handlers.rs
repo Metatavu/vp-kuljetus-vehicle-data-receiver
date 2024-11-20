@@ -1,4 +1,4 @@
-use super::{driver_one_card_id_event_handler, driver_one_drive_state_event_handler, speed_event_handler};
+use super::{odometer_reading_event_handler, OdometerReadingEventHandler};
 use crate::{
     telematics_cache::Cacheable,
     teltonika::events::{DriverOneCardIdEventHandler, DriverOneDriveStateEventHandler, SpeedEventHandler},
@@ -12,14 +12,10 @@ use std::{fmt::Debug, path::PathBuf};
 ///
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
 pub enum TeltonikaEventHandlers<'a> {
-    SpeedEventHandler((speed_event_handler::SpeedEventHandler, &'a str)),
-    DriverOneCardIdEventHandler((driver_one_card_id_event_handler::DriverOneCardIdEventHandler, &'a str)),
-    DriverOneDriveStateEventHandler(
-        (
-            driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler,
-            &'a str,
-        ),
-    ),
+    SpeedEventHandler((SpeedEventHandler, &'a str)),
+    DriverOneCardIdEventHandler((DriverOneCardIdEventHandler, &'a str)),
+    DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, &'a str)),
+    OdometerReadingEventHandler((OdometerReadingEventHandler, &'a str)),
 }
 
 impl<'a> TeltonikaEventHandlers<'a> {
@@ -28,6 +24,10 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::SpeedEventHandler((SpeedEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneCardIdEventHandler((DriverOneCardIdEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, log_target)),
+            TeltonikaEventHandlers::OdometerReadingEventHandler((
+                odometer_reading_event_handler::OdometerReadingEventHandler,
+                log_target,
+            )),
         ]
     }
     /// Gets the event ID for the handler.
@@ -36,6 +36,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::DriverOneCardIdEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(),
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(),
         }
     }
 
@@ -45,6 +46,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.get_trigger_event_id(),
             TeltonikaEventHandlers::DriverOneCardIdEventHandler((handler, _)) => handler.get_trigger_event_id(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_trigger_event_id(),
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_trigger_event_id(),
         }
     }
 
@@ -73,6 +75,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     .handle_events(trigger_event_id, events, timestamp, truck_id, base_cache_path, imei)
                     .await
             }
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, imei)) => {
+                handler
+                    .handle_events(trigger_event_id, events, timestamp, truck_id, base_cache_path, imei)
+                    .await
+            }
         }
     }
 
@@ -90,6 +97,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     .await
             }
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, imei)) => {
+                handler
+                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .await
+            }
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, imei)) => {
                 handler
                     .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
                     .await

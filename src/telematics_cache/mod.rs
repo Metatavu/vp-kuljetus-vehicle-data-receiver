@@ -3,23 +3,23 @@ pub mod cache_handler;
 use nom_teltonika::AVLRecord;
 use serde::{Deserialize, Serialize};
 use std::{
+    fmt::Debug,
     fs::create_dir_all,
     io::{BufReader, Write},
     path::{Path, PathBuf},
 };
 
 /// Base trait for all cacheable telematics data
-pub trait Cacheable {
+pub trait Cacheable
+where
+    Self: Serialize + Sized + for<'a> Deserialize<'a> + Clone + Debug,
+{
     /// File path to store the cache
-    fn get_file_path() -> String
-    where
-        Self: Sized;
+    fn get_file_path() -> String;
 
     /// Converts a Teltonika record to a cacheable object
     /// This is only used for [TruckLocation]s at the moment, hence returning an Option.
-    fn from_teltonika_record(record: &AVLRecord) -> Option<Self>
-    where
-        Self: Sized;
+    fn from_teltonika_record(record: &AVLRecord) -> Option<Self>;
 
     /// Gets the file handle for the cache file
     ///
@@ -28,10 +28,7 @@ pub trait Cacheable {
     ///
     /// # Returns
     /// * A file handle to the cache file
-    fn get_cache_file_handle(base_cache_path: PathBuf) -> std::fs::File
-    where
-        Self: Sized,
-    {
+    fn get_cache_file_handle(base_cache_path: PathBuf) -> std::fs::File {
         let cache_file_path = format!("{}/{}", base_cache_path.to_str().unwrap(), Self::get_file_path());
         create_dir_all(Path::new(&base_cache_path)).unwrap();
         std::fs::OpenOptions::new()
@@ -46,10 +43,7 @@ pub trait Cacheable {
     ///
     /// # Arguments
     /// * `base_cache_path` - The base path to the cache directory
-    fn write_to_file(&self, base_cache_path: PathBuf) -> Result<(), std::io::Error>
-    where
-        Self: Serialize + Sized + for<'a> Deserialize<'a> + Clone,
-    {
+    fn write_to_file(&self, base_cache_path: PathBuf) -> Result<(), std::io::Error> {
         let mut file = Self::get_cache_file_handle(base_cache_path.clone());
         let (mut existing_cache, _) = Self::read_from_file(base_cache_path, 0);
         existing_cache.push(self.clone());
@@ -65,10 +59,7 @@ pub trait Cacheable {
     /// # Arguments
     /// * `cache` - The cacheable objects to write to the file
     /// * `base_cache_path` - The base path to the cache directory
-    fn write_vec_to_file(cache: Vec<Self>, base_cache_path: PathBuf) -> Result<(), std::io::Error>
-    where
-        Self: Serialize + Sized + for<'a> Deserialize<'a> + Clone,
-    {
+    fn write_vec_to_file(cache: Vec<Self>, base_cache_path: PathBuf) -> Result<(), std::io::Error> {
         let mut file = Self::get_cache_file_handle(base_cache_path.clone());
         let (mut existing_cache, _) = Self::read_from_file(base_cache_path, 0);
         existing_cache.extend(cache);
@@ -84,10 +75,7 @@ pub trait Cacheable {
     /// # Arguments
     /// * `base_cache_path` - The base path to the cache directory
     /// * `purge_cache_size` - The size of the cache to purge
-    fn take_from_file(base_cache_path: PathBuf, purge_cache_size: usize) -> (Vec<Self>, usize)
-    where
-        Self: Serialize + Sized + for<'a> Deserialize<'a> + Clone,
-    {
+    fn take_from_file(base_cache_path: PathBuf, purge_cache_size: usize) -> (Vec<Self>, usize) {
         let file = Self::get_cache_file_handle(base_cache_path.clone());
         let reader = BufReader::new(file);
 
@@ -117,10 +105,7 @@ pub trait Cacheable {
     ///
     /// # Returns
     /// * A vector of cacheable objects
-    fn read_from_file(base_cache_path: PathBuf, purge_cache_size: usize) -> (Vec<Self>, usize)
-    where
-        Self: Sized + for<'a> Deserialize<'a>,
-    {
+    fn read_from_file(base_cache_path: PathBuf, purge_cache_size: usize) -> (Vec<Self>, usize) {
         let file = Self::get_cache_file_handle(base_cache_path);
         let reader = BufReader::new(file);
 
@@ -141,10 +126,7 @@ pub trait Cacheable {
     ///
     /// # Arguments
     /// * `base_cache_path` - The base path to the cache directory
-    fn clear_cache(base_cache_path: PathBuf)
-    where
-        Self: Sized,
-    {
+    fn clear_cache(base_cache_path: PathBuf) {
         let file = Self::get_cache_file_handle(base_cache_path);
         if let Err(_) = file.set_len(0) {
             panic!("Error truncating cache file!");
