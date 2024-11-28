@@ -16,8 +16,6 @@ pub mod truck_driver_card;
 pub use self::truck_driver_card::TruckDriverCard;
 pub mod truck_location;
 pub use self::truck_location::TruckLocation;
-pub mod truck_odometer_reading;
-pub use self::truck_odometer_reading::TruckOdometerReading;
 pub mod truck_sort_by_field;
 pub use self::truck_sort_by_field::TruckSortByField;
 pub mod truck_speed;
