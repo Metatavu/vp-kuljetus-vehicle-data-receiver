@@ -22,6 +22,7 @@ src/models/truck_drive_state.rs
 src/models/truck_drive_state_enum.rs
 src/models/truck_driver_card.rs
 src/models/truck_location.rs
+src/models/truck_odometer_reading.rs
 src/models/truck_sort_by_field.rs
 src/models/truck_speed.rs
 src/models/vehicle.rs
