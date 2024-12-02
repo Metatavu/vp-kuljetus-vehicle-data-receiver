@@ -156,7 +156,7 @@ pub trait MockServerExt {
 impl MockServerExt for MockServer {
     fn public_trucks_mock(&self) -> Mock {
         self.mock(|when, then| {
-            when.method(GET).path("/v1/publicTrucks")
+            when.method(GET).path("/v1/publicTrucks");
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[PublicTruck {
