@@ -105,11 +105,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
                     .await
             }
-            TeltonikaEventHandlers::DriverOneCardInsertedEventHandler((handler, imei)) => {
-                handler
-                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
-                    .await
-            }
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, imei)) => {
                 handler
                     .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
@@ -120,6 +115,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
                     .await
             }
+            _ => {}
         }
     }
 }
