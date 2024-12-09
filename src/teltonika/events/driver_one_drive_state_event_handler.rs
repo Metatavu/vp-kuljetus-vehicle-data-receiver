@@ -27,6 +27,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         &self,
         event_data: &TruckDriveState,
         truck_id: String,
+        _: &str,
     ) -> Result<(), Error<CreateDriveStateError>> {
         create_drive_state(
             &get_vehicle_management_api_config(),

@@ -19,7 +19,12 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         vec![191]
     }
 
-    async fn send_event(&self, event_data: &TruckSpeed, truck_id: String) -> Result<(), Error<CreateTruckSpeedError>> {
+    async fn send_event(
+        &self,
+        event_data: &TruckSpeed,
+        truck_id: String,
+        _: &str,
+    ) -> Result<(), Error<CreateTruckSpeedError>> {
         create_truck_speed(
             &get_vehicle_management_api_config(),
             CreateTruckSpeedParams {
