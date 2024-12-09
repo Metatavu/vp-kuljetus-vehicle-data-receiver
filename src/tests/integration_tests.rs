@@ -10,7 +10,7 @@ use crate::{
         avl_frame_builder::AVLFrameBuilder,
         avl_packet::AVLPacketToBytes,
         avl_record_builder::avl_record_builder::AVLRecordBuilder,
-        imei::{build_valid_imei_packet, get_random_imei_of_length},
+        imei::{build_valid_imei_packet, get_random_imei},
         test_utils::{driver_card_id_to_two_part_events, mock_server, vin_to_three_part_events, MockServerExt},
     },
 };
@@ -24,7 +24,7 @@ async fn test_driver_one_card_removal() {
     let driver_card_events = driver_card_id_to_two_part_events(driver_card_id.clone()).to_vec();
     let vin_events = vin_to_three_part_events(String::from("W1T96302X10704959")).to_vec();
     let _mocks = mock_server().start_all_mocks();
-    let imei = build_valid_imei_packet(&get_random_imei_of_length(10));
+    let imei = build_valid_imei_packet(&get_random_imei());
     let temp_dir = tempdir().unwrap();
     let frame_with_card = AVLFrameBuilder::new()
         .with_records(vec![AVLRecordBuilder::new()

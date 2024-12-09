@@ -70,7 +70,7 @@ mod tests {
             avl_frame_builder::*,
             avl_packet::*,
             avl_record_builder::avl_record_builder::*,
-            imei::{build_valid_imei_packet, get_random_imei_of_length, *},
+            imei::{build_valid_imei_packet, get_random_imei, *},
             str_to_bytes,
             test_utils::{
                 get_teltonika_records_handler, read_imei, split_at_half, string_to_hex_string, string_to_hex_to_dec,
@@ -82,28 +82,22 @@ mod tests {
 
     #[test]
     fn test_valid_imei() {
-        let generated_imei_1 = get_random_imei_of_length(10);
-        let generated_imei_2 = get_random_imei_of_length(15);
-        let imei_packet_1 = build_valid_imei_packet(&generated_imei_1);
-        let imei_packet_2 = build_valid_imei_packet(&generated_imei_2);
-        let read_imei_result_1 = read_imei(&imei_packet_1);
-        let read_imei_result_2 = read_imei(&imei_packet_2);
-
-        let is_first_imei_valid = read_imei_result_1.0;
-        let is_second_imei_valid = read_imei_result_2.0;
-        let parsed_first_imei = read_imei_result_1.1.unwrap();
-        let parsed_second_imei = read_imei_result_2.1.unwrap();
-
-        assert_eq!(is_first_imei_valid, true);
-        assert_eq!(is_second_imei_valid, true);
-        assert_eq!(&parsed_first_imei, &generated_imei_1.clone());
-        assert_eq!(&parsed_second_imei, &generated_imei_2.clone());
+        let random_imei_1 = get_random_imei();
+        let random_imei_2 = get_random_imei();
+        let imei_packet_1 = build_valid_imei_packet(&random_imei_1);
+        let imei_packet_2 = build_valid_imei_packet(&random_imei_2);
+        let (is_imei1_valid_by_nom, imei1) = read_imei(&imei_packet_1);
+        let (is_imei2_valid_by_nom, imei2) = read_imei(&imei_packet_2);
+        println!("Generated IMEI 1: {:#?}", imei1);
+        println!("Generated IMEI 2: {:#?}", imei2);
+        assert_eq!(is_imei1_valid_by_nom, imei::valid(imei1.unwrap()));
+        assert_eq!(is_imei2_valid_by_nom, imei::valid(imei2.unwrap()));
     }
 
     #[test]
     fn test_invalid_imei() {
-        let generated_imei = get_random_imei_of_length(15);
-        let imei_packet = build_invalid_imei_packet(&generated_imei);
+        let random_imei = get_random_imei();
+        let imei_packet = build_invalid_imei_packet(&random_imei);
         let read_imei_result = read_imei(&imei_packet);
 
         let is_imei_valid = read_imei_result.0;

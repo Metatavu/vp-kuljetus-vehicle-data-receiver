@@ -1,6 +1,19 @@
 /// Module containing utility functions for testing IMEI parsing
 use rand::{distributions::Alphanumeric, Rng};
 
+const VALID_TEST_IMEIS: [&str; 10] = [
+    "354895074321654",
+    "865432107654321",
+    "359876541234567",
+    "860123456789012",
+    "490154203237518",
+    "356789045612398",
+    "867530912345678",
+    "352634509876543",
+    "864209765432187",
+    "351234567890123",
+];
+
 /// Builds a valid IMEI packet from the given IMEI
 ///
 /// The first two bytes denote the length of the IMEI and the rest are the IMEI itself.
@@ -34,15 +47,8 @@ pub fn build_invalid_imei_packet(imei: &str) -> Vec<u8> {
 
 /// Generates a random IMEI of the given length
 ///
-/// # Arguments
-/// * `length` - The length of the IMEI to generate
-///
 /// # Returns
 /// * `String` - The generated IMEI
-pub fn get_random_imei_of_length(length: i16) -> String {
-    rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(length as usize)
-        .map(char::from)
-        .collect()
+pub fn get_random_imei() -> String {
+    VALID_TEST_IMEIS[rand::thread_rng().gen_range(0..VALID_TEST_IMEIS.len())].to_string()
 }

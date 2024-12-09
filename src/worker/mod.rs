@@ -95,7 +95,7 @@ mod tests {
         utils::{
             avl_frame_builder::AVLFrameBuilder,
             avl_record_builder::avl_record_builder::AVLRecordBuilder,
-            imei::get_random_imei_of_length,
+            imei::get_random_imei,
             test_utils::{get_temp_dir_path, wait_until},
         },
     };
@@ -132,7 +132,7 @@ mod tests {
     #[tokio::test]
     async fn test_worker_under_load() {
         let record_amount = 1000;
-        let imei = get_random_imei_of_length(15);
+        let imei = get_random_imei();
         let temp_dir = get_temp_dir_path();
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
         super::spawn(rx);

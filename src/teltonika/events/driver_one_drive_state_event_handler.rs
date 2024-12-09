@@ -69,9 +69,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
 mod tests {
     use nom_teltonika::AVLEventIO;
 
-    use crate::{
-        teltonika::events::teltonika_event_handlers::TeltonikaEventHandler, utils::imei::get_random_imei_of_length,
-    };
+    use crate::{teltonika::events::teltonika_event_handlers::TeltonikaEventHandler, utils::imei::get_random_imei};
 
     use super::DriverOneDriveStateEventHandler;
 
@@ -79,7 +77,7 @@ mod tests {
     fn test_process_event_data_with_card_present() {
         let handler = DriverOneDriveStateEventHandler;
         let timestamp = 1731485132;
-        let imei = get_random_imei_of_length(15);
+        let imei = get_random_imei();
         let mut events = Vec::new();
         events.push(&AVLEventIO {
             id: 187,
@@ -107,7 +105,7 @@ mod tests {
     fn test_process_event_data_without_card_presence() {
         let handler = DriverOneDriveStateEventHandler;
         let timestamp = 1731485132;
-        let imei = get_random_imei_of_length(15);
+        let imei = get_random_imei();
         let mut events = Vec::new();
         events.push(&AVLEventIO {
             id: 187,

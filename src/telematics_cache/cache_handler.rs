@@ -93,7 +93,7 @@ mod tests {
     use crate::{
         telematics_cache::{cache_handler::CacheHandler, Cacheable},
         utils::{
-            imei::get_random_imei_of_length,
+            imei::get_random_imei,
             test_utils::{get_temp_dir_path, mock_server, MockServerExt},
         },
     };
@@ -102,7 +102,7 @@ mod tests {
     async fn test_purge_cache() {
         let _mocks = mock_server().start_all_mocks();
         let base_cache_path = get_temp_dir_path();
-        let imei = get_random_imei_of_length(15);
+        let imei = get_random_imei();
         let truck_id = Uuid::new_v4().to_string();
         let cache_handler = CacheHandler::new(imei, truck_id, base_cache_path.clone());
 
