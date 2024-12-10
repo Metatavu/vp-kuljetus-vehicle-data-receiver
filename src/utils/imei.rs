@@ -1,18 +1,5 @@
 /// Module containing utility functions for testing IMEI parsing
-use rand::{distributions::Alphanumeric, Rng};
-
-const VALID_TEST_IMEIS: [&str; 10] = [
-    "354895074321654",
-    "865432107654321",
-    "359876541234567",
-    "860123456789012",
-    "490154203237518",
-    "356789045612398",
-    "867530912345678",
-    "352634509876543",
-    "864209765432187",
-    "351234567890123",
-];
+use rand::Rng;
 
 /// Builds a valid IMEI packet from the given IMEI
 ///
@@ -45,10 +32,29 @@ pub fn build_invalid_imei_packet(imei: &str) -> Vec<u8> {
     return imei.as_bytes().to_vec();
 }
 
-/// Generates a random IMEI of the given length
+/// Generates a random valid IMEI number
 ///
 /// # Returns
 /// * `String` - The generated IMEI
 pub fn get_random_imei() -> String {
-    VALID_TEST_IMEIS[rand::thread_rng().gen_range(0..VALID_TEST_IMEIS.len())].to_string()
+    let mut rng = rand::thread_rng();
+    let mut imei: Vec<u8> = (0..14).map(|_| rng.gen_range(0..=9)).collect();
+
+    // Calculate the checksum for the first 14 digits
+    let mut checksum = 0;
+    for (i, &digit) in imei.iter().rev().enumerate() {
+        if i % 2 == 0 {
+            let double = digit * 2;
+            checksum += if double > 9 { double - 9 } else { double };
+        } else {
+            checksum += digit;
+        }
+    }
+
+    // Calculate the final digit to make it valid
+    let final_digit = (10 - (checksum % 10)) % 10;
+    imei.push(final_digit);
+
+    // Convert to string
+    imei.iter().map(|d| d.to_string()).collect::<String>()
 }

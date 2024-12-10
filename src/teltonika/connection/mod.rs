@@ -58,12 +58,21 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), ()> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
+                let is_valid_imei = imei::valid(&imei);
+                debug!("ASDASD - {} - {is_valid_imei}", imei);
+                if !is_valid_imei {
+                    debug!("Invalid IMEI: {}", imei);
+                    return Err(());
+                }
                 let file_path = base_file_path.join(&imei);
                 let mut connection = Self::new(stream, imei);
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
-            Err(_) => Err(()),
+            Err(_) => {
+                println!("Failed to handle IMEI");
+                Err(())
+            }
         }
     }
 

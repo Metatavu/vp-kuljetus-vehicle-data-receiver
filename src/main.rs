@@ -63,6 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     pub mod integration_tests;
+
     use crate::{
         telematics_cache::Cacheable,
         teltonika::records::teltonika_vin_handler::get_truck_vin_from_records,
@@ -88,8 +89,7 @@ mod tests {
         let imei_packet_2 = build_valid_imei_packet(&random_imei_2);
         let (is_imei1_valid_by_nom, imei1) = read_imei(&imei_packet_1);
         let (is_imei2_valid_by_nom, imei2) = read_imei(&imei_packet_2);
-        println!("Generated IMEI 1: {:#?}", imei1);
-        println!("Generated IMEI 2: {:#?}", imei2);
+
         assert_eq!(is_imei1_valid_by_nom, imei::valid(imei1.unwrap()));
         assert_eq!(is_imei2_valid_by_nom, imei::valid(imei2.unwrap()));
     }
