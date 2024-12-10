@@ -341,7 +341,7 @@ pub async fn create_drive_state(configuration: &configuration::Configuration, pa
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_drive_state);
 
@@ -419,7 +419,7 @@ pub async fn create_truck_driver_card(configuration: &configuration::Configurati
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_driver_card);
 
@@ -461,7 +461,7 @@ pub async fn create_truck_location(configuration: &configuration::Configuration,
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_location);
 
@@ -503,7 +503,7 @@ pub async fn create_truck_odometer_reading(configuration: &configuration::Config
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_odometer_reading);
 
@@ -545,7 +545,7 @@ pub async fn create_truck_speed(configuration: &configuration::Configuration, pa
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_speed);
 
@@ -624,7 +624,7 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
 
     let local_var_req = local_var_req_builder.build()?;
@@ -761,7 +761,7 @@ pub async fn list_truck_driver_cards(configuration: &configuration::Configuratio
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-Keycloak-API-Key", local_var_value);
     };
     if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
         local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
