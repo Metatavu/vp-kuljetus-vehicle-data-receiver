@@ -1,10 +1,10 @@
-mod driver_one_card_id_event_handler;
+mod driver_one_card_event_handler;
 mod driver_one_drive_state_event_handler;
 mod odometer_reading_event_handler;
 mod speed_event_handler;
 mod teltonika_event_handlers;
 
-pub use driver_one_card_id_event_handler::DriverOneCardIdEventHandler;
+pub use driver_one_card_event_handler::DriverOneCardEventHandler;
 pub use driver_one_drive_state_event_handler::DriverOneDriveStateEventHandler;
 pub use odometer_reading_event_handler::OdometerReadingEventHandler;
 pub use speed_event_handler::SpeedEventHandler;

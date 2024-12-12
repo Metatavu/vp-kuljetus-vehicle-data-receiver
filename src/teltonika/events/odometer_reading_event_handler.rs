@@ -28,6 +28,7 @@ impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadin
         &self,
         event_data: &TruckOdometerReading,
         truck_id: String,
+        _: &str,
     ) -> Result<(), Error<CreateTruckOdometerReadingError>> {
         create_truck_odometer_reading(
             &get_vehicle_management_api_config(),
