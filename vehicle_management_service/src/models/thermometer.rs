@@ -11,26 +11,24 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// Truck : Represent single truck
+/// Thermometer : Represents a thermometer attached to a truck or towable
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Truck {
+pub struct Thermometer {
+    /// Unique identifier for the thermometer
     #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
     pub id: Option<uuid::Uuid>,
+    /// Name of the thermometer
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// The unique IMEI of the truck, used to identify it when associating with a thermometer.
-    #[serde(rename = "imei", skip_serializing_if = "Option::is_none")]
-    pub imei: Option<String>,
-    #[serde(rename = "plateNumber")]
-    pub plate_number: String,
-    #[serde(rename = "type")]
-    pub r#type: Type,
-    /// Truck identification number. This is unique for each truck and should be used as a hardware identifier for this specific truck. 
-    #[serde(rename = "vin")]
-    pub vin: String,
-    /// Active vehicle id. This is the current vehicle that the truck is part of. It updates whenever the vehicle structure is updated. 
-    #[serde(rename = "activeVehicleId", skip_serializing_if = "Option::is_none")]
-    pub active_vehicle_id: Option<uuid::Uuid>,
+    /// MAC address of the thermometer. It is unique and stays with the device.
+    #[serde(rename = "macAddress")]
+    pub mac_address: String,
+    /// The ID of the entity currently associated with the thermometer.
+    #[serde(rename = "entityId")]
+    pub entity_id: uuid::Uuid,
+    /// The type of the entity to which the thermometer is attached (e.g., \"towable\", \"truck\", etc.)
+    #[serde(rename = "entityType")]
+    pub entity_type: EntityType,
     #[serde(rename = "creatorId", skip_serializing_if = "Option::is_none")]
     pub creator_id: Option<uuid::Uuid>,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
@@ -39,22 +37,20 @@ pub struct Truck {
     pub last_modifier_id: Option<uuid::Uuid>,
     #[serde(rename = "modifiedAt", skip_serializing_if = "Option::is_none")]
     pub modified_at: Option<String>,
-    /// Setting the archivedAt time marks the truck as archived. Trucks marked as archived will not appear in list requests unless archived filter is set to true. Archived truck cannot be updated, unless archivedAt is first set to null. 
+    /// Setting the archivedAt time marks the thermometer as archived. Thermometers marked as archived will not appear in list requests unless includeArchived filter is set to true. Archived thermometer cannot be updated, unless archivedAt is first set to null. 
     #[serde(rename = "archivedAt", skip_serializing_if = "Option::is_none")]
     pub archived_at: Option<String>,
 }
 
-impl Truck {
-    /// Represent single truck
-    pub fn new(plate_number: String, r#type: Type, vin: String) -> Truck {
-        Truck {
+impl Thermometer {
+    /// Represents a thermometer attached to a truck or towable
+    pub fn new(mac_address: String, entity_id: uuid::Uuid, entity_type: EntityType) -> Thermometer {
+        Thermometer {
             id: None,
             name: None,
-            imei: None,
-            plate_number,
-            r#type,
-            vin,
-            active_vehicle_id: None,
+            mac_address,
+            entity_id,
+            entity_type,
             creator_id: None,
             created_at: None,
             last_modifier_id: None,
@@ -63,17 +59,17 @@ impl Truck {
         }
     }
 }
-/// 
+/// The type of the entity to which the thermometer is attached (e.g., \"towable\", \"truck\", etc.)
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub enum Type {
-    #[serde(rename = "TRUCK")]
+pub enum EntityType {
+    #[serde(rename = "truck")]
     Truck,
-    #[serde(rename = "SEMI_TRUCK")]
-    SemiTruck,
+    #[serde(rename = "towable")]
+    Towable,
 }
 
-impl Default for Type {
-    fn default() -> Type {
+impl Default for EntityType {
+    fn default() -> EntityType {
         Self::Truck
     }
 }
