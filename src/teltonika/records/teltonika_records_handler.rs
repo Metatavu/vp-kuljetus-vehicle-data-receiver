@@ -153,11 +153,4 @@ impl Cacheable for Vec<TruckLocation> {
     {
         String::from("truck_location_cache.json")
     }
-
-    fn from_teltonika_record(_: &AVLRecord) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        None
-    }
 }

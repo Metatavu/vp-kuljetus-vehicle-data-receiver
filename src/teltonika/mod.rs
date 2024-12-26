@@ -32,14 +32,6 @@ fn avl_event_io_value_to_u64(value: &AVLEventIOValue) -> u64 {
     }
 }
 
-/// Converts an [AVLEventIOValue] to a u8. Will panic if the value is not a u8.
-fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
-    match value {
-        AVLEventIOValue::U8(value) => *value,
-        _ => panic!("Value is not a u8"),
-    }
-}
-
 /// Converts an [AVLEventIOValue] to a u32. Will panic if the value is not a bigger than u32.
 fn avl_event_io_value_to_u32(value: &AVLEventIOValue) -> u32 {
     match value {
@@ -47,6 +39,23 @@ fn avl_event_io_value_to_u32(value: &AVLEventIOValue) -> u32 {
         AVLEventIOValue::U16(value) => *value as u32,
         AVLEventIOValue::U8(value) => *value as u32,
         _ => panic!("Value is bigger than u32"),
+    }
+}
+
+/// Converts an [AVLEventIOValue] to a u16. Will panic if the value is not a u16.
+fn avl_event_io_value_to_u16(value: &AVLEventIOValue) -> u16 {
+    match value {
+        AVLEventIOValue::U16(value) => *value,
+        AVLEventIOValue::U8(value) => *value as u16,
+        _ => panic!("Value is not a u16"),
+    }
+}
+
+/// Converts an [AVLEventIOValue] to a u8. Will panic if the value is not a u8.
+fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
+    match value {
+        AVLEventIOValue::U8(value) => *value,
+        _ => panic!("Value is not a u8"),
     }
 }
 

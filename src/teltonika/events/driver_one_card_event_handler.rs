@@ -153,10 +153,6 @@ impl Cacheable for TruckDriverCard {
     {
         String::from("truck_driver_card_cache.json")
     }
-
-    fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self> {
-        None
-    }
 }
 
 impl Cacheable for Vec<TruckDriverCard> {
@@ -165,9 +161,5 @@ impl Cacheable for Vec<TruckDriverCard> {
         Self: Sized,
     {
         String::from("truck_driver_card_cache.json")
-    }
-
-    fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self> {
-        None
     }
 }

@@ -57,10 +57,6 @@ impl Cacheable for TruckSpeed {
     {
         String::from("truck_speed_cache.json")
     }
-
-    fn from_teltonika_record(_record: &nom_teltonika::AVLRecord) -> Option<Self> {
-        None
-    }
 }
 
 impl Cacheable for Vec<TruckSpeed> {
@@ -69,9 +65,5 @@ impl Cacheable for Vec<TruckSpeed> {
         Self: Sized,
     {
         String::from("truck_speed_cache.json")
-    }
-
-    fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self> {
-        None
     }
 }

@@ -1,5 +1,5 @@
 use log::debug;
-use nom_teltonika::{AVLEventIO, AVLRecord};
+use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
         trucks_api::{create_drive_state, CreateDriveStateError, CreateDriveStateParams},
@@ -148,10 +148,6 @@ impl Cacheable for TruckDriveState {
     {
         String::from("truck_drive_state_cache.json")
     }
-
-    fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
-        None
-    }
 }
 
 impl Cacheable for Vec<TruckDriveState> {
@@ -160,9 +156,5 @@ impl Cacheable for Vec<TruckDriveState> {
         Self: Sized,
     {
         String::from("truck_drive_state_cache.json")
-    }
-
-    fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
-        None
     }
 }

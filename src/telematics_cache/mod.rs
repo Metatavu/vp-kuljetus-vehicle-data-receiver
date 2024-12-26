@@ -19,7 +19,9 @@ where
 
     /// Converts a Teltonika record to a cacheable object
     /// This is only used for [TruckLocation]s at the moment, hence returning an Option.
-    fn from_teltonika_record(record: &AVLRecord) -> Option<Self>;
+    fn from_teltonika_record(record: &AVLRecord) -> Option<Self> {
+        None
+    }
 
     /// Gets the file handle for the cache file
     ///
@@ -148,13 +150,6 @@ mod tests {
             Self: Sized,
         {
             String::from("hash_map_cache.json")
-        }
-
-        fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self>
-        where
-            Self: Sized,
-        {
-            None
         }
     }
 
