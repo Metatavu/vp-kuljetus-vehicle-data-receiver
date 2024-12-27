@@ -19,7 +19,7 @@ where
 
     /// Converts a Teltonika record to a cacheable object
     /// This is only used for [TruckLocation]s at the moment, hence returning an Option.
-    fn from_teltonika_record(record: &AVLRecord) -> Option<Self> {
+    fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
         None
     }
 

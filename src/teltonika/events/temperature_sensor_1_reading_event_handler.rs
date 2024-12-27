@@ -29,8 +29,8 @@ impl TeltonikaEventHandler<TemperatureReading, Error<CreateTemperatureReadingErr
     async fn send_event(
         &self,
         event_data: &TemperatureReading,
-        truck_id: String,
-        imei: &str,
+        _: String,
+        _: &str,
     ) -> Result<(), Error<CreateTemperatureReadingError>> {
         create_temperature_reading(
             &get_vehicle_management_api_config(),
@@ -43,20 +43,34 @@ impl TeltonikaEventHandler<TemperatureReading, Error<CreateTemperatureReadingErr
 
     fn process_event_data(
         &self,
-        trigger_event_id: u16,
+        _: u16,
         events: &Vec<&nom_teltonika::AVLEventIO>,
         timestamp: i64,
-        imei: &str,
+        log_target: &str,
     ) -> Option<TemperatureReading> {
+        let imei = log_target
+            .split("-")
+            .collect::<Vec<&str>>()
+            .first()
+            .unwrap()
+            .to_string()
+            .trim();
         let Some(mac_address) = events.iter().find(|event| event.id == 62) else {
-            warn!(target: imei, "No MAC address found for temperature sensor 1 reading event");
+            warn!(target: log_target, "No MAC address found for temperature sensor 1 reading event");
+            return None;
         };
         let Some(temperature) = events.iter().find(|event| event.id == 72) else {
-            warn!(target: imei, "No temperature found for temperature sensor 1 reading event");
+            warn!(target: log_target, "No temperature found for temperature sensor 1 reading event");
+            return None;
         };
         let mac_address = avl_event_io_value_to_u64(&mac_address.value);
         let temperature = avl_event_io_value_to_u16(&temperature.value);
-        Some(TemperatureReading::new(&mei, mac_address, temperature, timestamp))
+        Some(TemperatureReading::new(
+            imei,
+            mac_address.to_string(),
+            temperature as f32 * 0.1,
+            timestamp,
+        ))
     }
 }
 

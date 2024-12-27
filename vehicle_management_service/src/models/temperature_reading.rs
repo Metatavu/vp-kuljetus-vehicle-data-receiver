@@ -23,14 +23,14 @@ pub struct TemperatureReading {
     /// The temperature value in Celsius
     #[serde(rename = "value")]
     pub value: f32,
-    /// The timestamp when the temperature was recorded
+    /// Timestamp for when the temperature was read. Unix timestamp in milliseconds.
     #[serde(rename = "timestamp")]
-    pub timestamp: String,
+    pub timestamp: i64,
 }
 
 impl TemperatureReading {
     /// Represents a single temperature reading being received from a thermometer
-    pub fn new(device_identifier: String, mac_address: String, value: f32, timestamp: String) -> TemperatureReading {
+    pub fn new(device_identifier: String, mac_address: String, value: f32, timestamp: i64) -> TemperatureReading {
         TemperatureReading {
             device_identifier,
             mac_address,

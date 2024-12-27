@@ -26,10 +26,10 @@ impl DriverOneCardEventHandler {
         &self,
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
-        imei: &str,
+        log_target: &str,
     ) -> Option<TruckDriverCard> {
         let Some(driver_one_card_presence_event) = events.iter().find(|event| event.id == 187) else {
-            warn!(target: imei, "Couldn't process card removed event; Driver one card presence event not found in events: {:?}", events);
+            warn!(target: log_target, "Couldn't process card removed event; Driver one card presence event not found in events: {:?}", events);
             return None;
         };
         let driver_one_card_presence = avl_event_io_value_to_u8(&driver_one_card_presence_event.value);
@@ -75,7 +75,7 @@ impl DriverOneCardEventHandler {
         &self,
         truck_id: String,
         x_removed_at: String,
-        imei: &str,
+        log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
         let driver_card_id = get_truck_driver_card_id(truck_id.clone())
             .await
@@ -89,7 +89,7 @@ impl DriverOneCardEventHandler {
 
         return match res {
             Ok(_) => {
-                info!(target: imei, "Driver card removed successfully!");
+                info!(target: log_target, "Driver card removed successfully!");
                 Ok(())
             }
             Err(error) => match &error {
@@ -123,11 +123,17 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
         &self,
         event_data: &TruckDriverCard,
         truck_id: String,
-        imei: &str,
+        log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
         match &event_data.removed_at {
-            Some(removed_at) => self.delete_truck_driver_card(truck_id, removed_at.clone(), imei).await,
-            None => self.create_truck_driver_card(truck_id, event_data.clone(), imei).await,
+            Some(removed_at) => {
+                self.delete_truck_driver_card(truck_id, removed_at.clone(), log_target)
+                    .await
+            }
+            None => {
+                self.create_truck_driver_card(truck_id, event_data.clone(), log_target)
+                    .await
+            }
         }
     }
 
