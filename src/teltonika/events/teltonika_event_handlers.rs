@@ -1,7 +1,9 @@
-use super::{odometer_reading_event_handler, OdometerReadingEventHandler};
 use crate::{
     telematics_cache::Cacheable,
-    teltonika::events::{DriverOneCardEventHandler, DriverOneDriveStateEventHandler, SpeedEventHandler},
+    teltonika::events::{
+        DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
+        TemperatureSensor1ReadingEventHandler,
+    },
 };
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
@@ -16,6 +18,7 @@ pub enum TeltonikaEventHandlers<'a> {
     DriverOneCardEventHandler((DriverOneCardEventHandler, &'a str)),
     DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, &'a str)),
     OdometerReadingEventHandler((OdometerReadingEventHandler, &'a str)),
+    TemperatureSensor1ReadingEventHandler((TemperatureSensor1ReadingEventHandler, &'a str)),
 }
 
 impl<'a> TeltonikaEventHandlers<'a> {
@@ -24,8 +27,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::SpeedEventHandler((SpeedEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneCardEventHandler((DriverOneCardEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, log_target)),
-            TeltonikaEventHandlers::OdometerReadingEventHandler((
-                odometer_reading_event_handler::OdometerReadingEventHandler,
+            TeltonikaEventHandlers::OdometerReadingEventHandler((OdometerReadingEventHandler, log_target)),
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((
+                TemperatureSensor1ReadingEventHandler,
                 log_target,
             )),
         ]
@@ -37,6 +41,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(),
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, _)) => handler.get_event_ids(),
         }
     }
 
@@ -47,6 +52,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_trigger_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_trigger_event_ids(),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_trigger_event_ids(),
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, _)) => {
+                handler.get_trigger_event_ids()
+            }
         }
     }
 
@@ -108,6 +116,18 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     )
                     .await
             }
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, log_target)) => {
+                handler
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                        log_target,
+                    )
+                    .await
+            }
         }
     }
 
@@ -130,6 +150,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     .await
             }
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, log_target)) => {
+                handler
+                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .await
+            }
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, log_target)) => {
                 handler
                     .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await

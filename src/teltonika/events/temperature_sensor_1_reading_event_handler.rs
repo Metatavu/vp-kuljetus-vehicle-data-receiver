@@ -53,8 +53,8 @@ impl TeltonikaEventHandler<TemperatureReading, Error<CreateTemperatureReadingErr
             .collect::<Vec<&str>>()
             .first()
             .unwrap()
-            .to_string()
-            .trim();
+            .trim()
+            .to_string();
         let Some(mac_address) = events.iter().find(|event| event.id == 62) else {
             warn!(target: log_target, "No MAC address found for temperature sensor 1 reading event");
             return None;
