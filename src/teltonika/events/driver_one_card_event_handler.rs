@@ -105,6 +105,7 @@ impl DriverOneCardEventHandler {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum DriverOneCardIdEventHandlerError {
     CreateTruckDriverCardError(Error<CreateTruckDriverCardError>),
     DeleteTruckDriverCardError(Error<DeleteTruckDriverCardError>),
