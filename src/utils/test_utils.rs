@@ -132,7 +132,7 @@ pub fn mock_server() -> MockServer {
 }
 
 pub trait MockServerExt {
-    fn start_all_mocks(&self) -> [Mock; 8] {
+    fn start_all_mocks(&self) -> [Mock; 9] {
         [
             self.public_trucks_mock(),
             self.create_truck_speed_mock(),
@@ -142,6 +142,7 @@ pub trait MockServerExt {
             self.list_driver_cards_mock(),
             self.delete_driver_card_mock(),
             self.create_truck_odometer_reading_mock(),
+            self.create_temperature_sensor_reading_mock(),
         ]
     }
     fn public_trucks_mock(&self) -> Mock;
@@ -152,6 +153,7 @@ pub trait MockServerExt {
     fn list_driver_cards_mock(&self) -> Mock;
     fn delete_driver_card_mock(&self) -> Mock;
     fn create_truck_odometer_reading_mock(&self) -> Mock;
+    fn create_temperature_sensor_reading_mock(&self) -> Mock;
 }
 impl MockServerExt for MockServer {
     fn public_trucks_mock(&self) -> Mock {
@@ -234,6 +236,14 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/v1/trucks/.{36}/odometerReadings").unwrap())
+                .header("X-DataReceiver-API-Key", "API_KEY");
+            then.status(201);
+        })
+    }
+    fn create_temperature_sensor_reading_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/v1/temperatureReadings").unwrap())
                 .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(201);
         })

@@ -1,7 +1,9 @@
-use super::{odometer_reading_event_handler, OdometerReadingEventHandler};
 use crate::{
     telematics_cache::Cacheable,
-    teltonika::events::{DriverOneCardEventHandler, DriverOneDriveStateEventHandler, SpeedEventHandler},
+    teltonika::events::{
+        DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
+        TemperatureSensor1ReadingEventHandler,
+    },
 };
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
@@ -16,6 +18,7 @@ pub enum TeltonikaEventHandlers<'a> {
     DriverOneCardEventHandler((DriverOneCardEventHandler, &'a str)),
     DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, &'a str)),
     OdometerReadingEventHandler((OdometerReadingEventHandler, &'a str)),
+    TemperatureSensor1ReadingEventHandler((TemperatureSensor1ReadingEventHandler, &'a str)),
 }
 
 impl<'a> TeltonikaEventHandlers<'a> {
@@ -24,8 +27,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::SpeedEventHandler((SpeedEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneCardEventHandler((DriverOneCardEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, log_target)),
-            TeltonikaEventHandlers::OdometerReadingEventHandler((
-                odometer_reading_event_handler::OdometerReadingEventHandler,
+            TeltonikaEventHandlers::OdometerReadingEventHandler((OdometerReadingEventHandler, log_target)),
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((
+                TemperatureSensor1ReadingEventHandler,
                 log_target,
             )),
         ]
@@ -37,6 +41,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(),
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, _)) => handler.get_event_ids(),
         }
     }
 
@@ -47,6 +52,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_trigger_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_trigger_event_ids(),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_trigger_event_ids(),
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, _)) => {
+                handler.get_trigger_event_ids()
+            }
         }
     }
 
@@ -60,24 +68,64 @@ impl<'a> TeltonikaEventHandlers<'a> {
         base_cache_path: PathBuf,
     ) {
         match self {
-            TeltonikaEventHandlers::SpeedEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
                 handler
-                    .handle_events(trigger_event_id, events, timestamp, truck_id, base_cache_path, imei)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                        log_target,
+                    )
                     .await
             }
-            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, log_target)) => {
                 handler
-                    .handle_events(trigger_event_id, events, timestamp, truck_id, base_cache_path, imei)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                        log_target,
+                    )
                     .await
             }
-            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, log_target)) => {
                 handler
-                    .handle_events(trigger_event_id, events, timestamp, truck_id, base_cache_path, imei)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                        log_target,
+                    )
                     .await
             }
-            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, log_target)) => {
                 handler
-                    .handle_events(trigger_event_id, events, timestamp, truck_id, base_cache_path, imei)
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                        log_target,
+                    )
+                    .await
+            }
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, log_target)) => {
+                handler
+                    .handle_events(
+                        trigger_event_id,
+                        events,
+                        timestamp,
+                        truck_id,
+                        base_cache_path,
+                        log_target,
+                    )
                     .await
             }
         }
@@ -86,24 +134,29 @@ impl<'a> TeltonikaEventHandlers<'a> {
     /// Purges the cache.
     pub async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, purge_cache_size: usize) {
         match self {
-            TeltonikaEventHandlers::SpeedEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await
             }
-            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await
             }
-            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await
             }
-            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, imei)) => {
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, imei, purge_cache_size)
+                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .await
+            }
+            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, log_target)) => {
+                handler
+                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await
             }
         }
@@ -143,7 +196,7 @@ where
     /// * `timestamp` - The timestamp of the event.
     /// * `truck_id` - The truck ID of the event.
     /// * `base_cache_path` - The base path to the cache directory.
-    /// * `imei` - The IMEI of the device.
+    /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
     async fn handle_events(
         &self,
         trigger_event_id: u16,
@@ -151,22 +204,22 @@ where
         timestamp: i64,
         truck_id: Option<String>,
         base_cache_path: PathBuf,
-        imei: &str,
+        log_target: &str,
     ) {
-        let event_data = self.process_event_data(trigger_event_id, &events, timestamp, imei);
+        let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target);
         if event_data.is_none() {
             return;
         }
         let event_data = event_data.unwrap();
         if let Some(truck_id) = truck_id {
-            debug!(target: imei, "Handling event for truck: {}", truck_id);
-            let send_event_result = self.send_event(&event_data, truck_id, imei).await;
+            debug!(target: log_target, "Handling event for truck: {}", truck_id);
+            let send_event_result = self.send_event(&event_data, truck_id, log_target).await;
             if let Err(err) = send_event_result {
-                error!(target: imei, "Error sending event: {err:?}. Caching it for further use.");
+                error!(target: log_target, "Error sending event: {err:?}. Caching it for further use.");
                 self.cache_event_data(event_data, base_cache_path);
             }
         } else {
-            debug!(target: imei, "Caching event for yet unknown truck");
+            debug!(target: log_target, "Caching event for yet unknown truck");
             self.cache_event_data(event_data, base_cache_path);
         };
     }
@@ -189,8 +242,8 @@ where
     /// # Arguments
     /// * `event_data` - The event data to send.
     /// * `truck_id` - The truck ID of the event.
-    /// * `imei` - The IMEI of the device.
-    async fn send_event(&self, event_data: &T, truck_id: String, imei: &str) -> Result<(), E>;
+    /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
+    async fn send_event(&self, event_data: &T, truck_id: String, log_target: &str) -> Result<(), E>;
 
     /// Processes the event data.
     ///
@@ -199,7 +252,7 @@ where
     /// * `events` - The Teltonika events data to process.
     /// * `truck_id` - The truck ID of the event.
     /// * `timestamp` - The timestamp of the event.
-    /// * `imei` - The IMEI of the device.
+    /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
     ///
     /// # Returns
     /// * The processed event data.
@@ -208,7 +261,7 @@ where
         trigger_event_id: u16,
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
-        imei: &str,
+        log_target: &str,
     ) -> Option<T>;
 
     /// Purges the cache.
@@ -216,9 +269,9 @@ where
     /// # Arguments
     /// * `truck_id` - The truck ID to purge the cache for.
     /// * `base_cache_path` - The base path to the cache directory.
-    /// * `imei` - The IMEI of the device.
+    /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
     /// * `purge_cache_size` - The size of the cache to purge.
-    async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, imei: &str, purge_cache_size: usize) {
+    async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, log_target: &str, purge_cache_size: usize) {
         let (cache, cache_size) = T::take_from_file(base_cache_path.clone(), purge_cache_size);
 
         let mut failed_events: Vec<T> = Vec::new();
@@ -230,14 +283,14 @@ where
             .map(|id| id.to_string())
             .collect::<Vec<String>>()
             .join(", ");
-        debug!(target: imei,
+        debug!(target: log_target,
             "Purging cache of {purge_cache_size}/{cache_size} events for event ids: {event_ids}",
         );
 
         for cached_event in cache.iter() {
-            let sent_event = self.send_event(cached_event, truck_id.clone(), imei).await;
+            let sent_event = self.send_event(cached_event, truck_id.clone(), log_target).await;
             if let Err(err) = sent_event {
-                debug!(target: imei,
+                debug!(target: log_target,
                     "Failed to send event: {err:#?}. Adding it to failed events.",
                 );
                 failed_events.push(cached_event.clone());
@@ -245,7 +298,7 @@ where
         }
         let successful_events_count = cache.len() - failed_events.len();
         let failed_events_count = failed_events.len();
-        debug!(target: imei,
+        debug!(target: log_target,
             "Purged {successful_events_count} events for event ids: {event_ids} from cache with {failed_events_count} failures",
         );
         T::write_vec_to_file(failed_events, base_cache_path).expect("Failed to write cache");
