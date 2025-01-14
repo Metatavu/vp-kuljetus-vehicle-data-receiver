@@ -1,5 +1,5 @@
 use log::debug;
-use nom_teltonika::{AVLEventIO, AVLRecord};
+use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
         trucks_api::{create_drive_state, CreateDriveStateError, CreateDriveStateParams},
@@ -27,6 +27,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         &self,
         event_data: &TruckDriveState,
         truck_id: String,
+        _: &str,
     ) -> Result<(), Error<CreateDriveStateError>> {
         create_drive_state(
             &get_vehicle_management_api_config(),
@@ -45,7 +46,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         timestamp: i64,
         imei: &str,
     ) -> Option<TruckDriveState> {
-        let Some(driver_card) = driver_card_events_to_truck_driver_card(timestamp, events) else {
+        let Some(driver_card) = driver_card_events_to_truck_driver_card(timestamp, events, imei) else {
             debug!(target: imei, "Driver card MSB or LSB was 0");
 
             return None;
@@ -145,10 +146,6 @@ impl Cacheable for TruckDriveState {
     {
         String::from("truck_drive_state_cache.json")
     }
-
-    fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
-        None
-    }
 }
 
 impl Cacheable for Vec<TruckDriveState> {
@@ -157,9 +154,5 @@ impl Cacheable for Vec<TruckDriveState> {
         Self: Sized,
     {
         String::from("truck_drive_state_cache.json")
-    }
-
-    fn from_teltonika_record(_: &AVLRecord) -> Option<Self> {
-        None
     }
 }

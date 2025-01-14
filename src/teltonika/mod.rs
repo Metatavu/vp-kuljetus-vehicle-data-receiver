@@ -32,14 +32,6 @@ fn avl_event_io_value_to_u64(value: &AVLEventIOValue) -> u64 {
     }
 }
 
-/// Converts an [AVLEventIOValue] to a u8. Will panic if the value is not a u8.
-fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
-    match value {
-        AVLEventIOValue::U8(value) => *value,
-        _ => panic!("Value is not a u8"),
-    }
-}
-
 /// Converts an [AVLEventIOValue] to a u32. Will panic if the value is not a bigger than u32.
 fn avl_event_io_value_to_u32(value: &AVLEventIOValue) -> u32 {
     match value {
@@ -50,24 +42,45 @@ fn avl_event_io_value_to_u32(value: &AVLEventIOValue) -> u32 {
     }
 }
 
+/// Converts an [AVLEventIOValue] to a u16. Will panic if the value is not a u16.
+fn avl_event_io_value_to_u16(value: &AVLEventIOValue) -> u16 {
+    match value {
+        AVLEventIOValue::U16(value) => *value,
+        AVLEventIOValue::U8(value) => *value as u16,
+        _ => panic!("Value is not a u16"),
+    }
+}
+
+/// Converts an [AVLEventIOValue] to a u8. Will panic if the value is not a u8.
+fn avl_event_io_value_to_u8(value: &AVLEventIOValue) -> u8 {
+    match value {
+        AVLEventIOValue::U8(value) => *value,
+        _ => panic!("Value is not a u8"),
+    }
+}
+
 /// Converts a list of [AVLEventIO] to a [TruckDriverCard].
 ///
 /// If either the MSB or LSB part of the driver card is 0, it is considered invalid and None is returned.
 /// TODO: Investigate if in the case of valid driver card id the length of MSB and LSB fields are always same.
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_events_to_truck_driver_card(timestamp: i64, events: &Vec<&AVLEventIO>) -> Option<TruckDriverCard> {
+fn driver_card_events_to_truck_driver_card(
+    timestamp: i64,
+    events: &Vec<&AVLEventIO>,
+    imei: &str,
+) -> Option<TruckDriverCard> {
     let card_present = events
         .iter()
         .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
 
     let Some(driver_card_msb_part) = driver_card_part_from_event(events, 195) else {
-        debug!("Driver card MSB part was 0");
+        debug!(target: imei, "Driver card MSB part was 0");
 
         return None;
     };
     let Some(driver_card_lsb_part) = driver_card_part_from_event(events, 196) else {
-        debug!("Driver card MSB part was 0");
+        debug!(target: imei, "Driver card MSB part was 0");
 
         return None;
     };

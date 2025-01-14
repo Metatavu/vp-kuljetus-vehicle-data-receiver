@@ -132,7 +132,7 @@ pub fn mock_server() -> MockServer {
 }
 
 pub trait MockServerExt {
-    fn start_all_mocks(&self) -> [Mock; 8] {
+    fn start_all_mocks(&self) -> [Mock; 9] {
         [
             self.public_trucks_mock(),
             self.create_truck_speed_mock(),
@@ -142,6 +142,7 @@ pub trait MockServerExt {
             self.list_driver_cards_mock(),
             self.delete_driver_card_mock(),
             self.create_truck_odometer_reading_mock(),
+            self.create_temperature_sensor_reading_mock(),
         ]
     }
     fn public_trucks_mock(&self) -> Mock;
@@ -152,11 +153,12 @@ pub trait MockServerExt {
     fn list_driver_cards_mock(&self) -> Mock;
     fn delete_driver_card_mock(&self) -> Mock;
     fn create_truck_odometer_reading_mock(&self) -> Mock;
+    fn create_temperature_sensor_reading_mock(&self) -> Mock;
 }
 impl MockServerExt for MockServer {
     fn public_trucks_mock(&self) -> Mock {
         self.mock(|when, then| {
-            when.method(GET).path("/v1/publicTrucks").header("X-API-KEY", "API_KEY");
+            when.method(GET).path("/v1/publicTrucks");
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[PublicTruck {
@@ -171,7 +173,7 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/v1/trucks/.{36}/speeds").unwrap())
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(201);
         })
     }
@@ -179,7 +181,7 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/v1/trucks/.{36}/locations").unwrap())
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(201);
         })
     }
@@ -187,7 +189,7 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/v1/trucks/.{36}/driverCards").unwrap())
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(201)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&TruckDriverCard {
@@ -201,7 +203,7 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/v1/trucks/.{36}/driveState").unwrap())
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(201);
         })
     }
@@ -209,7 +211,7 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(GET)
                 .path("/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards")
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(200)
                 .header("Content-Type", "application/json")
                 .json_body_obj(&[TruckDriverCard {
@@ -226,7 +228,7 @@ impl MockServerExt for MockServer {
                     "/v1/trucks/3ffaf18c-69e4-4f8a-9179-9aec5bc96e1c/driverCards/{}",
                     "1069619335000001".to_string().clone()
                 ))
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(204);
         })
     }
@@ -234,7 +236,15 @@ impl MockServerExt for MockServer {
         self.mock(|when, then| {
             when.method(POST)
                 .path_matches(Regex::new(r"/v1/trucks/.{36}/odometerReadings").unwrap())
-                .header("X-API-KEY", "API_KEY");
+                .header("X-DataReceiver-API-Key", "API_KEY");
+            then.status(201);
+        })
+    }
+    fn create_temperature_sensor_reading_mock(&self) -> Mock {
+        self.mock(|when, then| {
+            when.method(POST)
+                .path_matches(Regex::new(r"/v1/temperatureReadings").unwrap())
+                .header("X-DataReceiver-API-Key", "API_KEY");
             then.status(201);
         })
     }

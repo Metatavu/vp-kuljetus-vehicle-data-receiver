@@ -35,6 +35,19 @@ pub struct FindTowableParams {
     pub towable_id: String
 }
 
+/// struct for passing parameters to the method [`list_towable_temperatures`]
+#[derive(Clone, Debug)]
+pub struct ListTowableTemperaturesParams {
+    /// The unique ID of the towable
+    pub towable_id: String,
+    /// Include archived thermometers' data in the results
+    pub include_archived: Option<bool>,
+    /// First result.
+    pub first: Option<i32>,
+    /// Max results.
+    pub max: Option<i32>
+}
+
 /// struct for passing parameters to the method [`list_towables`]
 #[derive(Clone, Debug)]
 pub struct ListTowablesParams {
@@ -78,6 +91,14 @@ pub enum DeleteTowableError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FindTowableError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_towable_temperatures`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListTowableTemperaturesError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
@@ -200,6 +221,53 @@ pub async fn find_towable(configuration: &configuration::Configuration, params: 
         serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
         let local_var_entity: Option<FindTowableError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
+/// Retrieve all temperatures from all thermometers related to a specific towable, possibly including data from thermometers that have been archived.
+pub async fn list_towable_temperatures(configuration: &configuration::Configuration, params: ListTowableTemperaturesParams) -> Result<Vec<models::Temperature>, Error<ListTowableTemperaturesError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let towable_id = params.towable_id;
+    let include_archived = params.include_archived;
+    let first = params.first;
+    let max = params.max;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/towables/{towableId}/temperatures", local_var_configuration.base_path, towableId=crate::apis::urlencode(towable_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_str) = include_archived {
+        local_var_req_builder = local_var_req_builder.query(&[("includeArchived", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = first {
+        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = max {
+        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    };
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        serde_json::from_str(&local_var_content).map_err(Error::from)
+    } else {
+        let local_var_entity: Option<ListTowableTemperaturesError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }

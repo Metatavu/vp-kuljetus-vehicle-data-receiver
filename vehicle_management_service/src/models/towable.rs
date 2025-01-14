@@ -18,6 +18,9 @@ pub struct Towable {
     pub id: Option<uuid::Uuid>,
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// The unique IMEI of the towable, used to identify it when associating with a thermometer.
+    #[serde(rename = "imei", skip_serializing_if = "Option::is_none")]
+    pub imei: Option<String>,
     #[serde(rename = "plateNumber")]
     pub plate_number: String,
     #[serde(rename = "type")]
@@ -44,6 +47,7 @@ impl Towable {
         Towable {
             id: None,
             name: None,
+            imei: None,
             plate_number,
             r#type,
             vin,

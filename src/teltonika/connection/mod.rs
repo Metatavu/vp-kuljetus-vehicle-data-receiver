@@ -2,6 +2,7 @@ use base64::Engine;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
+use serde::Serialize;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
     io::{Error, ErrorKind, Write},
@@ -13,7 +14,7 @@ use tokio::{
 };
 
 use crate::{
-    utils::{api::get_truck_id_by_vin, avl_packet::AVLPacketToBytes},
+    utils::api::get_truck_id_by_vin,
     worker::{self, WorkerMessage},
 };
 
@@ -165,7 +166,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         );
                     }
 
-                    self.write_data_to_log_file(&mut file_handle, &frame.to_bytes());
+                    self.write_data_to_log_file(&mut file_handle, &frame);
 
                     self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
 
@@ -212,10 +213,17 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `file_handle` - File handle
     /// * `data` - Data to write to file
-    fn write_data_to_log_file(&self, file_handle: &mut Option<File>, data: &[u8]) {
+    fn write_data_to_log_file<T>(&self, file_handle: &mut Option<File>, data: &T)
+    where
+        T: Sized + Serialize,
+    {
         if cfg!(test) {
             return;
         }
+        let Ok(data) = serde_json::to_vec(data) else {
+            error!(target: self.log_target(), "Failed to serialize data");
+            return;
+        };
         if let Some(file) = file_handle {
             let encoded = base64::prelude::BASE64_STANDARD.encode(data) + "\\n";
             file.write_all(encoded.as_bytes())

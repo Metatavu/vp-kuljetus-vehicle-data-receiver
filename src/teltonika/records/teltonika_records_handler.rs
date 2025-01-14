@@ -47,10 +47,14 @@ impl TeltonikaRecordsHandler {
     /// * `record` - The [AVLRecord] to handle.
     pub async fn handle_record(&self, record: &AVLRecord) {
         self.handle_record_location(record).await;
-        debug!(target: &self.log_target, "Record trigger event ID: {}", record.trigger_event_id);
+        let trigger_event = record
+            .io_events
+            .iter()
+            .find(|event| event.id == record.trigger_event_id);
+        debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
-            let trigger_event_id = handler.get_trigger_event_id();
-            if trigger_event_id.is_some() && record.trigger_event_id != trigger_event_id.unwrap() {
+            let trigger_event_ids = handler.get_trigger_event_ids();
+            if !trigger_event_ids.is_empty() && !trigger_event_ids.contains(&record.trigger_event_id) {
                 continue;
             }
             let events = handler
@@ -148,12 +152,5 @@ impl Cacheable for Vec<TruckLocation> {
         Self: Sized,
     {
         String::from("truck_location_cache.json")
-    }
-
-    fn from_teltonika_record(_: &AVLRecord) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        None
     }
 }

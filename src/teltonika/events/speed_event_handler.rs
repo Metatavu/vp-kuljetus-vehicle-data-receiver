@@ -19,7 +19,12 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         vec![191]
     }
 
-    async fn send_event(&self, event_data: &TruckSpeed, truck_id: String) -> Result<(), Error<CreateTruckSpeedError>> {
+    async fn send_event(
+        &self,
+        event_data: &TruckSpeed,
+        truck_id: String,
+        _: &str,
+    ) -> Result<(), Error<CreateTruckSpeedError>> {
         create_truck_speed(
             &get_vehicle_management_api_config(),
             CreateTruckSpeedParams {
@@ -52,10 +57,6 @@ impl Cacheable for TruckSpeed {
     {
         String::from("truck_speed_cache.json")
     }
-
-    fn from_teltonika_record(_record: &nom_teltonika::AVLRecord) -> Option<Self> {
-        None
-    }
 }
 
 impl Cacheable for Vec<TruckSpeed> {
@@ -64,9 +65,5 @@ impl Cacheable for Vec<TruckSpeed> {
         Self: Sized,
     {
         String::from("truck_speed_cache.json")
-    }
-
-    fn from_teltonika_record(_: &nom_teltonika::AVLRecord) -> Option<Self> {
-        None
     }
 }
