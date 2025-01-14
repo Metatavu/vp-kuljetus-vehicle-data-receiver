@@ -64,10 +64,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
-            Err(err) => {
-                println!("Failed to handle IMEI");
-                Err(err)
-            }
+            Err(err) => Err(err),
         }
     }
 

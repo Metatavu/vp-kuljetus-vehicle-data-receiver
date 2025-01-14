@@ -69,8 +69,12 @@ impl TeltonikaRecordsHandler {
                 })
                 .flatten()
                 .collect::<Vec<&AVLEventIO>>();
-            // If we don't have any events or the number of events is not the same as the number of event IDs, we skip the handler
-            if events.is_empty() || handler.get_event_ids().len() != events.len() {
+            // If we don't have any events we skip the handler
+            if events.is_empty() {
+                continue;
+            }
+            // If the handler requires all events and we don't have all of them we skip the handler
+            if handler.require_all_events() && handler.get_event_ids().len() != events.len() {
                 continue;
             }
             handler

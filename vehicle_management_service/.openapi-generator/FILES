@@ -19,6 +19,7 @@ src/models/public_truck.rs
 src/models/sort_order.rs
 src/models/temperature.rs
 src/models/temperature_reading.rs
+src/models/temperature_reading_source_type.rs
 src/models/thermometer.rs
 src/models/towable.rs
 src/models/truck.rs

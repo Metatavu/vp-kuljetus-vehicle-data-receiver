@@ -69,7 +69,7 @@ fn handle_incoming_frame(frame: AVLFrame, truck_id: Option<String>, base_cache_p
             .handle_records(frame.records)
             .await;
 
-        debug!(target: &log_target, "Worker finished processing frame");
+        debug!(target: &log_target, "Worker finished processing incoming frame");
 
         if truck_id.is_some() {
             let purge_cache_size =
@@ -81,7 +81,7 @@ fn handle_incoming_frame(frame: AVLFrame, truck_id: Option<String>, base_cache_p
             debug!(target: &log_target, "Worker finished purging cache",);
         }
 
-        debug!(target: &log_target, "Worker finished processing frame");
+        debug!(target: &log_target, "Worker finished purging cache");
     });
 }
 

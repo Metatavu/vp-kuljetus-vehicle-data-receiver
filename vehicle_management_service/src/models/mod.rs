@@ -8,6 +8,8 @@ pub mod temperature;
 pub use self::temperature::Temperature;
 pub mod temperature_reading;
 pub use self::temperature_reading::TemperatureReading;
+pub mod temperature_reading_source_type;
+pub use self::temperature_reading_source_type::TemperatureReadingSourceType;
 pub mod thermometer;
 pub use self::thermometer::Thermometer;
 pub mod towable;

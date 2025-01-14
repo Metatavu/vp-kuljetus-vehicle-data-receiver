@@ -88,8 +88,8 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use uuid::Uuid;
     use vehicle_management_service::models::{
-        TemperatureReading, TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckOdometerReading,
-        TruckSpeed,
+        TemperatureReading, TemperatureReadingSourceType, TruckDriveState, TruckDriveStateEnum, TruckDriverCard,
+        TruckLocation, TruckOdometerReading, TruckSpeed,
     };
 
     use crate::{
@@ -115,6 +115,8 @@ mod tests {
         let mut truck_odometer_readings = Vec::new();
         let mut truck_temperature_readings = Vec::new();
 
+        let hardware_sensor_ids = (0..4).map(|_| thread_rng().next_u64()).collect::<Vec<u64>>();
+        println!("{:?}", hardware_sensor_ids);
         for i in 0..10 {
             let date_time = chrono::Utc::now() + chrono::Duration::minutes(i);
             let timestamp = date_time.timestamp();
@@ -138,13 +140,18 @@ mod tests {
                 driver_card_id: None,
             });
             truck_odometer_readings.push(TruckOdometerReading::new(timestamp, i as i32));
-            let mac_address = thread_rng().next_u64();
-            truck_temperature_readings.push(TemperatureReading::new(
-                imei.clone(),
-                mac_address.to_string(),
-                i as f32,
-                timestamp,
-            ));
+
+            let mut curr_temperature_readings = Vec::new();
+            for hardware_sensor_id in &hardware_sensor_ids {
+                curr_temperature_readings.push(TemperatureReading::new(
+                    imei.clone(),
+                    hardware_sensor_id.to_string(),
+                    i as f32,
+                    timestamp,
+                    TemperatureReadingSourceType::Truck,
+                ));
+            }
+            truck_temperature_readings.push(curr_temperature_readings);
         }
 
         TruckLocation::write_vec_to_file(locations, base_cache_path.clone()).unwrap();
@@ -152,14 +159,15 @@ mod tests {
         TruckDriverCard::write_vec_to_file(truck_driver_cards, base_cache_path.clone()).unwrap();
         TruckDriveState::write_vec_to_file(truck_drive_states, base_cache_path.clone()).unwrap();
         TruckOdometerReading::write_vec_to_file(truck_odometer_readings, base_cache_path.clone()).unwrap();
-        TemperatureReading::write_vec_to_file(truck_temperature_readings, base_cache_path.clone()).unwrap();
+        Vec::<TemperatureReading>::write_vec_to_file(truck_temperature_readings, base_cache_path.clone()).unwrap();
 
         let (locations_cache, _) = TruckLocation::read_from_file(base_cache_path.clone(), 0);
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);
         let (truck_driver_cards_cache, _) = TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
         let (truck_drive_states_cache, _) = TruckDriveState::read_from_file(base_cache_path.clone(), 0);
         let (truck_odometer_readings_cache, _) = TruckOdometerReading::read_from_file(base_cache_path.clone(), 0);
-        let (truck_temperature_readings_cache, _) = TemperatureReading::read_from_file(base_cache_path.clone(), 0);
+        let (truck_temperature_readings_cache, _) =
+            Vec::<TemperatureReading>::read_from_file(base_cache_path.clone(), 0);
 
         assert_eq!(locations_cache.len(), 10);
         assert_eq!(truck_speeds_cache.len(), 10);
@@ -175,7 +183,8 @@ mod tests {
         let (truck_driver_cards_cache, _) = TruckDriverCard::read_from_file(base_cache_path.clone(), 0);
         let (truck_drive_states_cache, _) = TruckDriveState::read_from_file(base_cache_path.clone(), 0);
         let (truck_odometer_readings_cache, _) = TruckOdometerReading::read_from_file(base_cache_path.clone(), 0);
-        let (truck_temperature_readings_cache, _) = TemperatureReading::read_from_file(base_cache_path.clone(), 0);
+        let (truck_temperature_readings_cache, _) =
+            Vec::<TemperatureReading>::read_from_file(base_cache_path.clone(), 0);
 
         assert_eq!(locations_cache.len(), 5);
         assert_eq!(truck_speeds_cache.len(), 5);
