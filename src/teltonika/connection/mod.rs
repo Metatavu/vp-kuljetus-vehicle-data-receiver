@@ -55,7 +55,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
-    pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), ()> {
+    pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
@@ -63,9 +63,9 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
-            Err(_) => {
+            Err(err) => {
                 println!("Failed to handle IMEI");
-                Err(())
+                Err(err)
             }
         }
     }
