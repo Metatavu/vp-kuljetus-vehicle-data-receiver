@@ -5,7 +5,7 @@ use nom_teltonika::TeltonikaStream;
 use serde::Serialize;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
-    io::Write,
+    io::{Error, ErrorKind, Write},
     path::{Path, PathBuf},
 };
 use tokio::{
@@ -56,7 +56,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
-    pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), ()> {
+    pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
@@ -64,7 +64,10 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
-            Err(_) => Err(()),
+            Err(err) => {
+                println!("Failed to handle IMEI");
+                Err(err)
+            }
         }
     }
 
@@ -74,15 +77,20 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     ///
     /// # Arguments
     /// * `stream` - Teltonika stream
-    async fn handle_imei(mut stream: TeltonikaStream<S>) -> Result<(TeltonikaStream<S>, String), ()> {
+    async fn handle_imei(mut stream: TeltonikaStream<S>) -> Result<(TeltonikaStream<S>, String), Error> {
         match stream.read_imei_async().await {
             Ok(imei) => {
+                if !imei::valid(&imei) {
+                    return Err(Error::new(ErrorKind::ConnectionAborted, "Invalid IMEI"));
+                }
+
                 info!(target: &imei, "New client connected");
                 stream
                     .write_imei_approval_async()
                     .await
                     .expect("Failed to write IMEI approval");
-                Ok((stream, imei.to_owned()))
+
+                return Ok((stream, imei.to_owned()));
             }
             Err(err) => match err.kind() {
                 std::io::ErrorKind::InvalidData => {
@@ -91,11 +99,12 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         .write_imei_denial_async()
                         .await
                         .expect("Failed to write IMEI denial");
-                    Err(())
+
+                    return Err(err);
                 }
                 _ => {
                     // This is thrown when client connects with empty payload and disconnects immediately after. Performed by health checks and we want to swallow it quietly without bloating the logs.
-                    Err(())
+                    return Err(err);
                 }
             },
         }
