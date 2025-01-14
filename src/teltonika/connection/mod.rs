@@ -1,6 +1,6 @@
 use base64::Engine;
 use chrono::{Datelike, Utc};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use nom_teltonika::TeltonikaStream;
 use serde::Serialize;
 use std::{
@@ -81,7 +81,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         match stream.read_imei_async().await {
             Ok(imei) => {
                 if !imei::valid(&imei) {
-                    warn!("Invalid IMEI: {}", imei);
                     return Err(Error::new(ErrorKind::ConnectionAborted, "Invalid IMEI"));
                 }
 

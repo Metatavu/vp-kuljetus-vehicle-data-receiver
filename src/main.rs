@@ -3,7 +3,7 @@ mod teltonika;
 mod utils;
 mod worker;
 
-use log::info;
+use log::{info, warn};
 use std::{io::ErrorKind, path::Path};
 use tokio::net::TcpListener;
 
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(error) = TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path)).await {
                 match error.kind() {
                     ErrorKind::ConnectionAborted | ErrorKind::InvalidData => {
-                        info!("Connection aborted: {}", error);
+                        warn!("Connection aborted: {}", error);
                     }
                     _ => {
                         return;
