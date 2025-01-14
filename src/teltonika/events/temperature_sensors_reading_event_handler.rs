@@ -157,15 +157,6 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
     }
 }
 
-impl Cacheable for TemperatureReading {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("temperature_sensors_reading_cache.json")
-    }
-}
-
 impl Cacheable for Vec<TemperatureReading> {
     fn get_file_path() -> String
     where
