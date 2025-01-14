@@ -2,7 +2,7 @@ use crate::{
     telematics_cache::Cacheable,
     teltonika::events::{
         DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
-        TemperatureSensor1ReadingEventHandler,
+        TemperatureSensorsReadingEventHandler,
     },
 };
 use log::{debug, error};
@@ -18,7 +18,7 @@ pub enum TeltonikaEventHandlers<'a> {
     DriverOneCardEventHandler((DriverOneCardEventHandler, &'a str)),
     DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, &'a str)),
     OdometerReadingEventHandler((OdometerReadingEventHandler, &'a str)),
-    TemperatureSensor1ReadingEventHandler((TemperatureSensor1ReadingEventHandler, &'a str)),
+    TemperatureSensorsReadingEventHandler((TemperatureSensorsReadingEventHandler, &'a str)),
 }
 
 impl<'a> TeltonikaEventHandlers<'a> {
@@ -28,11 +28,20 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((DriverOneCardEventHandler, log_target)),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, log_target)),
             TeltonikaEventHandlers::OdometerReadingEventHandler((OdometerReadingEventHandler, log_target)),
-            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((
-                TemperatureSensor1ReadingEventHandler,
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((
+                TemperatureSensorsReadingEventHandler,
                 log_target,
             )),
         ]
+    }
+    pub fn require_all_events(&self) -> bool {
+        match self {
+            TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.require_all_events(),
+            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.require_all_events(),
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.require_all_events(),
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.require_all_events(),
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => handler.require_all_events(),
+        }
     }
     /// Gets the event ID for the handler.
     pub fn get_event_ids(&self) -> Vec<u16> {
@@ -41,7 +50,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(),
-            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, _)) => handler.get_event_ids(),
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => handler.get_event_ids(),
         }
     }
 
@@ -52,7 +61,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_trigger_event_ids(),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_trigger_event_ids(),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_trigger_event_ids(),
-            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, _)) => {
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => {
                 handler.get_trigger_event_ids()
             }
         }
@@ -116,7 +125,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     )
                     .await
             }
-            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, log_target)) => {
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, log_target)) => {
                 handler
                     .handle_events(
                         trigger_event_id,
@@ -154,7 +163,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                     .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await
             }
-            TeltonikaEventHandlers::TemperatureSensor1ReadingEventHandler((handler, log_target)) => {
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, log_target)) => {
                 handler
                     .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
                     .await
@@ -176,6 +185,9 @@ where
     E: Debug,
     Vec<T>: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
 {
+    fn require_all_events(&self) -> bool {
+        true
+    }
     /// Gets the event ID for the handler.
     fn get_event_ids(&self) -> Vec<u16>;
 
