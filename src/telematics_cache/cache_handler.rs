@@ -88,8 +88,8 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use uuid::Uuid;
     use vehicle_management_service::models::{
-        TemperatureReading, TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckOdometerReading,
-        TruckSpeed,
+        TemperatureReading, TemperatureReadingSourceType, TruckDriveState, TruckDriveStateEnum, TruckDriverCard,
+        TruckLocation, TruckOdometerReading, TruckSpeed,
     };
 
     use crate::{
@@ -138,13 +138,17 @@ mod tests {
                 driver_card_id: None,
             });
             truck_odometer_readings.push(TruckOdometerReading::new(timestamp, i as i32));
-            let mac_address = thread_rng().next_u64();
-            truck_temperature_readings.push(TemperatureReading::new(
-                imei.clone(),
-                mac_address.to_string(),
-                i as f32,
-                timestamp,
-            ));
+
+            let hardware_sensor_ids = (0..4).map(|_| thread_rng().next_u64()).collect::<Vec<u64>>();
+            for hardware_sensor_id in hardware_sensor_ids {
+                truck_temperature_readings.push(TemperatureReading::new(
+                    imei.clone(),
+                    hardware_sensor_id.to_string(),
+                    i as f32,
+                    timestamp,
+                    TemperatureReadingSourceType::Truck,
+                ));
+            }
         }
 
         TruckLocation::write_vec_to_file(locations, base_cache_path.clone()).unwrap();

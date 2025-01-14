@@ -7,7 +7,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::TemperatureReading,
+    models::{TemperatureReading, TemperatureReadingSourceType},
 };
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
     utils::get_vehicle_management_api_config,
 };
 
-use super::teltonika_event_handlers::TeltonikaEventHandler;
+use super::{teltonika_event_handlers::TeltonikaEventHandler, TeltonikaTemperatureSensors};
 
 pub struct TemperatureSensorsReadingEventHandler;
 
@@ -25,7 +25,7 @@ impl TemperatureSensorsReadingEventHandler {
         &self,
         log_target: &str,
         events: &Vec<&AVLEventIO>,
-        sensor_number: usize,
+        sensor: &TeltonikaTemperatureSensors,
         timestamp: i64,
     ) -> Option<TemperatureReading> {
         let imei = log_target
@@ -35,24 +35,43 @@ impl TemperatureSensorsReadingEventHandler {
             .unwrap()
             .trim()
             .to_string();
-        let mac_address_event_id = 62 + sensor_number as u16;
-        let temperature_event_id = 72 + sensor_number as u16;
-        let Some(mac_address) = events.iter().find(|event| event.id == mac_address_event_id) else {
-            warn!(target: log_target, "No MAC address found for temperature sensor 1 reading event");
-            return None;
+
+        let hardware_sensor_id = match events
+            .iter()
+            .find(|event| event.id == sensor.hardware_sensor_io_event_id())
+        {
+            Some(hardware_sensor_id) => Some(avl_event_io_value_to_u64(&hardware_sensor_id.value)),
+            None => {
+                warn!(target: log_target, "No hardware sensor ID found for {sensor:#?}");
+                return None;
+            }
         };
-        let Some(temperature) = events.iter().find(|event| event.id == temperature_event_id) else {
-            warn!(target: log_target, "No temperature found for temperature sensor 1 reading event");
-            return None;
+        let temperature = match events
+            .iter()
+            .find(|event| event.id == sensor.temperature_reading_io_event_id())
+        {
+            Some(temperature) => Some(avl_event_io_value_to_u16(&temperature.value)),
+            None => {
+                warn!(target: log_target, "No temperature found for {sensor:#?}");
+                return None;
+            }
         };
-        let mac_address = avl_event_io_value_to_u64(&mac_address.value);
-        let temperature = avl_event_io_value_to_u16(&temperature.value);
+
+        if hardware_sensor_id.is_none() || temperature.is_none() {
+            return None;
+        }
+        let hardware_sensor_id = hardware_sensor_id.unwrap();
+        let temperature = temperature.unwrap();
+        if hardware_sensor_id == 0 {
+            return None;
+        }
 
         return Some(TemperatureReading::new(
             imei,
-            mac_address.to_string(),
+            hardware_sensor_id.to_string(),
             temperature as f32 * 0.1,
             timestamp,
+            TemperatureReadingSourceType::Truck,
         ));
     }
 }
@@ -63,6 +82,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
     fn require_all_events(&self) -> bool {
         false
     }
+
     fn get_event_ids(&self) -> Vec<u16> {
         vec![
             62, // Temperature sensor 1 ID
@@ -73,10 +93,10 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
             74, // Temperature sensor 3 reading
             65, // Temperature sensor 4 ID
             75, // Temperature sensor 4 reading
-            66, // Temperature sensor 5 ID
-            76, // Temperature sensor 5 reading
-            67, // Temperature sensor 6 ID
-            77, // Temperature sensor 6 reading
+            5,  // Temperature sensor 5 ID
+            6,  // Temperature sensor 5 reading
+            7,  // Temperature sensor 6 ID
+            8,  // Temperature sensor 6 reading
         ]
     }
 
@@ -118,13 +138,13 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
     fn process_event_data(
         &self,
         _: u16,
-        events: &Vec<&nom_teltonika::AVLEventIO>,
+        events: &Vec<&AVLEventIO>,
         timestamp: i64,
         log_target: &str,
     ) -> Option<Vec<TemperatureReading>> {
         let mut readings = Vec::new();
-        for number in 0..6 {
-            readings.push(self.parse_readings_from_events(log_target, events, number, timestamp));
+        for sensor in TeltonikaTemperatureSensors::iterator() {
+            readings.push(self.parse_readings_from_events(log_target, events, sensor, timestamp));
         }
 
         Some(
