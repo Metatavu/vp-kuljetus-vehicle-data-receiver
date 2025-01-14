@@ -1010,6 +1010,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "imei"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29b86e578dbda6d420884cddece178ad32d9f5399bd2f2c5323f7f1b9ac95839"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2247,6 +2256,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "httpmock",
+ "imei",
  "lazy_static",
  "log",
  "nom-teltonika",
