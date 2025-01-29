@@ -12,9 +12,10 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::mpsc::{self, Sender},
 };
+use vehicle_management_service::models::Trackable;
 
 use crate::{
-    utils::api::get_truck_id_by_vin,
+    utils::api::{get_trackable, get_truck_id_by_vin},
     worker::{self, WorkerMessage},
 };
 
@@ -23,8 +24,7 @@ use super::records::teltonika_vin_handler::get_truck_vin_from_records;
 pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
-    truck_id: Option<String>,
-    truck_vin: Option<String>,
+    trackable: Option<Trackable>,
     sender_channel: Sender<WorkerMessage>,
 }
 
@@ -39,8 +39,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei,
-            truck_id: None,
-            truck_vin: None,
+            trackable: None,
             sender_channel: tx,
         };
 
@@ -123,6 +122,9 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         let mut file_handle = self.get_log_file_handle(base_log_file_path);
 
         loop {
+            if self.trackable.is_none() {
+                self.trackable = get_trackable(&self.imei).await;
+            }
             let start_of_loop = Utc::now();
             if start_of_loop.day() != start_of_connection.day() {
                 file_handle = self.get_log_file_handle(base_log_file_path);
@@ -132,27 +134,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                 Ok(frame) => {
                     let records_count = frame.records.len();
 
-                    if let None = self.truck_vin {
-                        self.truck_vin = get_truck_vin_from_records(&frame.records);
-                    }
-                    if self.truck_id.is_none() && self.truck_vin.is_some() {
-                        let found_truck_id = get_truck_id_by_vin(&self.truck_vin).await;
-                        if found_truck_id.is_some() {
-                            debug!(
-                                target: self.log_target(),
-                                "Found Truck ID [{}] for VIN [{}]",
-                                found_truck_id.clone().unwrap(),
-                                self.truck_vin.clone().unwrap()
-                            );
-                            self.truck_id = found_truck_id.map(|id| id.to_string());
-                        }
-                    }
-
-                    if let Some(vin) = &self.truck_vin {
+                    if let Some(trackable) = &self.trackable {
                         debug!(
                             target: self.log_target(),
-                            "Received frame with {} records from VIN [{}]",
-                            records_count, vin
+                            "Received frame with {} records from {} [{}]",
+                            records_count, trackable.trackable_type, trackable.id
                         );
                     } else {
                         debug!(
@@ -170,7 +156,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         .sender_channel
                         .send(WorkerMessage::IncomingFrame {
                             frame,
-                            truck_id: self.truck_id.clone(),
+                            trackable: self.trackable.clone(),
                             base_cache_path: base_log_file_path.clone(),
                             imei: self.imei.clone(),
                         })

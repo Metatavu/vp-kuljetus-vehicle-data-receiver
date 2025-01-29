@@ -7,7 +7,7 @@ use httpmock::{
 use nom_teltonika::AVLEventIO;
 use tempfile::tempdir;
 use uuid::Uuid;
-use vehicle_management_service::models::{PublicTruck, TruckDriverCard};
+use vehicle_management_service::models::{PublicTruck, Trackable, TrackableType, TruckDriverCard};
 
 use crate::teltonika::records::TeltonikaRecordsHandler;
 
@@ -112,12 +112,24 @@ pub fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
 ///
 /// # Returns
 /// * `TeltonikaRecordsHandler` - TeltonikaRecordsHandler instance
-pub fn get_teltonika_records_handler(truck_id: Option<String>, imei: Option<String>) -> TeltonikaRecordsHandler {
+pub fn get_teltonika_records_handler(
+    trackable_id: Option<Uuid>,
+    imei: Option<String>,
+    trackable_type: Option<TrackableType>,
+) -> TeltonikaRecordsHandler {
     let test_cache_dir = tempdir().unwrap();
     let test_cache_path = test_cache_dir.path().to_path_buf();
     let imei = imei.unwrap_or(String::new());
+    let trackable = match trackable_id {
+        Some(id) => Some(Trackable::new(
+            id,
+            imei.clone(),
+            trackable_type.unwrap_or(TrackableType::Truck),
+        )),
+        None => None,
+    };
 
-    return TeltonikaRecordsHandler::new(imei, truck_id, test_cache_path);
+    return TeltonikaRecordsHandler::new(imei, trackable, test_cache_path);
 }
 
 pub fn mock_server() -> MockServer {

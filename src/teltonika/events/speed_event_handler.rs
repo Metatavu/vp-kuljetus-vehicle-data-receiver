@@ -4,7 +4,7 @@ use vehicle_management_service::{
         trucks_api::{create_truck_speed, CreateTruckSpeedError, CreateTruckSpeedParams},
         Error,
     },
-    models::TruckSpeed,
+    models::{Trackable, TrackableType, TruckSpeed},
 };
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
@@ -22,13 +22,16 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
     async fn send_event(
         &self,
         event_data: &TruckSpeed,
-        truck_id: String,
+        trackable: Trackable,
         _: &str,
     ) -> Result<(), Error<CreateTruckSpeedError>> {
+        if trackable.trackable_type == TrackableType::Towable {
+            return Ok(());
+        }
         create_truck_speed(
             &get_vehicle_management_api_config(),
             CreateTruckSpeedParams {
-                truck_id,
+                truck_id: trackable.id.to_string().clone(),
                 truck_speed: event_data.clone(),
             },
         )

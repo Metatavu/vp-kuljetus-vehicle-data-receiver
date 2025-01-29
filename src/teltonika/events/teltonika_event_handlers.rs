@@ -9,6 +9,7 @@ use log::{debug, error};
 use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, path::PathBuf};
+use vehicle_management_service::models::Trackable;
 
 /// Enumeration for Teltonika event handlers.
 ///
@@ -73,7 +74,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
         trigger_event_id: u16,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
-        truck_id: Option<String>,
+        trackable: Option<Trackable>,
         base_cache_path: PathBuf,
     ) {
         match self {
@@ -83,7 +84,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
-                        truck_id,
+                        trackable,
                         base_cache_path,
                         log_target,
                     )
@@ -95,7 +96,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
-                        truck_id,
+                        trackable,
                         base_cache_path,
                         log_target,
                     )
@@ -107,7 +108,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
-                        truck_id,
+                        trackable,
                         base_cache_path,
                         log_target,
                     )
@@ -119,7 +120,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
-                        truck_id,
+                        trackable,
                         base_cache_path,
                         log_target,
                     )
@@ -131,7 +132,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
-                        truck_id,
+                        trackable,
                         base_cache_path,
                         log_target,
                     )
@@ -141,31 +142,31 @@ impl<'a> TeltonikaEventHandlers<'a> {
     }
 
     /// Purges the cache.
-    pub async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, purge_cache_size: usize) {
+    pub async fn purge_cache(&self, trackable: &Trackable, base_cache_path: PathBuf, purge_cache_size: usize) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size)
                     .await
             }
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size)
                     .await
             }
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size)
                     .await
             }
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size)
                     .await
             }
             TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(truck_id, base_cache_path, log_target, purge_cache_size)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size)
                     .await
             }
         }
@@ -214,7 +215,7 @@ where
         trigger_event_id: u16,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
-        truck_id: Option<String>,
+        trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         log_target: &str,
     ) {
@@ -223,9 +224,9 @@ where
             return;
         }
         let event_data = event_data.unwrap();
-        if let Some(truck_id) = truck_id {
-            debug!(target: log_target, "Handling event for truck: {}", truck_id);
-            let send_event_result = self.send_event(&event_data, truck_id, log_target).await;
+        if let Some(trackable) = trackable {
+            debug!(target: log_target, "Handling event for {}: {}", trackable.trackable_type, trackable.id);
+            let send_event_result = self.send_event(&event_data, trackable, log_target).await;
             if let Err(err) = send_event_result {
                 error!(target: log_target, "Error sending event: {err:?}. Caching it for further use.");
                 self.cache_event_data(event_data, base_cache_path);
@@ -255,7 +256,7 @@ where
     /// * `event_data` - The event data to send.
     /// * `truck_id` - The truck ID of the event.
     /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
-    async fn send_event(&self, event_data: &T, truck_id: String, log_target: &str) -> Result<(), E>;
+    async fn send_event(&self, event_data: &T, trackable: Trackable, log_target: &str) -> Result<(), E>;
 
     /// Processes the event data.
     ///
@@ -283,7 +284,13 @@ where
     /// * `base_cache_path` - The base path to the cache directory.
     /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
     /// * `purge_cache_size` - The size of the cache to purge.
-    async fn purge_cache(&self, truck_id: String, base_cache_path: PathBuf, log_target: &str, purge_cache_size: usize) {
+    async fn purge_cache(
+        &self,
+        trackable: &Trackable,
+        base_cache_path: PathBuf,
+        log_target: &str,
+        purge_cache_size: usize,
+    ) {
         let (cache, cache_size) = T::take_from_file(base_cache_path.clone(), purge_cache_size);
 
         let mut failed_events: Vec<T> = Vec::new();
@@ -300,7 +307,7 @@ where
         );
 
         for cached_event in cache.iter() {
-            let sent_event = self.send_event(cached_event, truck_id.clone(), log_target).await;
+            let sent_event = self.send_event(cached_event, trackable.clone(), log_target).await;
             if let Err(err) = sent_event {
                 debug!(target: log_target,
                     "Failed to send event: {err:#?}. Adding it to failed events.",

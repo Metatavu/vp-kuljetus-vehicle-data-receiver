@@ -6,7 +6,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::TruckOdometerReading,
+    models::{Trackable, TrackableType, TruckOdometerReading},
 };
 
 use crate::{
@@ -27,13 +27,16 @@ impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadin
     async fn send_event(
         &self,
         event_data: &TruckOdometerReading,
-        truck_id: String,
+        trackable: Trackable,
         _: &str,
     ) -> Result<(), Error<CreateTruckOdometerReadingError>> {
+        if trackable.trackable_type == TrackableType::Towable {
+            return Ok(());
+        }
         create_truck_odometer_reading(
             &get_vehicle_management_api_config(),
             CreateTruckOdometerReadingParams {
-                truck_id,
+                truck_id: trackable.id.to_string().clone(),
                 truck_odometer_reading: event_data.clone(),
             },
         )

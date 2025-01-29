@@ -7,7 +7,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::{TemperatureReading, TemperatureReadingSourceType},
+    models::{TemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType},
 };
 
 use crate::{
@@ -103,12 +103,17 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
     async fn send_event(
         &self,
         event_data: &Vec<TemperatureReading>,
-        _: String,
+        trackable: Trackable,
         _: &str,
     ) -> Result<(), Error<CreateTemperatureReadingError>> {
         let mut errors = Vec::new();
 
         for reading in event_data {
+            let mut reading = reading.clone();
+            reading.source_type = match trackable.trackable_type {
+                TrackableType::Towable => TemperatureReadingSourceType::Towable,
+                TrackableType::Truck => TemperatureReadingSourceType::Truck,
+            };
             match create_temperature_reading(
                 &get_vehicle_management_api_config(),
                 CreateTemperatureReadingParams {

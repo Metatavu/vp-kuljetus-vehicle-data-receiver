@@ -5,7 +5,7 @@ use vehicle_management_service::{
         trucks_api::{create_drive_state, CreateDriveStateError, CreateDriveStateParams},
         Error,
     },
-    models::{TruckDriveState, TruckDriveStateEnum},
+    models::{Trackable, TrackableType, TruckDriveState, TruckDriveStateEnum},
 };
 
 use crate::{
@@ -26,13 +26,16 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
     async fn send_event(
         &self,
         event_data: &TruckDriveState,
-        truck_id: String,
+        trackable: Trackable,
         _: &str,
     ) -> Result<(), Error<CreateDriveStateError>> {
+        if trackable.trackable_type == TrackableType::Towable {
+            return Ok(());
+        }
         create_drive_state(
             &get_vehicle_management_api_config(),
             CreateDriveStateParams {
-                truck_id: truck_id.clone(),
+                truck_id: trackable.id.to_string().clone(),
                 truck_drive_state: event_data.clone(),
             },
         )

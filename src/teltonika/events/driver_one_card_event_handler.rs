@@ -1,5 +1,6 @@
 use log::{info, warn};
 use nom_teltonika::AVLEventIO;
+use uuid::Uuid;
 use vehicle_management_service::{
     apis::{
         trucks_api::{
@@ -8,7 +9,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::TruckDriverCard,
+    models::{truck, Trackable, TrackableType, TruckDriverCard},
 };
 
 use crate::{
@@ -44,12 +45,12 @@ impl DriverOneCardEventHandler {
 
     async fn create_truck_driver_card(
         &self,
-        truck_id: String,
+        truck_id: Uuid,
         truck_driver_card: TruckDriverCard,
         imei: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
         let params = CreateTruckDriverCardParams {
-            truck_id,
+            truck_id: truck_id.to_string(),
             truck_driver_card,
         };
         let res = create_truck_driver_card(&VEHICLE_MANAGEMENT_API_CONFIG, params).await;
@@ -73,11 +74,12 @@ impl DriverOneCardEventHandler {
 
     async fn delete_truck_driver_card(
         &self,
-        truck_id: String,
+        truck_id: Uuid,
         x_removed_at: String,
         log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
-        let driver_card_id = get_truck_driver_card_id(truck_id.clone())
+        let truck_id = truck_id.clone().to_string();
+        let driver_card_id = get_truck_driver_card_id(&truck_id)
             .await
             .expect(&format!("Failed to get driver card id for truck {truck_id}"));
         let params = DeleteTruckDriverCardParams {
@@ -123,16 +125,19 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
     async fn send_event(
         &self,
         event_data: &TruckDriverCard,
-        truck_id: String,
+        trackable: Trackable,
         log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
+        if trackable.trackable_type == TrackableType::Towable {
+            return Ok(());
+        }
         match &event_data.removed_at {
             Some(removed_at) => {
-                self.delete_truck_driver_card(truck_id, removed_at.clone(), log_target)
+                self.delete_truck_driver_card(trackable.id, removed_at.clone(), log_target)
                     .await
             }
             None => {
-                self.create_truck_driver_card(truck_id, event_data.clone(), log_target)
+                self.create_truck_driver_card(trackable.id, event_data.clone(), log_target)
                     .await
             }
         }

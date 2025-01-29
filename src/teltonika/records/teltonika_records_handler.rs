@@ -5,20 +5,23 @@ use crate::{
 };
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
-use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
+use vehicle_management_service::{
+    apis::trucks_api::CreateTruckLocationParams,
+    models::{Trackable, TruckLocation},
+};
 
 /// Handler for Teltonika records.
 pub struct TeltonikaRecordsHandler {
     log_target: String,
-    truck_id: Option<String>,
+    trackable: Option<Trackable>,
     base_cache_path: PathBuf,
 }
 
 impl TeltonikaRecordsHandler {
-    pub fn new(log_target: String, truck_id: Option<String>, base_cache_path: PathBuf) -> Self {
+    pub fn new(log_target: String, trackable: Option<Trackable>, base_cache_path: PathBuf) -> Self {
         TeltonikaRecordsHandler {
             log_target,
-            truck_id,
+            trackable,
             base_cache_path,
         }
     }
@@ -82,7 +85,7 @@ impl TeltonikaRecordsHandler {
                     record.trigger_event_id,
                     events,
                     record.timestamp.timestamp(),
-                    self.truck_id.clone(),
+                    self.trackable.clone(),
                     self.base_cache_path.clone(),
                 )
                 .await;
@@ -98,12 +101,12 @@ impl TeltonikaRecordsHandler {
     /// * `record` - The [AVLRecord] to handle the location for.
     async fn handle_record_location(&self, record: &AVLRecord) {
         let location_data = TruckLocation::from_teltonika_record(record).unwrap();
-        if let Some(truck_id) = self.truck_id.clone() {
-            debug!(target: &self.log_target, "Handling location for truck: {}", truck_id);
+        if let Some(trackable) = self.trackable.clone() {
+            debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
                 &get_vehicle_management_api_config(),
                 CreateTruckLocationParams {
-                    truck_id,
+                    truck_id: trackable.id.to_string(),
                     truck_location: location_data.clone(),
                 },
             )

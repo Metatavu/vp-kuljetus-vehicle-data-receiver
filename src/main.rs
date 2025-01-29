@@ -271,7 +271,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_speed_event() {
-        let record_handler = get_teltonika_records_handler(None, None);
+        let record_handler = get_teltonika_records_handler(None, None, None);
         let record = AVLRecordBuilder::new()
             .with_priority(Priority::High)
             .with_io_events(vec![AVLEventIO {
