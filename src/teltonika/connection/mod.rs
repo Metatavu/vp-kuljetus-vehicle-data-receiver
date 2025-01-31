@@ -15,11 +15,9 @@ use tokio::{
 use vehicle_management_service::models::Trackable;
 
 use crate::{
-    utils::api::{get_trackable, get_truck_id_by_vin},
+    utils::api::get_trackable,
     worker::{self, WorkerMessage},
 };
-
-use super::records::teltonika_vin_handler::get_truck_vin_from_records;
 
 pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
@@ -134,19 +132,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                 Ok(frame) => {
                     let records_count = frame.records.len();
 
-                    if let Some(trackable) = &self.trackable {
-                        debug!(
-                            target: self.log_target(),
-                            "Received frame with {} records from {} [{}]",
-                            records_count, trackable.trackable_type, trackable.id
-                        );
-                    } else {
-                        debug!(
-                            target: self.log_target(),
-                            "Received frame with {} records from unknown VIN",
-                            records_count
-                        );
-                    }
+                    debug!(
+                        target: self.log_target(),
+                        "Received frame with {} records from",
+                        records_count
+                    );
 
                     self.write_data_to_log_file(&mut file_handle, &frame);
 

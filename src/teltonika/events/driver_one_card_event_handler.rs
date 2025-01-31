@@ -9,7 +9,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::{truck, Trackable, TrackableType, TruckDriverCard},
+    models::{Trackable, TrackableType, TruckDriverCard},
 };
 
 use crate::{

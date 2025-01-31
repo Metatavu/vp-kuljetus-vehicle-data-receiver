@@ -101,68 +101,68 @@ mod tests {
         },
     };
 
-    // #[tokio::test]
-    // async fn test_worker() {
-    //     let temp_dir = get_temp_dir_path();
-    //     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    //     super::spawn(rx);
-    //     let record = AVLRecordBuilder::new()
-    //         .with_priority(Priority::High)
-    //         .with_io_events(vec![AVLEventIO {
-    //             id: 191,
-    //             value: nom_teltonika::AVLEventIOValue::U16(10),
-    //         }])
-    //         .build();
-    //     let packet = AVLFrameBuilder::new().add_record(record).build();
-    //     tx.send(super::WorkerMessage::IncomingFrame {
-    //         frame: packet,
-    //         truck_id: None,
-    //         base_cache_path: temp_dir.clone(),
-    //         imei: "123456789012345".to_string(),
-    //     })
-    //     .await
-    //     .unwrap();
+    #[tokio::test]
+    async fn test_worker() {
+        let temp_dir = get_temp_dir_path();
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        super::spawn(rx);
+        let record = AVLRecordBuilder::new()
+            .with_priority(Priority::High)
+            .with_io_events(vec![AVLEventIO {
+                id: 191,
+                value: nom_teltonika::AVLEventIOValue::U16(10),
+            }])
+            .build();
+        let packet = AVLFrameBuilder::new().add_record(record).build();
+        tx.send(super::WorkerMessage::IncomingFrame {
+            frame: packet,
+            trackable: None,
+            base_cache_path: temp_dir.clone(),
+            imei: "123456789012345".to_string(),
+        })
+        .await
+        .unwrap();
 
-    //     let cache = wait_until(|| {
-    //         let (cache, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
-    //         return (cache_size == 1, cache);
-    //     });
-    //     assert_eq!(cache.first().unwrap().speed, 10_f32);
-    // }
+        let cache = wait_until(|| {
+            let (cache, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
+            return (cache_size == 1, cache);
+        });
+        assert_eq!(cache.first().unwrap().speed, 10_f32);
+    }
 
-    // #[tokio::test]
-    // async fn test_worker_under_load() {
-    //     let record_amount = 1000;
-    //     let imei = get_random_imei();
-    //     let temp_dir = get_temp_dir_path();
-    //     let (tx, rx) = tokio::sync::mpsc::channel(1000);
-    //     super::spawn(rx);
-    //     let mut records = Vec::new();
-    //     for i in 0..record_amount {
-    //         let record = AVLRecordBuilder::new()
-    //             .with_priority(Priority::High)
-    //             .with_io_events(vec![AVLEventIO {
-    //                 id: 191,
-    //                 value: nom_teltonika::AVLEventIOValue::U16(i),
-    //             }])
-    //             .build();
-    //         records.push(record);
-    //     }
-    //     let packet = AVLFrameBuilder::new().with_records(records).build();
-    //     tx.send(super::WorkerMessage::IncomingFrame {
-    //         frame: packet,
-    //         truck_id: None,
-    //         base_cache_path: temp_dir.clone(),
-    //         imei,
-    //     })
-    //     .await
-    //     .unwrap();
+    #[tokio::test]
+    async fn test_worker_under_load() {
+        let record_amount = 1000;
+        let imei = get_random_imei();
+        let temp_dir = get_temp_dir_path();
+        let (tx, rx) = tokio::sync::mpsc::channel(1000);
+        super::spawn(rx);
+        let mut records = Vec::new();
+        for i in 0..record_amount {
+            let record = AVLRecordBuilder::new()
+                .with_priority(Priority::High)
+                .with_io_events(vec![AVLEventIO {
+                    id: 191,
+                    value: nom_teltonika::AVLEventIOValue::U16(i),
+                }])
+                .build();
+            records.push(record);
+        }
+        let packet = AVLFrameBuilder::new().with_records(records).build();
+        tx.send(super::WorkerMessage::IncomingFrame {
+            frame: packet,
+            trackable: None,
+            base_cache_path: temp_dir.clone(),
+            imei,
+        })
+        .await
+        .unwrap();
 
-    //     let cache_size = wait_until(|| {
-    //         let (_, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
-    //         return (cache_size == 1000, cache_size);
-    //     });
+        let cache_size = wait_until(|| {
+            let (_, cache_size) = TruckSpeed::read_from_file(temp_dir.clone(), 0);
+            return (cache_size == 1000, cache_size);
+        });
 
-    //     assert_eq!(cache_size, 1000);
-    // }
+        assert_eq!(cache_size, 1000);
+    }
 }
