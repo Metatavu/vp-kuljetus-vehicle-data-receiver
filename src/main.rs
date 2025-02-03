@@ -20,7 +20,6 @@ const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 /// * `address` - address
 /// * `port` - port
 async fn start_listener(address: &str, port: i32) {
-    env_logger::init();
     let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
     let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
 
