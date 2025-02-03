@@ -114,7 +114,7 @@ pub enum DriverOneCardIdEventHandlerError {
 }
 
 impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> for DriverOneCardEventHandler {
-    fn get_event_ids(&self) -> Vec<u16> {
+    fn get_event_ids(&self, _port: i32) -> Vec<u16> {
         vec![195, 196, 187]
     }
 

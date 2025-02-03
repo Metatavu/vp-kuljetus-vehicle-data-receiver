@@ -83,21 +83,35 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         false
     }
 
-    fn get_event_ids(&self) -> Vec<u16> {
-        vec![
-            62, // Temperature sensor 1 ID
-            72, // Temperature sensor 1 reading
-            63, // Temperature sensor 2 ID
-            73, // Temperature sensor 2 reading
-            64, // Temperature sensor 3 ID
-            74, // Temperature sensor 3 reading
-            65, // Temperature sensor 4 ID
-            75, // Temperature sensor 4 reading
-            5,  // Temperature sensor 5 ID
-            6,  // Temperature sensor 5 reading
-            7,  // Temperature sensor 6 ID
-            8,  // Temperature sensor 6 reading
-        ]
+    fn get_event_ids(&self, port: i32) -> Vec<u16> {
+        if port == 6500 {
+            vec![
+                62, // Temperature sensor 1 ID
+                72, // Temperature sensor 1 reading
+                63, // Temperature sensor 2 ID
+                73, // Temperature sensor 2 reading
+                64, // Temperature sensor 3 ID
+                74, // Temperature sensor 3 reading
+                65, // Temperature sensor 4 ID
+                75, // Temperature sensor 4 reading
+                5,  // Temperature sensor 5 ID
+                6,  // Temperature sensor 5 reading
+                7,  // Temperature sensor 6 ID
+                8,  // Temperature sensor 6 reading
+            ]
+        } else {
+            vec![
+                76, // Temperature sensor 1 ID
+                72, // Temperature sensor 1 reading
+                77, // Temperature sensor 2 ID
+                73, // Temperature sensor 2 reading
+                79, // Temperature sensor 3 ID
+                74, // Temperature sensor 3 reading
+                71, // Temperature sensor 4 ID
+                75 // Temperature sensor 4 reading
+            ]
+        }
+
     }
 
     async fn send_event(

@@ -20,7 +20,7 @@ pub struct OdometerReadingEventHandler;
 impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadingError>>
     for OdometerReadingEventHandler
 {
-    fn get_event_ids(&self) -> Vec<u16> {
+    fn get_event_ids(&self, _port: i32) -> Vec<u16> {
         vec![192]
     }
 

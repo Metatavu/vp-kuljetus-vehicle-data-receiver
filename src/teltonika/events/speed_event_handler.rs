@@ -15,7 +15,7 @@ use crate::{
 pub struct SpeedEventHandler;
 
 impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEventHandler {
-    fn get_event_ids(&self) -> Vec<u16> {
+    fn get_event_ids(&self, _port: i32) -> Vec<u16> {
         vec![191]
     }
 

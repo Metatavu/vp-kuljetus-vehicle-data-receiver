@@ -42,7 +42,11 @@ impl CacheHandler {
 
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             handler
-                .purge_cache(&self.trackable, self.base_cache_path.clone(), purge_cache_size)
+                .purge_cache(&self.trackable, self.base_cache_path.clone(), purge_cache_size, 6500)
+                .await;
+
+            handler
+                .purge_cache(&self.trackable, self.base_cache_path.clone(), purge_cache_size, 2340)
                 .await;
         }
     }

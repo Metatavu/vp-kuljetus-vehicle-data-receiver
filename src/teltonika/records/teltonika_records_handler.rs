@@ -36,9 +36,9 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
-    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>) {
+    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, port: i32) {
         for record in teltonika_records.iter() {
-            self.handle_record(record).await;
+            self.handle_record(record, port).await;
         }
     }
 
@@ -48,7 +48,7 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
-    pub async fn handle_record(&self, record: &AVLRecord) {
+    pub async fn handle_record(&self, record: &AVLRecord, port: i32) {
         self.handle_record_location(record).await;
         let trigger_event = record
             .io_events
@@ -61,7 +61,7 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
             let events = handler
-                .get_event_ids()
+                .get_event_ids(port)
                 .iter()
                 .map(|id| {
                     record
@@ -77,7 +77,7 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
             // If the handler requires all events and we don't have all of them we skip the handler
-            if handler.require_all_events() && handler.get_event_ids().len() != events.len() {
+            if handler.require_all_events() && handler.get_event_ids(port).len() != events.len() {
                 continue;
             }
             handler

@@ -5,8 +5,8 @@ mod worker;
 
 use log::{info, warn};
 use std::{io::ErrorKind, path::Path};
-use tokio::net::TcpListener;
-
+use tokio::{join, net::TcpListener};
+use futures::future::join_all;
 use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable};
 
 const BASE_FILE_PATH_ENV_KEY: &str = "BASE_FILE_PATH";
@@ -14,13 +14,7 @@ const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
-/// VP-Kuljetus Vehicle Data Receiver
-///
-/// This application handles incoming TCP connections from Teltonika Telematics devices,
-/// processes the data and sends it to the VP-Kuljetus Vehicle Management Service API.
-///
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn start_listener(address: &str, port: i32) {
     env_logger::init();
     let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
     let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
@@ -31,7 +25,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(API_BASE_URL_ENV_KEY);
 
-    let address = "0.0.0.0:8080";
     let listener = match TcpListener::bind(&address).await {
         Ok(l) => l,
         Err(e) => {
@@ -53,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             false => "".to_string(),
         };
         tokio::spawn(async move {
-            if let Err(error) = TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path)).await {
+            if let Err(error) = TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path), port).await {
                 match error.kind() {
                     ErrorKind::ConnectionAborted | ErrorKind::InvalidData => {
                         warn!("Connection aborted: {}", error);
@@ -65,6 +58,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
         });
     }
+}
+/// VP-Kuljetus Vehicle Data Receiver
+///
+/// This application handles incoming TCP connections from Teltonika Telematics devices,
+/// processes the data and sends it to the VP-Kuljetus Vehicle Management Service API.
+///
+#[tokio::main]
+async fn main() {
+    env_logger::init();
+    let mut futures = Vec::new();
+    futures.push(start_listener("0.0.0.0:6500", 6500));
+    futures.push(start_listener("0.0.0.0:2340", 2340));
+    join_all(futures).await;
 }
 
 #[cfg(test)]
@@ -281,7 +287,7 @@ mod tests {
             .build();
         let packet = AVLFrameBuilder::new().add_record(record).build();
 
-        record_handler.handle_records(packet.records).await;
+        record_handler.handle_records(packet.records, 6500).await;
 
         let base_cache_path = record_handler.base_cache_path();
         let (speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.to_path_buf(), 0);

@@ -24,6 +24,7 @@ pub struct TeltonikaConnection<S> {
     imei: String,
     trackable: Option<Trackable>,
     sender_channel: Sender<WorkerMessage>,
+    port: i32
 }
 
 impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
@@ -32,13 +33,14 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
-    pub fn new(stream: TeltonikaStream<S>, imei: String) -> Self {
+    pub fn new(stream: TeltonikaStream<S>, imei: String, port: i32) -> Self {
         let (tx, rx) = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei,
             trackable: None,
             sender_channel: tx,
+            port: port
         };
 
         worker::spawn(rx);
@@ -53,11 +55,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
-    pub async fn handle_connection(stream: S, base_file_path: &Path) -> Result<(), Error> {
+    pub async fn handle_connection(stream: S, base_file_path: &Path, port: i32) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
-                let mut connection = Self::new(stream, imei);
+                let mut connection = Self::new(stream, imei, port);
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
@@ -149,6 +151,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                             trackable: self.trackable.clone(),
                             base_cache_path: base_log_file_path.clone(),
                             imei: self.imei.clone(),
+                            port: self.port
                         })
                         .await
                     {

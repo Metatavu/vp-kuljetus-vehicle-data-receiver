@@ -34,6 +34,7 @@ pub enum WorkerMessage {
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         imei: String,
+        port: i32
     },
 }
 
@@ -50,7 +51,8 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
                     trackable,
                     base_cache_path,
                     imei,
-                } => handle_incoming_frame(frame, trackable, base_cache_path, imei),
+                    port
+                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, port),
             }
         }
     });
@@ -59,7 +61,7 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cache_path: PathBuf, imei: String) {
+fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cache_path: PathBuf, imei: String, port: i32) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
@@ -67,7 +69,7 @@ fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cac
         debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
 
         TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
-            .handle_records(frame.records)
+            .handle_records(frame.records, port)
             .await;
 
         debug!(target: &log_target, "Worker finished processing incoming frame");
@@ -119,6 +121,7 @@ mod tests {
             trackable: None,
             base_cache_path: temp_dir.clone(),
             imei: "123456789012345".to_string(),
+            port: 6500
         })
         .await
         .unwrap();
@@ -154,6 +157,7 @@ mod tests {
             trackable: None,
             base_cache_path: temp_dir.clone(),
             imei,
+            port: 6500
         })
         .await
         .unwrap();
