@@ -79,7 +79,7 @@ fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cac
                 read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);
             debug!(target: &log_target, "Purging cache for trackable {}", trackable.id.clone());
             CacheHandler::new(log_target.clone(), trackable, base_cache_path)
-                .purge_cache(purge_cache_size)
+                .purge_cache(purge_cache_size, port)
                 .await;
             debug!(target: &log_target, "Worker finished purging cache",);
         }
