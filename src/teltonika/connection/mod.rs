@@ -1,7 +1,7 @@
 use base64::Engine;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info};
-use nom_teltonika::TeltonikaStream;
+use nom_teltonika::{TeltonikaFrame, TeltonikaStream};
 use serde::Serialize;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
@@ -132,32 +132,38 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             }
 
             match self.teltonika_stream.read_frame_async().await {
-                Ok(frame) => {
-                    let records_count = frame.records.len();
+                Ok(teltonika_frame) => {
+                    match &teltonika_frame {
+                        TeltonikaFrame::AVL(frame) => {
+                            let records_count = frame.records.len();
+        
+                            debug!(
+                                target: self.log_target(),
+                                "Received frame with {} records from",
+                                records_count
+                            );
+        
+                            self.write_data_to_log_file(&mut file_handle, &frame);
+        
+                            self.teltonika_stream.write_frame_ack_async(Some(&teltonika_frame)).await?;
+        
+                            if let Err(err) = self
+                                .sender_channel
+                                .send(WorkerMessage::IncomingFrame {
+                                    frame: frame.clone(),
+                                    trackable: self.trackable.clone(),
+                                    base_cache_path: base_log_file_path.clone(),
+                                    imei: self.imei.clone(),
+                                    port: self.port
+                                })
+                                .await
+                            {
+                                error!(target: self.log_target(), "Failed to send frame to worker: {}", err);
+                            };
 
-                    debug!(
-                        target: self.log_target(),
-                        "Received frame with {} records from",
-                        records_count
-                    );
-
-                    self.write_data_to_log_file(&mut file_handle, &frame);
-
-                    self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
-
-                    if let Err(err) = self
-                        .sender_channel
-                        .send(WorkerMessage::IncomingFrame {
-                            frame,
-                            trackable: self.trackable.clone(),
-                            base_cache_path: base_log_file_path.clone(),
-                            imei: self.imei.clone(),
-                            port: self.port
-                        })
-                        .await
-                    {
-                        error!(target: self.log_target(), "Failed to send frame to worker: {}", err);
-                    };
+                        }
+                        _=> panic!("Unsupported frame type")
+                    }
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {
