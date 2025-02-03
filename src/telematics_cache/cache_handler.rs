@@ -37,6 +37,7 @@ impl CacheHandler {
     ///
     /// # Arguments
     /// * `purge_cache_size` - The amount of cached data that will be processed from the cache files at once.
+    /// * `port` - Port.
     pub async fn purge_cache(&self, purge_cache_size: usize, port: i32) {
         self.purge_location_cache(purge_cache_size).await;
 

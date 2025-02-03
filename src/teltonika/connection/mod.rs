@@ -55,6 +55,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
+    /// * `port` - Port
     pub async fn handle_connection(stream: S, base_file_path: &Path, port: i32) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {

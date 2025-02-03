@@ -14,6 +14,11 @@ const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
+/// Starts a listener
+///
+/// # Arguments
+/// * `address` - address
+/// * `port` - port
 async fn start_listener(address: &str, port: i32) {
     env_logger::init();
     let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
