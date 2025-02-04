@@ -14,6 +14,8 @@ pub use speed_event_handler::SpeedEventHandler;
 pub use teltonika_event_handlers::TeltonikaEventHandlers;
 pub use temperature_sensors_reading_event_handler::TemperatureSensorsReadingEventHandler;
 
+use crate::Listener;
+
 /// Enumeration of possible Teltonika temperature sensors
 #[derive(Debug)]
 pub enum TeltonikaTemperatureSensors {
@@ -41,16 +43,34 @@ impl TeltonikaTemperatureSensors {
         SENSORS.iter()
     }
 
-    /// Get the [nom_teltonika::AVLEventIO] id for the hardware sensor event
-    pub fn hardware_sensor_io_event_id(&self) -> u16 {
+    fn fmc234_hardware_sensor_io_event_id(&self)-> u16 {
+        match self {
+            TeltonikaTemperatureSensors::Sensor1 => 76,
+            TeltonikaTemperatureSensors::Sensor2 => 77,
+            TeltonikaTemperatureSensors::Sensor3 => 79,
+            TeltonikaTemperatureSensors::Sensor4 => 71,
+            TeltonikaTemperatureSensors::Sensor5 => 0,
+            TeltonikaTemperatureSensors::Sensor6 => 0,
+        }
+    }
+
+    fn fmc650_hardware_sensor_io_event_id(&self)-> u16 {
         match self {
             TeltonikaTemperatureSensors::Sensor1 => 62,
             TeltonikaTemperatureSensors::Sensor2 => 63,
             TeltonikaTemperatureSensors::Sensor3 => 64,
             TeltonikaTemperatureSensors::Sensor4 => 65,
             TeltonikaTemperatureSensors::Sensor5 => 5,
-            TeltonikaTemperatureSensors::Sensor6 => 7,
+            TeltonikaTemperatureSensors::Sensor6 => 6,
         }
+    }
+
+    /// Get the [nom_teltonika::AVLEventIO] id for the hardware sensor event
+    pub fn hardware_sensor_io_event_id(&self, listener: &Listener) -> u16 {
+            match listener {
+                Listener::TeltonikaFMC234 => self.fmc234_hardware_sensor_io_event_id(),
+                Listener::TeltonikaFMC650 => self.fmc650_hardware_sensor_io_event_id()
+            }
     }
 
     /// Get the [nom_teltonika::AVLEventIO] id for the temperature reading event
@@ -65,3 +85,4 @@ impl TeltonikaTemperatureSensors {
         }
     }
 }
+

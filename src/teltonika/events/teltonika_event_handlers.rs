@@ -3,7 +3,7 @@ use crate::{
     teltonika::events::{
         DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
         TemperatureSensorsReadingEventHandler,
-    },
+    }, Listener,
 };
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
@@ -45,13 +45,13 @@ impl<'a> TeltonikaEventHandlers<'a> {
         }
     }
     /// Gets the event ID for the handler.
-    pub fn get_event_ids(&self, port: i32) -> Vec<u16> {
+    pub fn get_event_ids(&self, listener: &Listener) -> Vec<u16> {
         match self {
-            TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.get_event_ids(port),
-            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_ids(port),
-            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(port),
-            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(port),
-            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => handler.get_event_ids(port),
+            TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.get_event_ids(listener),
+            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_ids(listener),
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(listener),
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(listener),
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => handler.get_event_ids(listener),
         }
     }
 
@@ -76,6 +76,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
         timestamp: i64,
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
+        listener: &Listener
     ) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
@@ -87,6 +88,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
+                        listener
                     )
                     .await
             }
@@ -99,6 +101,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
+                        listener
                     )
                     .await
             }
@@ -111,6 +114,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
+                        listener
                     )
                     .await
             }
@@ -123,6 +127,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
+                        listener
                     )
                     .await
             }
@@ -135,6 +140,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
+                        listener
                     )
                     .await
             }
@@ -142,31 +148,31 @@ impl<'a> TeltonikaEventHandlers<'a> {
     }
 
     /// Purges the cache.
-    pub async fn purge_cache(&self, trackable: &Trackable, base_cache_path: PathBuf, purge_cache_size: usize, port: i32) {
+    pub async fn purge_cache(&self, trackable: &Trackable, base_cache_path: PathBuf, purge_cache_size: usize, listener: &Listener) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, port)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
                     .await
             }
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, port)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
                     .await
             }
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, port)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
                     .await
             }
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, port)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
                     .await
             }
             TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, log_target)) => {
                 handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, port)
+                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
                     .await
             }
         }
@@ -190,7 +196,7 @@ where
         true
     }
     /// Gets the event ID for the handler.
-    fn get_event_ids(&self, port: i32) -> Vec<u16>;
+    fn get_event_ids(&self, listener: &Listener) -> Vec<u16>;
 
     /// Gets the trigger event ID for the handler.
     ///
@@ -210,6 +216,7 @@ where
     /// * `truck_id` - The truck ID of the event.
     /// * `base_cache_path` - The base path to the cache directory.
     /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
+    /// * 'listener' - Listener.
     async fn handle_events(
         &self,
         trigger_event_id: u16,
@@ -218,8 +225,9 @@ where
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         log_target: &str,
+        listener: &Listener
     ) {
-        let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target);
+        let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target, listener);
         if event_data.is_none() {
             return;
         }
@@ -266,6 +274,7 @@ where
     /// * `truck_id` - The truck ID of the event.
     /// * `timestamp` - The timestamp of the event.
     /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
+    /// * 'listener' - Listener.
     ///
     /// # Returns
     /// * The processed event data.
@@ -275,6 +284,7 @@ where
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         log_target: &str,
+        listener: &Listener
     ) -> Option<T>;
 
     /// Purges the cache.
@@ -290,7 +300,7 @@ where
         base_cache_path: PathBuf,
         log_target: &str,
         purge_cache_size: usize,
-        port: i32
+        listener: &Listener
     ) {
         let (cache, cache_size) = T::take_from_file(base_cache_path.clone(), purge_cache_size);
 
@@ -298,7 +308,7 @@ where
         let purge_cache_size = cache.len();
 
         let event_ids = self
-            .get_event_ids(port)
+            .get_event_ids(listener)
             .iter()
             .map(|id| id.to_string())
             .collect::<Vec<String>>()

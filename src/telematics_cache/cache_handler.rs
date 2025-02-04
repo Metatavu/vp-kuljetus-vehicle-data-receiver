@@ -7,7 +7,7 @@ use vehicle_management_service::{
 };
 
 use crate::{
-    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
+    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config, Listener,
 };
 
 /// Environment variable key for the cache purge size.
@@ -38,12 +38,12 @@ impl CacheHandler {
     /// # Arguments
     /// * `purge_cache_size` - The amount of cached data that will be processed from the cache files at once.
     /// * `port` - Port.
-    pub async fn purge_cache(&self, purge_cache_size: usize, port: i32) {
+    pub async fn purge_cache(&self, purge_cache_size: usize, listener: &Listener) {
         self.purge_location_cache(purge_cache_size).await;
 
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             handler
-                .purge_cache(&self.trackable, self.base_cache_path.clone(), purge_cache_size, port)
+                .purge_cache(&self.trackable, self.base_cache_path.clone(), purge_cache_size, listener)
                 .await;
 
         }
@@ -108,7 +108,7 @@ mod tests {
         utils::{
             imei::get_random_imei,
             test_utils::{get_temp_dir_path, mock_server, MockServerExt},
-        },
+        }, Listener,
     };
 
     #[tokio::test]
@@ -188,7 +188,7 @@ mod tests {
         assert_eq!(truck_odometer_readings_cache.len(), 10);
         assert_eq!(truck_temperature_readings_cache.len(), 10);
 
-        cache_handler.purge_cache(5, 6500).await;
+        cache_handler.purge_cache(5, &Listener::TeltonikaFMC650).await;
 
         let (locations_cache, _) = TruckLocation::read_from_file(base_cache_path.clone(), 0);
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);

@@ -10,7 +10,7 @@ use vehicle_management_service::{
 };
 
 use crate::{
-    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u32, utils::get_vehicle_management_api_config,
+    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u32, utils::get_vehicle_management_api_config, Listener,
 };
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
@@ -20,7 +20,7 @@ pub struct OdometerReadingEventHandler;
 impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadingError>>
     for OdometerReadingEventHandler
 {
-    fn get_event_ids(&self, _port: i32) -> Vec<u16> {
+    fn get_event_ids(&self, _listener: &Listener) -> Vec<u16> {
         vec![192]
     }
 
@@ -49,6 +49,7 @@ impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadin
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         _imei: &str,
+        _listener: &Listener
     ) -> Option<TruckOdometerReading> {
         let event = events.first().expect("Received empty odometer reading event");
         Some(TruckOdometerReading::new(

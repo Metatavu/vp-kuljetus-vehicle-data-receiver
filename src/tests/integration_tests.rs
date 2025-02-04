@@ -12,7 +12,7 @@ use crate::{
         avl_record_builder::avl_record_builder::AVLRecordBuilder,
         imei::{build_valid_imei_packet, get_random_imei},
         test_utils::{driver_card_id_to_two_part_events, mock_server, vin_to_three_part_events, MockServerExt},
-    },
+    }, Listener,
 };
 
 /// This is not an actual integration test, but mimics the behavior of a Teltonika device sending a packet with a driver card ID and then removing it.
@@ -64,7 +64,7 @@ async fn test_driver_one_card_removal() {
         .read(&frame_without_card.to_bytes())
         .write(&(frame_without_card.records.len() as u32).to_be_bytes())
         .build();
-    let result = TeltonikaConnection::handle_connection(mock_stream, temp_dir.path(), 6500).await;
+    let result = TeltonikaConnection::handle_connection(mock_stream, temp_dir.path(), &Listener::TeltonikaFMC650).await;
 
     assert!(result.is_ok());
 }

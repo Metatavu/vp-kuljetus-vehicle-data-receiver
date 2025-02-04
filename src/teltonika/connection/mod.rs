@@ -16,7 +16,7 @@ use vehicle_management_service::models::Trackable;
 
 use crate::{
     utils::api::get_trackable,
-    worker::{self, WorkerMessage},
+    worker::{self, WorkerMessage}, Listener,
 };
 
 pub struct TeltonikaConnection<S> {
@@ -24,23 +24,24 @@ pub struct TeltonikaConnection<S> {
     imei: String,
     trackable: Option<Trackable>,
     sender_channel: Sender<WorkerMessage>,
-    port: i32
+    listener: Listener
 }
 
-impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
+impl<'a, S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// Creates a new instance of [`TeltonikaConnection`]
     ///
     /// # Arguments
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
-    pub fn new(stream: TeltonikaStream<S>, imei: String, port: i32) -> Self {
+    /// * `listener` - Listener
+    pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener) -> Self {
         let (tx, rx) = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei,
             trackable: None,
             sender_channel: tx,
-            port: port
+            listener: listener
         };
 
         worker::spawn(rx);
@@ -56,11 +57,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
     /// * `port` - Port
-    pub async fn handle_connection(stream: S, base_file_path: &Path, port: i32) -> Result<(), Error> {
+    pub async fn handle_connection(stream: S, base_file_path: &Path, listener: &Listener) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
-                let mut connection = Self::new(stream, imei, port);
+                let mut connection = Self::new(stream, imei, *listener);
                 connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
@@ -154,7 +155,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                                     trackable: self.trackable.clone(),
                                     base_cache_path: base_log_file_path.clone(),
                                     imei: self.imei.clone(),
-                                    port: self.port
+                                    listener: self.listener
                                 })
                                 .await
                             {

@@ -1,4 +1,4 @@
-use log::warn;
+use log::{info, warn};
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
@@ -13,7 +13,7 @@ use vehicle_management_service::{
 use crate::{
     telematics_cache::Cacheable,
     teltonika::{avl_event_io_value_to_u16, avl_event_io_value_to_u64},
-    utils::get_vehicle_management_api_config,
+    utils::get_vehicle_management_api_config, Listener,
 };
 
 use super::{teltonika_event_handlers::TeltonikaEventHandler, TeltonikaTemperatureSensors};
@@ -27,6 +27,7 @@ impl TemperatureSensorsReadingEventHandler {
         events: &Vec<&AVLEventIO>,
         sensor: &TeltonikaTemperatureSensors,
         timestamp: i64,
+        listener: &Listener
     ) -> Option<TemperatureReading> {
         let imei = log_target
             .split("-")
@@ -38,7 +39,7 @@ impl TemperatureSensorsReadingEventHandler {
 
         let hardware_sensor_id = match events
             .iter()
-            .find(|event| event.id == sensor.hardware_sensor_io_event_id())
+            .find(|event| event.id == sensor.hardware_sensor_io_event_id(listener))
         {
             Some(hardware_sensor_id) => Some(avl_event_io_value_to_u64(&hardware_sensor_id.value)),
             None => {
@@ -83,9 +84,9 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         false
     }
 
-    fn get_event_ids(&self, port: i32) -> Vec<u16> {
-        if port == 6500 {
-            vec![
+    fn get_event_ids(&self, listener: &Listener) -> Vec<u16> {
+        match listener {
+            Listener::TeltonikaFMC650 => vec![
                 62, // Temperature sensor 1 ID
                 72, // Temperature sensor 1 reading
                 63, // Temperature sensor 2 ID
@@ -98,9 +99,8 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
                 6,  // Temperature sensor 5 reading
                 7,  // Temperature sensor 6 ID
                 8,  // Temperature sensor 6 reading
-            ]
-        } else {
-            vec![
+            ],
+            Listener::TeltonikaFMC234 => vec![
                 76, // Temperature sensor 1 ID
                 72, // Temperature sensor 1 reading
                 77, // Temperature sensor 2 ID
@@ -160,10 +160,11 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         log_target: &str,
+        listener: &Listener
     ) -> Option<Vec<TemperatureReading>> {
         let mut readings = Vec::new();
         for sensor in TeltonikaTemperatureSensors::iterator() {
-            readings.push(self.parse_readings_from_events(log_target, events, sensor, timestamp));
+            readings.push(self.parse_readings_from_events(log_target, events, sensor, timestamp, listener));
         }
 
         Some(

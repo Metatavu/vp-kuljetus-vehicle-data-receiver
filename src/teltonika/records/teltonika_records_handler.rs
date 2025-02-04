@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::{
-    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
+    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config, Listener,
 };
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
@@ -36,9 +36,9 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
-    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, port: i32) {
+    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener) {
         for record in teltonika_records.iter() {
-            self.handle_record(record, port).await;
+            self.handle_record(record, listener).await;
         }
     }
 
@@ -48,7 +48,7 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
-    pub async fn handle_record(&self, record: &AVLRecord, port: i32) {
+    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) {
         self.handle_record_location(record).await;
         let trigger_event = record
             .io_events
@@ -61,7 +61,7 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
             let events = handler
-                .get_event_ids(port)
+                .get_event_ids(listener)
                 .iter()
                 .map(|id| {
                     record
@@ -77,7 +77,7 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
             // If the handler requires all events and we don't have all of them we skip the handler
-            if handler.require_all_events() && handler.get_event_ids(port).len() != events.len() {
+            if handler.require_all_events() && handler.get_event_ids(listener).len() != events.len() {
                 continue;
             }
             handler
@@ -87,6 +87,7 @@ impl TeltonikaRecordsHandler {
                     record.timestamp.timestamp(),
                     self.trackable.clone(),
                     self.base_cache_path.clone(),
+                    listener
                 )
                 .await;
         }

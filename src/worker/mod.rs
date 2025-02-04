@@ -13,7 +13,7 @@ use vehicle_management_service::models::Trackable;
 use crate::{
     telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
     teltonika::records::TeltonikaRecordsHandler,
-    utils::read_env_variable_with_default_value,
+    utils::read_env_variable_with_default_value, Listener,
 };
 
 lazy_static! {
@@ -34,7 +34,7 @@ pub enum WorkerMessage {
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         imei: String,
-        port: i32
+        listener: Listener
     },
 }
 
@@ -51,8 +51,8 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
                     trackable,
                     base_cache_path,
                     imei,
-                    port
-                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, port),
+                    listener
+                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
             }
         }
     });
@@ -61,7 +61,7 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cache_path: PathBuf, imei: String, port: i32) {
+fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cache_path: PathBuf, imei: String, listener: Listener) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
@@ -69,7 +69,7 @@ fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cac
         debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
 
         TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
-            .handle_records(frame.records, port)
+            .handle_records(frame.records, &listener)
             .await;
 
         debug!(target: &log_target, "Worker finished processing incoming frame");
@@ -79,7 +79,7 @@ fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cac
                 read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);
             debug!(target: &log_target, "Purging cache for trackable {}", trackable.id.clone());
             CacheHandler::new(log_target.clone(), trackable, base_cache_path)
-                .purge_cache(purge_cache_size, port)
+                .purge_cache(purge_cache_size, &listener)
                 .await;
             debug!(target: &log_target, "Worker finished purging cache",);
         }
@@ -100,7 +100,7 @@ mod tests {
             avl_record_builder::avl_record_builder::AVLRecordBuilder,
             imei::get_random_imei,
             test_utils::{get_temp_dir_path, wait_until},
-        },
+        }, Listener,
     };
 
     #[tokio::test]
@@ -121,7 +121,7 @@ mod tests {
             trackable: None,
             base_cache_path: temp_dir.clone(),
             imei: "123456789012345".to_string(),
-            port: 6500
+            listener: Listener::TeltonikaFMC650
         })
         .await
         .unwrap();
@@ -157,7 +157,7 @@ mod tests {
             trackable: None,
             base_cache_path: temp_dir.clone(),
             imei,
-            port: 6500
+            listener: Listener::TeltonikaFMC650
         })
         .await
         .unwrap();
