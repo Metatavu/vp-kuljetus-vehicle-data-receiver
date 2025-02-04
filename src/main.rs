@@ -37,8 +37,7 @@ lazy_static! {
 /// Starts a listener
 ///
 /// # Arguments
-/// * `address` - address
-/// * `port` - port
+/// * `listener` - Listener
 async fn start_listener(listener: Listener) {
     let file_path: String = read_env_variable(BASE_FILE_PATH_ENV_KEY);
     let write_to_file: bool = read_env_variable(WRITE_TO_FILE_ENV_KEY);
