@@ -13,7 +13,8 @@ use vehicle_management_service::{
 use crate::{
     telematics_cache::Cacheable,
     teltonika::{avl_event_io_value_to_u16, avl_event_io_value_to_u64},
-    utils::get_vehicle_management_api_config, Listener,
+    utils::get_vehicle_management_api_config,
+    Listener,
 };
 
 use super::{teltonika_event_handlers::TeltonikaEventHandler, TeltonikaTemperatureSensors};
@@ -27,7 +28,7 @@ impl TemperatureSensorsReadingEventHandler {
         events: &Vec<&AVLEventIO>,
         sensor: &TeltonikaTemperatureSensors,
         timestamp: i64,
-        listener: &Listener
+        listener: &Listener,
     ) -> Option<TemperatureReading> {
         let imei = log_target
             .split("-")
@@ -108,10 +109,9 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
                 79, // Temperature sensor 3 ID
                 74, // Temperature sensor 3 reading
                 71, // Temperature sensor 4 ID
-                75 // Temperature sensor 4 reading
-            ]
+                75, // Temperature sensor 4 reading
+            ],
         }
-
     }
 
     async fn send_event(
@@ -160,7 +160,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         log_target: &str,
-        listener: &Listener
+        listener: &Listener,
     ) -> Option<Vec<TemperatureReading>> {
         let mut readings = Vec::new();
         for sensor in TeltonikaTemperatureSensors::iterator() {

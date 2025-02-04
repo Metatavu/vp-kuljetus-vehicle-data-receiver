@@ -16,7 +16,8 @@ use vehicle_management_service::models::Trackable;
 
 use crate::{
     utils::api::get_trackable,
-    worker::{self, WorkerMessage}, Listener,
+    worker::{self, WorkerMessage},
+    Listener,
 };
 
 pub struct TeltonikaConnection<S> {
@@ -24,7 +25,7 @@ pub struct TeltonikaConnection<S> {
     imei: String,
     trackable: Option<Trackable>,
     sender_channel: Sender<WorkerMessage>,
-    listener: Listener
+    listener: Listener,
 }
 
 impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
@@ -41,7 +42,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             imei,
             trackable: None,
             sender_channel: tx,
-            listener: listener
+            listener: listener,
         };
 
         worker::spawn(rx);
@@ -58,7 +59,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `base_file_path` - Base path for the log files
     /// * `listener` - Listener
     pub async fn handle_connection(stream: S, base_file_path: &Path, listener: &Listener) -> Result<(), Error> {
-        
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
@@ -154,7 +154,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                             trackable: self.trackable.clone(),
                             base_cache_path: base_log_file_path.clone(),
                             imei: self.imei.clone(),
-                            listener: self.listener
+                            listener: self.listener,
                         })
                         .await
                     {

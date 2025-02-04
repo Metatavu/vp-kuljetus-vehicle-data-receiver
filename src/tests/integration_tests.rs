@@ -13,7 +13,8 @@ use crate::{
         avl_record_builder::avl_record_builder::AVLRecordBuilder,
         imei::{build_valid_imei_packet, get_random_imei},
         test_utils::{driver_card_id_to_two_part_events, mock_server, vin_to_three_part_events, MockServerExt},
-    }, Listener,
+    },
+    Listener,
 };
 
 /// This is not an actual integration test, but mimics the behavior of a Teltonika device sending a packet with a driver card ID and then removing it.

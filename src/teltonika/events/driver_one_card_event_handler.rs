@@ -15,7 +15,8 @@ use vehicle_management_service::{
 use crate::{
     telematics_cache::Cacheable,
     teltonika::{avl_event_io_value_to_u8, driver_card_events_to_truck_driver_card},
-    utils::{api::get_truck_driver_card_id, date_time_from_timestamp, VEHICLE_MANAGEMENT_API_CONFIG}, Listener,
+    utils::{api::get_truck_driver_card_id, date_time_from_timestamp, VEHICLE_MANAGEMENT_API_CONFIG},
+    Listener,
 };
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
@@ -149,7 +150,7 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         imei: &str,
-        _listener: &Listener
+        _listener: &Listener,
     ) -> Option<TruckDriverCard> {
         return match trigger_event_id {
             187 => self.process_card_removed_event_data(events, timestamp, imei),

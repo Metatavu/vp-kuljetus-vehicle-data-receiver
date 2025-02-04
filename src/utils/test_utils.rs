@@ -169,7 +169,6 @@ pub trait MockServerExt {
     fn find_trackable(&self, imei: &str, trackable_type: Option<TrackableType>) -> Mock;
 }
 impl MockServerExt for MockServer {
-
     fn find_trackable(&self, imei: &str, trackable_type: Option<TrackableType>) -> Mock {
         self.mock(|when, then| {
             when.method(GET).path(format!("/v1/trackables/{imei}"));
@@ -178,8 +177,9 @@ impl MockServerExt for MockServer {
                 .json_body_obj(&Trackable {
                     id: Uuid::new_v4(),
                     imei: imei.to_string(),
-                    trackable_type: trackable_type.unwrap_or(TrackableType::Truck)
-                });})
+                    trackable_type: trackable_type.unwrap_or(TrackableType::Truck),
+                });
+        })
     }
     fn public_trucks_mock(&self) -> Mock {
         self.mock(|when, then| {

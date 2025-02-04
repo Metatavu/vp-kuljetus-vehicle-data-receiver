@@ -7,7 +7,8 @@ use vehicle_management_service::{
 };
 
 use crate::{
-    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config, Listener,
+    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
+    Listener,
 };
 
 /// Environment variable key for the cache purge size.
@@ -43,9 +44,13 @@ impl CacheHandler {
 
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             handler
-                .purge_cache(&self.trackable, self.base_cache_path.clone(), purge_cache_size, listener)
+                .purge_cache(
+                    &self.trackable,
+                    self.base_cache_path.clone(),
+                    purge_cache_size,
+                    listener,
+                )
                 .await;
-
         }
     }
 
@@ -100,7 +105,8 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use uuid::Uuid;
     use vehicle_management_service::models::{
-        trackable_type, TemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType, TruckDriveState, TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckOdometerReading, TruckSpeed
+        trackable_type, TemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType, TruckDriveState,
+        TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckOdometerReading, TruckSpeed,
     };
 
     use crate::{
@@ -108,7 +114,8 @@ mod tests {
         utils::{
             imei::get_random_imei,
             test_utils::{get_temp_dir_path, mock_server, MockServerExt},
-        }, Listener,
+        },
+        Listener,
     };
 
     #[tokio::test]

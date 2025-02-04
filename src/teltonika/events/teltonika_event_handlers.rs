@@ -3,7 +3,8 @@ use crate::{
     teltonika::events::{
         DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
         TemperatureSensorsReadingEventHandler,
-    }, Listener,
+    },
+    Listener,
 };
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
@@ -51,7 +52,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_ids(listener),
             TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_ids(listener),
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(listener),
-            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => handler.get_event_ids(listener),
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => {
+                handler.get_event_ids(listener)
+            }
         }
     }
 
@@ -76,7 +79,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
         timestamp: i64,
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
-        listener: &Listener
+        listener: &Listener,
     ) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
@@ -88,7 +91,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
-                        listener
+                        listener,
                     )
                     .await
             }
@@ -101,7 +104,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
-                        listener
+                        listener,
                     )
                     .await
             }
@@ -114,7 +117,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
-                        listener
+                        listener,
                     )
                     .await
             }
@@ -127,7 +130,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
-                        listener
+                        listener,
                     )
                     .await
             }
@@ -140,7 +143,7 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         base_cache_path,
                         log_target,
-                        listener
+                        listener,
                     )
                     .await
             }
@@ -148,7 +151,13 @@ impl<'a> TeltonikaEventHandlers<'a> {
     }
 
     /// Purges the cache.
-    pub async fn purge_cache(&self, trackable: &Trackable, base_cache_path: PathBuf, purge_cache_size: usize, listener: &Listener) {
+    pub async fn purge_cache(
+        &self,
+        trackable: &Trackable,
+        base_cache_path: PathBuf,
+        purge_cache_size: usize,
+        listener: &Listener,
+    ) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
                 handler
@@ -225,7 +234,7 @@ where
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         log_target: &str,
-        listener: &Listener
+        listener: &Listener,
     ) {
         let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target, listener);
         if event_data.is_none() {
@@ -284,7 +293,7 @@ where
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         log_target: &str,
-        listener: &Listener
+        listener: &Listener,
     ) -> Option<T>;
 
     /// Purges the cache.
@@ -300,7 +309,7 @@ where
         base_cache_path: PathBuf,
         log_target: &str,
         purge_cache_size: usize,
-        listener: &Listener
+        listener: &Listener,
     ) {
         let (cache, cache_size) = T::take_from_file(base_cache_path.clone(), purge_cache_size);
 

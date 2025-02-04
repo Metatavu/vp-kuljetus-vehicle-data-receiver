@@ -3,12 +3,12 @@ mod teltonika;
 mod utils;
 mod worker;
 
-use lazy_static::lazy_static;
-use log::{debug, info, warn};
-use std::{io::ErrorKind, path::Path};
-use tokio::{io::AsyncReadExt, join, net::TcpListener};
-use futures::future::join_all;
 use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable};
+use futures::future::join_all;
+use lazy_static::lazy_static;
+use log::{info, warn};
+use std::{io::ErrorKind, path::Path};
+use tokio::net::TcpListener;
 
 const BASE_FILE_PATH_ENV_KEY: &str = "BASE_FILE_PATH";
 const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
@@ -19,7 +19,7 @@ const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 #[derive(Clone, Copy)]
 pub enum Listener {
     TeltonikaFMC650,
-    TeltonikaFMC234
+    TeltonikaFMC234,
 }
 
 impl Listener {
@@ -33,7 +33,7 @@ impl Listener {
 }
 
 lazy_static! {
-    static ref LISTENERS:[Listener;2] = [Listener::TeltonikaFMC234, Listener::TeltonikaFMC650];
+    static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC234, Listener::TeltonikaFMC650];
 }
 
 /// Starts a listener
@@ -65,7 +65,9 @@ async fn start_listener(listener: Listener) {
             false => "".to_string(),
         };
         tokio::spawn(async move {
-            if let Err(error) = TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path), &listener ).await {
+            if let Err(error) =
+                TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path), &listener).await
+            {
                 match error.kind() {
                     ErrorKind::ConnectionAborted | ErrorKind::InvalidData => {
                         warn!("Connection aborted: {}", error);
@@ -85,7 +87,6 @@ async fn start_listener(listener: Listener) {
 ///
 #[tokio::main]
 async fn main() {
-
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY);
 
@@ -117,7 +118,8 @@ mod tests {
             test_utils::{
                 get_teltonika_records_handler, read_imei, split_at_half, string_to_hex_string, string_to_hex_to_dec,
             },
-        }, Listener,
+        },
+        Listener,
     };
     use nom_teltonika::{parser, AVLEventIO, Priority};
     use vehicle_management_service::models::TruckSpeed;
@@ -315,7 +317,9 @@ mod tests {
             .build();
         let packet = AVLFrameBuilder::new().add_record(record).build();
 
-        record_handler.handle_records(packet.records, &Listener::TeltonikaFMC650).await;
+        record_handler
+            .handle_records(packet.records, &Listener::TeltonikaFMC650)
+            .await;
 
         let base_cache_path = record_handler.base_cache_path();
         let (speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.to_path_buf(), 0);

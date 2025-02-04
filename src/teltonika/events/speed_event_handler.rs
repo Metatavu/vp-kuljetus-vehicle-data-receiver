@@ -9,7 +9,8 @@ use vehicle_management_service::{
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
 use crate::{
-    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u64, utils::get_vehicle_management_api_config, Listener,
+    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u64, utils::get_vehicle_management_api_config,
+    Listener,
 };
 
 pub struct SpeedEventHandler;
@@ -44,7 +45,7 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         _imei: &str,
-        _listener: &Listener
+        _listener: &Listener,
     ) -> Option<TruckSpeed> {
         let event = events.first().expect("Received empty speed event");
         Some(TruckSpeed::new(

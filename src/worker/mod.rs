@@ -13,7 +13,8 @@ use vehicle_management_service::models::Trackable;
 use crate::{
     telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
     teltonika::records::TeltonikaRecordsHandler,
-    utils::read_env_variable_with_default_value, Listener,
+    utils::read_env_variable_with_default_value,
+    Listener,
 };
 
 lazy_static! {
@@ -34,7 +35,7 @@ pub enum WorkerMessage {
         trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         imei: String,
-        listener: Listener
+        listener: Listener,
     },
 }
 
@@ -51,7 +52,7 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
                     trackable,
                     base_cache_path,
                     imei,
-                    listener
+                    listener,
                 } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
             }
         }
@@ -61,7 +62,13 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, base_cache_path: PathBuf, imei: String, listener: Listener) {
+fn handle_incoming_frame(
+    frame: AVLFrame,
+    trackable: Option<Trackable>,
+    base_cache_path: PathBuf,
+    imei: String,
+    listener: Listener,
+) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
@@ -100,7 +107,8 @@ mod tests {
             avl_record_builder::avl_record_builder::AVLRecordBuilder,
             imei::get_random_imei,
             test_utils::{get_temp_dir_path, wait_until},
-        }, Listener,
+        },
+        Listener,
     };
 
     #[tokio::test]
@@ -121,7 +129,7 @@ mod tests {
             trackable: None,
             base_cache_path: temp_dir.clone(),
             imei: "123456789012345".to_string(),
-            listener: Listener::TeltonikaFMC650
+            listener: Listener::TeltonikaFMC650,
         })
         .await
         .unwrap();
@@ -157,7 +165,7 @@ mod tests {
             trackable: None,
             base_cache_path: temp_dir.clone(),
             imei,
-            listener: Listener::TeltonikaFMC650
+            listener: Listener::TeltonikaFMC650,
         })
         .await
         .unwrap();

@@ -44,7 +44,7 @@ impl TeltonikaTemperatureSensors {
     }
 
     /// Get sensor event ids used by Teltonika FMC234 devices
-    fn fmc234_hardware_sensor_io_event_id(&self)-> u16 {
+    fn fmc234_hardware_sensor_io_event_id(&self) -> u16 {
         match self {
             TeltonikaTemperatureSensors::Sensor1 => 76,
             TeltonikaTemperatureSensors::Sensor2 => 77,
@@ -56,7 +56,7 @@ impl TeltonikaTemperatureSensors {
     }
 
     /// Get sensor event ids used by Teltonika FMC650 devices
-    fn fmc650_hardware_sensor_io_event_id(&self)-> u16 {
+    fn fmc650_hardware_sensor_io_event_id(&self) -> u16 {
         match self {
             TeltonikaTemperatureSensors::Sensor1 => 62,
             TeltonikaTemperatureSensors::Sensor2 => 63,
@@ -69,10 +69,10 @@ impl TeltonikaTemperatureSensors {
 
     /// Get the [nom_teltonika::AVLEventIO] id for the hardware sensor event
     pub fn hardware_sensor_io_event_id(&self, listener: &Listener) -> u16 {
-            match listener {
-                Listener::TeltonikaFMC234 => self.fmc234_hardware_sensor_io_event_id(),
-                Listener::TeltonikaFMC650 => self.fmc650_hardware_sensor_io_event_id()
-            }
+        match listener {
+            Listener::TeltonikaFMC234 => self.fmc234_hardware_sensor_io_event_id(),
+            Listener::TeltonikaFMC650 => self.fmc650_hardware_sensor_io_event_id(),
+        }
     }
 
     /// Get the [nom_teltonika::AVLEventIO] id for the temperature reading event
@@ -87,4 +87,3 @@ impl TeltonikaTemperatureSensors {
         }
     }
 }
-

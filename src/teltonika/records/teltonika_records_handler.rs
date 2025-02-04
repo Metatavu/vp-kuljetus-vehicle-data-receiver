@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config, Listener,
+    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
+    Listener,
 };
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
@@ -87,7 +88,7 @@ impl TeltonikaRecordsHandler {
                     record.timestamp.timestamp(),
                     self.trackable.clone(),
                     self.base_cache_path.clone(),
-                    listener
+                    listener,
                 )
                 .await;
         }
