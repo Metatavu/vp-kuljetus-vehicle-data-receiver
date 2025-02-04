@@ -1,5 +1,6 @@
 use log::{info, warn};
 use nom_teltonika::AVLEventIO;
+use uuid::Uuid;
 use vehicle_management_service::{
     apis::{
         trucks_api::{
@@ -8,13 +9,14 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::TruckDriverCard,
+    models::{Trackable, TrackableType, TruckDriverCard},
 };
 
 use crate::{
     telematics_cache::Cacheable,
     teltonika::{avl_event_io_value_to_u8, driver_card_events_to_truck_driver_card},
     utils::{api::get_truck_driver_card_id, date_time_from_timestamp, VEHICLE_MANAGEMENT_API_CONFIG},
+    Listener,
 };
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
@@ -44,12 +46,12 @@ impl DriverOneCardEventHandler {
 
     async fn create_truck_driver_card(
         &self,
-        truck_id: String,
+        truck_id: Uuid,
         truck_driver_card: TruckDriverCard,
         imei: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
         let params = CreateTruckDriverCardParams {
-            truck_id,
+            truck_id: truck_id.to_string(),
             truck_driver_card,
         };
         let res = create_truck_driver_card(&VEHICLE_MANAGEMENT_API_CONFIG, params).await;
@@ -73,11 +75,12 @@ impl DriverOneCardEventHandler {
 
     async fn delete_truck_driver_card(
         &self,
-        truck_id: String,
+        truck_id: Uuid,
         x_removed_at: String,
         log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
-        let driver_card_id = get_truck_driver_card_id(truck_id.clone())
+        let truck_id = truck_id.clone().to_string();
+        let driver_card_id = get_truck_driver_card_id(&truck_id)
             .await
             .expect(&format!("Failed to get driver card id for truck {truck_id}"));
         let params = DeleteTruckDriverCardParams {
@@ -112,7 +115,7 @@ pub enum DriverOneCardIdEventHandlerError {
 }
 
 impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> for DriverOneCardEventHandler {
-    fn get_event_ids(&self) -> Vec<u16> {
+    fn get_event_ids(&self, _listener: &Listener) -> Vec<u16> {
         vec![195, 196, 187]
     }
 
@@ -123,16 +126,19 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
     async fn send_event(
         &self,
         event_data: &TruckDriverCard,
-        truck_id: String,
+        trackable: Trackable,
         log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
+        if trackable.trackable_type == TrackableType::Towable {
+            return Ok(());
+        }
         match &event_data.removed_at {
             Some(removed_at) => {
-                self.delete_truck_driver_card(truck_id, removed_at.clone(), log_target)
+                self.delete_truck_driver_card(trackable.id, removed_at.clone(), log_target)
                     .await
             }
             None => {
-                self.create_truck_driver_card(truck_id, event_data.clone(), log_target)
+                self.create_truck_driver_card(trackable.id, event_data.clone(), log_target)
                     .await
             }
         }
@@ -144,6 +150,7 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         imei: &str,
+        _listener: &Listener,
     ) -> Option<TruckDriverCard> {
         return match trigger_event_id {
             187 => self.process_card_removed_event_data(events, timestamp, imei),

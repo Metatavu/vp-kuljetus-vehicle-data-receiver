@@ -8,11 +8,13 @@ use tokio::{
     runtime::{Builder, Runtime},
     sync::mpsc::Receiver,
 };
+use vehicle_management_service::models::Trackable;
 
 use crate::{
     telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
     teltonika::records::TeltonikaRecordsHandler,
     utils::read_env_variable_with_default_value,
+    Listener,
 };
 
 lazy_static! {
@@ -30,9 +32,10 @@ lazy_static! {
 pub enum WorkerMessage {
     IncomingFrame {
         frame: AVLFrame,
-        truck_id: Option<String>,
+        trackable: Option<Trackable>,
         base_cache_path: PathBuf,
         imei: String,
+        listener: Listener,
     },
 }
 
@@ -46,10 +49,11 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
             match msg {
                 WorkerMessage::IncomingFrame {
                     frame,
-                    truck_id,
+                    trackable,
                     base_cache_path,
                     imei,
-                } => handle_incoming_frame(frame, truck_id, base_cache_path, imei),
+                    listener,
+                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
             }
         }
     });
@@ -58,25 +62,31 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(frame: AVLFrame, truck_id: Option<String>, base_cache_path: PathBuf, imei: String) {
+fn handle_incoming_frame(
+    frame: AVLFrame,
+    trackable: Option<Trackable>,
+    base_cache_path: PathBuf,
+    imei: String,
+    listener: Listener,
+) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
 
         debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
 
-        TeltonikaRecordsHandler::new(log_target.clone(), truck_id.clone(), base_cache_path.clone())
-            .handle_records(frame.records)
+        TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
+            .handle_records(frame.records, &listener)
             .await;
 
         debug!(target: &log_target, "Worker finished processing incoming frame");
 
-        if truck_id.is_some() {
+        if let Some(trackable) = trackable {
             let purge_cache_size =
                 read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);
-            debug!(target: &log_target, "Purging cache for truck {}", truck_id.clone().unwrap());
-            CacheHandler::new(log_target.clone(), truck_id.unwrap(), base_cache_path)
-                .purge_cache(purge_cache_size)
+            debug!(target: &log_target, "Purging cache for trackable {}", trackable.id.clone());
+            CacheHandler::new(log_target.clone(), trackable, base_cache_path)
+                .purge_cache(purge_cache_size, &listener)
                 .await;
             debug!(target: &log_target, "Worker finished purging cache",);
         }
@@ -98,6 +108,7 @@ mod tests {
             imei::get_random_imei,
             test_utils::{get_temp_dir_path, wait_until},
         },
+        Listener,
     };
 
     #[tokio::test]
@@ -115,9 +126,10 @@ mod tests {
         let packet = AVLFrameBuilder::new().add_record(record).build();
         tx.send(super::WorkerMessage::IncomingFrame {
             frame: packet,
-            truck_id: None,
+            trackable: None,
             base_cache_path: temp_dir.clone(),
             imei: "123456789012345".to_string(),
+            listener: Listener::TeltonikaFMC650,
         })
         .await
         .unwrap();
@@ -150,9 +162,10 @@ mod tests {
         let packet = AVLFrameBuilder::new().with_records(records).build();
         tx.send(super::WorkerMessage::IncomingFrame {
             frame: packet,
-            truck_id: None,
+            trackable: None,
             base_cache_path: temp_dir.clone(),
             imei,
+            listener: Listener::TeltonikaFMC650,
         })
         .await
         .unwrap();

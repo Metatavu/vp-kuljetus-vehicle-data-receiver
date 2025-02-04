@@ -3,6 +3,7 @@ pub mod events;
 pub mod records;
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
+use serde::de::value;
 use vehicle_management_service::models::{TruckDriveStateEnum, TruckDriverCard};
 
 use crate::utils::date_time_from_timestamp;
@@ -47,6 +48,8 @@ fn avl_event_io_value_to_u16(value: &AVLEventIOValue) -> u16 {
     match value {
         AVLEventIOValue::U16(value) => *value,
         AVLEventIOValue::U8(value) => *value as u16,
+        AVLEventIOValue::U32(value) => *value as u16,
+        AVLEventIOValue::U64(value) => *value as u16,
         _ => panic!("Value is not a u16"),
     }
 }

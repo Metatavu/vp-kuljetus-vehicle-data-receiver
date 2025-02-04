@@ -25,12 +25,12 @@ pub struct Temperature {
     pub value: f32,
     /// The timestamp when the temperature was recorded
     #[serde(rename = "timestamp")]
-    pub timestamp: String,
+    pub timestamp: i64,
 }
 
 impl Temperature {
     /// Represents a single temperature reading record
-    pub fn new(thermometer_id: uuid::Uuid, value: f32, timestamp: String) -> Temperature {
+    pub fn new(thermometer_id: uuid::Uuid, value: f32, timestamp: i64) -> Temperature {
         Temperature {
             id: None,
             thermometer_id,

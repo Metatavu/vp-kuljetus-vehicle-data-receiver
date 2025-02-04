@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 
-use log::debug;
-use vehicle_management_service::{apis::trucks_api::CreateTruckLocationParams, models::TruckLocation};
+use log::{debug, warn};
+use vehicle_management_service::{
+    apis::trucks_api::CreateTruckLocationParams,
+    models::{Trackable, TrackableType, TruckLocation},
+};
 
 use crate::{
     telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
+    Listener,
 };
 
 /// Environment variable key for the cache purge size.
@@ -17,15 +21,15 @@ pub const DEFAULT_PURGE_CHUNK_SIZE: usize = 0;
 
 pub struct CacheHandler {
     log_target: String,
-    truck_id: String,
+    trackable: Trackable,
     base_cache_path: PathBuf,
 }
 
 impl CacheHandler {
-    pub fn new(log_target: String, truck_id: String, base_cache_path: PathBuf) -> Self {
+    pub fn new(log_target: String, trackable: Trackable, base_cache_path: PathBuf) -> Self {
         Self {
             log_target,
-            truck_id,
+            trackable,
             base_cache_path,
         }
     }
@@ -34,12 +38,18 @@ impl CacheHandler {
     ///
     /// # Arguments
     /// * `purge_cache_size` - The amount of cached data that will be processed from the cache files at once.
-    pub async fn purge_cache(&self, purge_cache_size: usize) {
+    /// * `listener` - Listener.
+    pub async fn purge_cache(&self, purge_cache_size: usize, listener: &Listener) {
         self.purge_location_cache(purge_cache_size).await;
 
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             handler
-                .purge_cache(self.truck_id.clone(), self.base_cache_path.clone(), purge_cache_size)
+                .purge_cache(
+                    &self.trackable,
+                    self.base_cache_path.clone(),
+                    purge_cache_size,
+                    listener,
+                )
                 .await;
         }
     }
@@ -58,19 +68,26 @@ impl CacheHandler {
         );
 
         for cached_location in cache.iter() {
-            let result = vehicle_management_service::apis::trucks_api::create_truck_location(
-                &get_vehicle_management_api_config(),
-                CreateTruckLocationParams {
-                    truck_id: self.truck_id.clone(),
-                    truck_location: cached_location.clone(),
-                },
-            )
-            .await;
-            if let Err(err) = result {
-                debug!(target: &self.log_target,
-                    "Error sending location: {err:?}. Caching it for further use.",
-                );
-                failed_locations.push(cached_location.clone());
+            match &self.trackable.trackable_type {
+                TrackableType::Truck => {
+                    let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+                        &get_vehicle_management_api_config(),
+                        CreateTruckLocationParams {
+                            truck_id: self.trackable.id.clone().to_string(),
+                            truck_location: cached_location.clone(),
+                        },
+                    )
+                    .await;
+                    if let Err(err) = result {
+                        debug!(target: &self.log_target,
+                            "Error sending location: {err:?}. Caching it for further use.",
+                        );
+                        failed_locations.push(cached_location.clone());
+                    }
+                }
+                TrackableType::Towable => {
+                    warn!(target: &self.log_target, "Location cache purging not yet implemented for Towable trackable type.");
+                }
             }
         }
         let successful_locations_count = cache.len() - failed_locations.len();
@@ -88,8 +105,8 @@ mod tests {
     use rand::{thread_rng, RngCore};
     use uuid::Uuid;
     use vehicle_management_service::models::{
-        TemperatureReading, TemperatureReadingSourceType, TruckDriveState, TruckDriveStateEnum, TruckDriverCard,
-        TruckLocation, TruckOdometerReading, TruckSpeed,
+        trackable_type, TemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType, TruckDriveState,
+        TruckDriveStateEnum, TruckDriverCard, TruckLocation, TruckOdometerReading, TruckSpeed,
     };
 
     use crate::{
@@ -98,6 +115,7 @@ mod tests {
             imei::get_random_imei,
             test_utils::{get_temp_dir_path, mock_server, MockServerExt},
         },
+        Listener,
     };
 
     #[tokio::test]
@@ -105,8 +123,9 @@ mod tests {
         let _mocks = mock_server().start_all_mocks();
         let base_cache_path = get_temp_dir_path();
         let imei = get_random_imei();
-        let truck_id = Uuid::new_v4().to_string();
-        let cache_handler = CacheHandler::new(imei.clone(), truck_id, base_cache_path.clone());
+        let truck_id = Uuid::new_v4();
+        let trackable = Trackable::new(truck_id, imei.clone(), TrackableType::Truck);
+        let cache_handler = CacheHandler::new(imei.clone(), trackable, base_cache_path.clone());
 
         let mut locations = Vec::new();
         let mut truck_speeds = Vec::new();
@@ -176,7 +195,7 @@ mod tests {
         assert_eq!(truck_odometer_readings_cache.len(), 10);
         assert_eq!(truck_temperature_readings_cache.len(), 10);
 
-        cache_handler.purge_cache(5).await;
+        cache_handler.purge_cache(5, &Listener::TeltonikaFMC650).await;
 
         let (locations_cache, _) = TruckLocation::read_from_file(base_cache_path.clone(), 0);
         let (truck_speeds_cache, _) = TruckSpeed::read_from_file(base_cache_path.clone(), 0);

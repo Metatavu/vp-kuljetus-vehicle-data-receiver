@@ -5,13 +5,14 @@ use vehicle_management_service::{
         trucks_api::{create_drive_state, CreateDriveStateError, CreateDriveStateParams},
         Error,
     },
-    models::{TruckDriveState, TruckDriveStateEnum},
+    models::{Trackable, TrackableType, TruckDriveState, TruckDriveStateEnum},
 };
 
 use crate::{
     telematics_cache::Cacheable,
     teltonika::{driver_card_events_to_truck_driver_card, FromAVLEventIoValue},
     utils::get_vehicle_management_api_config,
+    Listener,
 };
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
@@ -19,20 +20,23 @@ use super::teltonika_event_handlers::TeltonikaEventHandler;
 pub struct DriverOneDriveStateEventHandler;
 
 impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for DriverOneDriveStateEventHandler {
-    fn get_event_ids(&self) -> Vec<u16> {
+    fn get_event_ids(&self, _listener: &Listener) -> Vec<u16> {
         vec![184, 195, 196]
     }
 
     async fn send_event(
         &self,
         event_data: &TruckDriveState,
-        truck_id: String,
+        trackable: Trackable,
         _: &str,
     ) -> Result<(), Error<CreateDriveStateError>> {
+        if trackable.trackable_type == TrackableType::Towable {
+            return Ok(());
+        }
         create_drive_state(
             &get_vehicle_management_api_config(),
             CreateDriveStateParams {
-                truck_id: truck_id.clone(),
+                truck_id: trackable.id.to_string().clone(),
                 truck_drive_state: event_data.clone(),
             },
         )
@@ -45,6 +49,7 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         events: &Vec<&AVLEventIO>,
         timestamp: i64,
         imei: &str,
+        _listener: &Listener,
     ) -> Option<TruckDriveState> {
         let Some(driver_card) = driver_card_events_to_truck_driver_card(timestamp, events, imei) else {
             debug!(target: imei, "Driver card MSB or LSB was 0");
@@ -70,7 +75,9 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
 mod tests {
     use nom_teltonika::AVLEventIO;
 
-    use crate::{teltonika::events::teltonika_event_handlers::TeltonikaEventHandler, utils::imei::get_random_imei};
+    use crate::{
+        teltonika::events::teltonika_event_handlers::TeltonikaEventHandler, utils::imei::get_random_imei, Listener,
+    };
 
     use super::DriverOneDriveStateEventHandler;
 
@@ -97,7 +104,8 @@ mod tests {
             value: nom_teltonika::AVLEventIOValue::U64(3689908453225017393),
         });
 
-        let event_with_card_present = handler.process_event_data(0, &events, timestamp, &imei);
+        let event_with_card_present =
+            handler.process_event_data(0, &events, timestamp, &imei, &Listener::TeltonikaFMC650);
         // There is driver state event so the processed event should be Some
         assert!(event_with_card_present.is_some());
     }
@@ -125,14 +133,16 @@ mod tests {
             value: nom_teltonika::AVLEventIOValue::U64(3689908453225017393),
         });
 
-        let event_without_card_present = handler.process_event_data(0, &events, timestamp, &imei);
+        let event_without_card_present =
+            handler.process_event_data(0, &events, timestamp, &imei, &Listener::TeltonikaFMC650);
 
         // There is driver state event so the processed event should be Some
         assert!(event_without_card_present.is_some());
 
         events.remove(0);
 
-        let event_without_card_present_event = handler.process_event_data(0, &events, timestamp, &imei);
+        let event_without_card_present_event =
+            handler.process_event_data(0, &events, timestamp, &imei, &Listener::TeltonikaFMC650);
 
         // There is driver state event so the processed event should be Some
         assert!(event_without_card_present_event.is_some());
