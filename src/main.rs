@@ -15,6 +15,7 @@ const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
+/// Allows for different configurations for different device types
 #[derive(Clone, Copy)]
 pub enum Listener {
     TeltonikaFMC650,
@@ -22,6 +23,7 @@ pub enum Listener {
 }
 
 impl Listener {
+    /// Gives each device type their own port number
     fn port(&self) -> u16 {
         match self {
             Listener::TeltonikaFMC650 => 6500,

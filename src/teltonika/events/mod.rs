@@ -43,6 +43,7 @@ impl TeltonikaTemperatureSensors {
         SENSORS.iter()
     }
 
+    /// Get sensor event ids used by Teltonika FMC234 devices
     fn fmc234_hardware_sensor_io_event_id(&self)-> u16 {
         match self {
             TeltonikaTemperatureSensors::Sensor1 => 76,
@@ -54,6 +55,7 @@ impl TeltonikaTemperatureSensors {
         }
     }
 
+    /// Get sensor event ids used by Teltonika FMC650 devices
     fn fmc650_hardware_sensor_io_event_id(&self)-> u16 {
         match self {
             TeltonikaTemperatureSensors::Sensor1 => 62,

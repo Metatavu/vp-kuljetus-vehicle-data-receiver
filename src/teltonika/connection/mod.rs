@@ -27,7 +27,7 @@ pub struct TeltonikaConnection<S> {
     listener: Listener
 }
 
-impl<'a, S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
+impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// Creates a new instance of [`TeltonikaConnection`]
     ///
     /// # Arguments
