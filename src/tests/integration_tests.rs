@@ -3,6 +3,7 @@ use std::time::Duration;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue, Priority};
 use tempfile::tempdir;
 use tokio_test::io::Builder;
+use vehicle_management_service::models::TrackableType;
 
 use crate::{
     teltonika::connection::TeltonikaConnection,
@@ -23,8 +24,11 @@ async fn test_driver_one_card_removal() {
     let driver_card_id = String::from("1069619335000001");
     let driver_card_events = driver_card_id_to_two_part_events(driver_card_id.clone()).to_vec();
     let vin_events = vin_to_three_part_events(String::from("W1T96302X10704959")).to_vec();
-    let _mocks = mock_server().start_all_mocks();
-    let imei = build_valid_imei_packet(&get_random_imei());
+    let imei = &get_random_imei();
+    let imei_packet = build_valid_imei_packet(&imei);
+    let mock_server = mock_server();
+    let _mocks = mock_server.start_all_mocks();
+    mock_server.find_trackable(&imei, Some(TrackableType::Truck));
     let temp_dir = tempdir().unwrap();
     let frame_with_card = AVLFrameBuilder::new()
         .with_records(vec![AVLRecordBuilder::new()
@@ -51,7 +55,7 @@ async fn test_driver_one_card_removal() {
         .build();
 
     let mock_stream = Builder::new()
-        .read(&imei)
+        .read(&imei_packet)
         .write(b"\x01")
         .read(&frame_with_card.to_bytes())
         .wait(Duration::from_millis(100))

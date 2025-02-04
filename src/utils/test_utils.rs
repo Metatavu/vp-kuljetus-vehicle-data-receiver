@@ -166,8 +166,21 @@ pub trait MockServerExt {
     fn delete_driver_card_mock(&self) -> Mock;
     fn create_truck_odometer_reading_mock(&self) -> Mock;
     fn create_temperature_sensor_reading_mock(&self) -> Mock;
+    fn find_trackable(&self, imei: &str, trackable_type: Option<TrackableType>) -> Mock;
 }
 impl MockServerExt for MockServer {
+
+    fn find_trackable(&self, imei: &str, trackable_type: Option<TrackableType>) -> Mock {
+        self.mock(|when, then| {
+            when.method(GET).path(format!("/v1/trackables/{imei}"));
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(&Trackable {
+                    id: Uuid::new_v4(),
+                    imei: imei.to_string(),
+                    trackable_type: trackable_type.unwrap_or(TrackableType::Truck)
+                });})
+    }
     fn public_trucks_mock(&self) -> Mock {
         self.mock(|when, then| {
             when.method(GET).path("/v1/publicTrucks");
