@@ -7,7 +7,7 @@
 ################################################################################
 # Create a stage for building the application.
 
-ARG RUST_VERSION=1.76
+ARG RUST_VERSION=1.84.0
 ARG APP_NAME=vp-kuljetus-vehicle-data-receiver
 FROM rust:${RUST_VERSION}-slim-bullseye AS build
 ARG APP_NAME
@@ -66,7 +66,7 @@ USER appuser
 COPY --from=build /bin/server /bin/
 
 # Expose the port that the application listens on.
-EXPOSE 8080
+EXPOSE 6500 2340
 
 # What the container should run when it is started.
 CMD ["/bin/server"]

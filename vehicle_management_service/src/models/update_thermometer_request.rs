@@ -11,21 +11,16 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// Error : Error object
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Error {
-    #[serde(rename = "status")]
-    pub status: i32,
-    #[serde(rename = "message")]
-    pub message: String,
+pub struct UpdateThermometerRequest {
+    #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
-impl Error {
-    /// Error object
-    pub fn new(status: i32, message: String) -> Error {
-        Error {
-            status,
-            message,
+impl UpdateThermometerRequest {
+    pub fn new() -> UpdateThermometerRequest {
+        UpdateThermometerRequest {
+            name: None,
         }
     }
 }

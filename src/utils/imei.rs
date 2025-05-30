@@ -1,5 +1,5 @@
 /// Module containing utility functions for testing IMEI parsing
-use rand::{distributions::Alphanumeric, Rng};
+use rand::Rng;
 
 /// Builds a valid IMEI packet from the given IMEI
 ///
@@ -32,17 +32,29 @@ pub fn build_invalid_imei_packet(imei: &str) -> Vec<u8> {
     return imei.as_bytes().to_vec();
 }
 
-/// Generates a random IMEI of the given length
-///
-/// # Arguments
-/// * `length` - The length of the IMEI to generate
+/// Generates a random valid IMEI number
 ///
 /// # Returns
 /// * `String` - The generated IMEI
-pub fn get_random_imei_of_length(length: i16) -> String {
-    rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(length as usize)
-        .map(char::from)
-        .collect()
+pub fn get_random_imei() -> String {
+    let mut rng = rand::thread_rng();
+    let mut imei: Vec<u8> = (0..14).map(|_| rng.gen_range(0..=9)).collect();
+
+    // Calculate the checksum for the first 14 digits
+    let mut checksum = 0;
+    for (i, &digit) in imei.iter().rev().enumerate() {
+        if i % 2 == 0 {
+            let double = digit * 2;
+            checksum += if double > 9 { double - 9 } else { double };
+        } else {
+            checksum += digit;
+        }
+    }
+
+    // Calculate the final digit to make it valid
+    let final_digit = (10 - (checksum % 10)) % 10;
+    imei.push(final_digit);
+
+    // Convert to string
+    imei.iter().map(|d| d.to_string()).collect::<String>()
 }

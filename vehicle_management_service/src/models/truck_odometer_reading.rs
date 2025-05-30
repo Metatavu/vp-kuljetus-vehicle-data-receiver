@@ -12,31 +12,24 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TruckLocation {
+pub struct TruckOdometerReading {
+    /// Truck odometer ID
     #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
     pub id: Option<uuid::Uuid>,
-    /// Timestamp for truck speed
+    /// Timestamp for truck odometer.
     #[serde(rename = "timestamp")]
     pub timestamp: i64,
-    /// Latitude in degrees.
-    #[serde(rename = "latitude")]
-    pub latitude: f64,
-    /// Longitude in degrees.
-    #[serde(rename = "longitude")]
-    pub longitude: f64,
-    /// heading in degrees.
-    #[serde(rename = "heading")]
-    pub heading: f64,
+    /// Odometer reading in meters. See [Teltonika FMC650 Data Sending Parameters ID - Tachograph Data Elements](https://wiki.teltonika-gps.com/view/FMC650_Teltonika_Data_Sending_Parameters_ID#Tachograph_data_elements)
+    #[serde(rename = "odometerReading")]
+    pub odometer_reading: i32,
 }
 
-impl TruckLocation {
-    pub fn new(timestamp: i64, latitude: f64, longitude: f64, heading: f64) -> TruckLocation {
-        TruckLocation {
+impl TruckOdometerReading {
+    pub fn new(timestamp: i64, odometer_reading: i32) -> TruckOdometerReading {
+        TruckOdometerReading {
             id: None,
             timestamp,
-            latitude,
-            longitude,
-            heading,
+            odometer_reading,
         }
     }
 }

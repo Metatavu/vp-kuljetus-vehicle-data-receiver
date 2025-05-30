@@ -10,42 +10,39 @@
 
 
 use reqwest;
-
+use serde::{Deserialize, Serialize};
 use crate::{apis::ResponseContent, models};
 use super::{Error, configuration};
 
-/// struct for passing parameters to the method [`receive_telematic_data`]
+/// struct for passing parameters to the method [`get_trackable_by_imei`]
 #[derive(Clone, Debug)]
-pub struct ReceiveTelematicDataParams {
-    /// Truck or towable vehicle identification number
-    pub vin: String,
-    /// Payload
-    pub telematic_data: models::TelematicData
+pub struct GetTrackableByImeiParams {
+    /// IMEI of the trackable
+    pub imei: String
 }
 
 
-/// struct for typed errors of method [`receive_telematic_data`]
+/// struct for typed errors of method [`get_trackable_by_imei`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ReceiveTelematicDataError {
+pub enum GetTrackableByImeiError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
 
 
-/// Receives telematic data entry
-pub async fn receive_telematic_data(configuration: &configuration::Configuration, params: ReceiveTelematicDataParams) -> Result<(), Error<ReceiveTelematicDataError>> {
+/// Finds a trackable e.g. a truck or a towable by its IMEI.
+pub async fn get_trackable_by_imei(configuration: &configuration::Configuration, params: GetTrackableByImeiParams) -> Result<models::Trackable, Error<GetTrackableByImeiError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
-    let vin = params.vin;
-    let telematic_data = params.telematic_data;
+    let imei = params.imei;
 
 
     let local_var_client = &local_var_configuration.client;
 
-    let local_var_uri_str = format!("{}/v1/telematics/{vin}", local_var_configuration.base_path, vin=crate::apis::urlencode(vin));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
+    let local_var_uri_str = format!("{}/v1/trackables/{imei}", local_var_configuration.base_path, imei=crate::apis::urlencode(imei));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
 
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
@@ -56,9 +53,8 @@ pub async fn receive_telematic_data(configuration: &configuration::Configuration
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
-    local_var_req_builder = local_var_req_builder.json(&telematic_data);
 
     let local_var_req = local_var_req_builder.build()?;
     let local_var_resp = local_var_client.execute(local_var_req).await?;
@@ -67,9 +63,9 @@ pub async fn receive_telematic_data(configuration: &configuration::Configuration
     let local_var_content = local_var_resp.text().await?;
 
     if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        Ok(())
+        serde_json::from_str(&local_var_content).map_err(Error::from)
     } else {
-        let local_var_entity: Option<ReceiveTelematicDataError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_entity: Option<GetTrackableByImeiError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }

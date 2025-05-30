@@ -91,13 +91,11 @@ pub fn parse_deep_object(prefix: &str, value: &serde_json::Value) -> Vec<(String
 }
 
 pub mod public_trucks_api;
-pub mod spec_app_api;
-pub mod spec_auth_api;
-pub mod spec_management_ui_api;
-pub mod spec_vehicle_data_receiver_api;
 pub mod system_api;
-pub mod telematics_api;
+pub mod temperature_readings_api;
+pub mod thermometers_api;
 pub mod towables_api;
+pub mod trackables_api;
 pub mod trucks_api;
 pub mod vehicles_api;
 

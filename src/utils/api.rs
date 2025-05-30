@@ -1,14 +1,30 @@
 use log::{info, warn};
 use uuid::Uuid;
-use vehicle_management_service::apis::{
-    public_trucks_api::ListPublicTrucksParams,
-    trucks_api::{
-        delete_truck_driver_card, list_truck_driver_cards, DeleteTruckDriverCardParams,
-        ListTruckDriverCardsParams,
+use vehicle_management_service::{
+    apis::{
+        public_trucks_api::ListPublicTrucksParams,
+        trackables_api::GetTrackableByImeiParams,
+        trucks_api::{list_truck_driver_cards, ListTruckDriverCardsParams},
     },
+    models::Trackable,
 };
 
 use super::get_vehicle_management_api_config;
+
+pub async fn get_trackable(imei: &str) -> Option<Trackable> {
+    match vehicle_management_service::apis::trackables_api::get_trackable_by_imei(
+        &get_vehicle_management_api_config(),
+        GetTrackableByImeiParams { imei: imei.to_string() },
+    )
+    .await
+    {
+        Ok(trackable) => Some(trackable),
+        Err(err) => {
+            warn!("Failed to get trackable by IMEI [{}]: {}", imei, err);
+            None
+        }
+    }
+}
 
 /// Gets truck ID by VIN
 ///
@@ -42,11 +58,7 @@ pub async fn get_truck_id_by_vin(vin: &Option<String>) -> Option<Uuid> {
                 .unwrap_or(None)
         }
         Err(err) => {
-            warn!(
-                "Failed to get truck ID by VIN [{}]: {}",
-                vin.clone().unwrap(),
-                err
-            );
+            warn!("Failed to get truck ID by VIN [{}]: {}", vin.clone().unwrap(), err);
             return None;
         }
     }
@@ -61,11 +73,11 @@ pub async fn get_truck_id_by_vin(vin: &Option<String>) -> Option<Uuid> {
 ///
 /// # Returns
 /// * `Option<String>` - Driver card ID
-pub async fn get_truck_driver_card_id(truck_id: String) -> Option<String> {
+pub async fn get_truck_driver_card_id(truck_id: &str) -> Option<String> {
     let Ok(driver_cards) = list_truck_driver_cards(
         &get_vehicle_management_api_config(),
         ListTruckDriverCardsParams {
-            truck_id: truck_id.clone(),
+            truck_id: truck_id.to_string(),
         },
     )
     .await
@@ -73,40 +85,11 @@ pub async fn get_truck_driver_card_id(truck_id: String) -> Option<String> {
         info!("Failed to get driver cards for truck [{}]", truck_id);
         return None;
     };
-    assert!(
-        driver_cards.len() <= 1,
-        "Truck has more than one driver card"
-    );
+    assert!(driver_cards.len() <= 1, "Truck has more than one driver card");
     let Some(driver_card) = driver_cards.first() else {
         info!("Truck [{}] has no driver card", truck_id);
         return None;
     };
 
     Some(driver_card.id.clone())
-}
-
-/// Deletes truck driver card from truck
-///
-/// # Arguments
-/// * `truck_id` - Truck ID
-/// * `driver_card_id` - Driver card ID
-pub async fn delete_truck_driver_card_by_id(truck_id: String, driver_card_id: String) {
-    match delete_truck_driver_card(
-        &get_vehicle_management_api_config(),
-        DeleteTruckDriverCardParams {
-            truck_id: truck_id.clone(),
-            driver_card_id: driver_card_id.clone(),
-        },
-    )
-    .await
-    {
-        Ok(_) => info!(
-            "Driver card [{}] deleted from truck [{}]",
-            driver_card_id, truck_id
-        ),
-        Err(err) => warn!(
-            "Failed to delete driver card [{}] from truck [{}]: {}",
-            driver_card_id, truck_id, err
-        ),
-    };
 }

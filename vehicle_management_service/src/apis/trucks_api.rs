@@ -10,7 +10,7 @@
 
 
 use reqwest;
-
+use serde::{Deserialize, Serialize};
 use crate::{apis::ResponseContent, models};
 use super::{Error, configuration};
 
@@ -48,6 +48,15 @@ pub struct CreateTruckLocationParams {
     pub truck_location: models::TruckLocation
 }
 
+/// struct for passing parameters to the method [`create_truck_odometer_reading`]
+#[derive(Clone, Debug)]
+pub struct CreateTruckOdometerReadingParams {
+    /// truck id
+    pub truck_id: String,
+    /// Payload
+    pub truck_odometer_reading: models::TruckOdometerReading
+}
+
 /// struct for passing parameters to the method [`create_truck_speed`]
 #[derive(Clone, Debug)]
 pub struct CreateTruckSpeedParams {
@@ -70,7 +79,9 @@ pub struct DeleteTruckDriverCardParams {
     /// truck ID
     pub truck_id: String,
     /// driver card ID
-    pub driver_card_id: String
+    pub driver_card_id: String,
+    /// Timestamp when the driver card was removed from the truck
+    pub x_removed_at: String
 }
 
 /// struct for passing parameters to the method [`find_truck`]
@@ -121,6 +132,21 @@ pub struct ListTruckLocationsParams {
     pub max: Option<i32>
 }
 
+/// struct for passing parameters to the method [`list_truck_odometer_readings`]
+#[derive(Clone, Debug)]
+pub struct ListTruckOdometerReadingsParams {
+    /// truck id
+    pub truck_id: String,
+    /// Filter results after given date-time
+    pub after: Option<String>,
+    /// Filter results before given date-time
+    pub before: Option<String>,
+    /// First result.
+    pub first: Option<i32>,
+    /// Max results.
+    pub max: Option<i32>
+}
+
 /// struct for passing parameters to the method [`list_truck_speeds`]
 #[derive(Clone, Debug)]
 pub struct ListTruckSpeedsParams {
@@ -136,6 +162,19 @@ pub struct ListTruckSpeedsParams {
     pub max: Option<i32>
 }
 
+/// struct for passing parameters to the method [`list_truck_temperatures`]
+#[derive(Clone, Debug)]
+pub struct ListTruckTemperaturesParams {
+    /// The unique ID of the truck
+    pub truck_id: String,
+    /// Include archived thermometers' data in the results
+    pub include_archived: Option<bool>,
+    /// First result.
+    pub first: Option<i32>,
+    /// Max results.
+    pub max: Option<i32>
+}
+
 /// struct for passing parameters to the method [`list_trucks`]
 #[derive(Clone, Debug)]
 pub struct ListTrucksParams {
@@ -143,6 +182,10 @@ pub struct ListTrucksParams {
     pub plate_number: Option<String>,
     /// Filter results by archived status
     pub archived: Option<bool>,
+    /// Sort results by field
+    pub sort_by: Option<models::TruckSortByField>,
+    /// Sort direction
+    pub sort_direction: Option<models::SortOrder>,
     /// First result.
     pub first: Option<i32>,
     /// Max results.
@@ -187,6 +230,14 @@ pub enum CreateTruckDriverCardError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateTruckLocationError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_truck_odometer_reading`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateTruckOdometerReadingError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
@@ -247,10 +298,26 @@ pub enum ListTruckLocationsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_truck_odometer_readings`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListTruckOdometerReadingsError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_truck_speeds`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListTruckSpeedsError {
+    DefaultResponse(models::Error),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_truck_temperatures`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListTruckTemperaturesError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
@@ -295,7 +362,7 @@ pub async fn create_drive_state(configuration: &configuration::Configuration, pa
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_drive_state);
 
@@ -350,7 +417,7 @@ pub async fn create_truck(configuration: &configuration::Configuration, params: 
     }
 }
 
-/// Create new truck driver card
+/// Create new truck driver card.  If a card with same truck ID and card ID is already found with removedAt set, the existing card is restored. If a card with different truck ID and card ID is already found with removedAt set, the previous card is immediately deleted and the new card is created. If a card with the same truck ID and card ID is found with removedAt not set, the request is rejected with a 409 Conflict response. 
 pub async fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
     let local_var_configuration = configuration;
 
@@ -373,7 +440,7 @@ pub async fn create_truck_driver_card(configuration: &configuration::Configurati
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_driver_card);
 
@@ -415,7 +482,7 @@ pub async fn create_truck_location(configuration: &configuration::Configuration,
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_location);
 
@@ -429,6 +496,48 @@ pub async fn create_truck_location(configuration: &configuration::Configuration,
         Ok(())
     } else {
         let local_var_entity: Option<CreateTruckLocationError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
+/// Create new truck odometer reading. Used by vehicle data receiver to send truck odometer reading data.
+pub async fn create_truck_odometer_reading(configuration: &configuration::Configuration, params: CreateTruckOdometerReadingParams) -> Result<(), Error<CreateTruckOdometerReadingError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let truck_id = params.truck_id;
+    let truck_odometer_reading = params.truck_odometer_reading;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
+        let local_var_key = local_var_apikey.key.clone();
+        let local_var_value = match local_var_apikey.prefix {
+            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
+            None => local_var_key,
+        };
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+    };
+    local_var_req_builder = local_var_req_builder.json(&truck_odometer_reading);
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        Ok(())
+    } else {
+        let local_var_entity: Option<CreateTruckOdometerReadingError> = serde_json::from_str(&local_var_content).ok();
         let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
         Err(Error::ResponseError(local_var_error))
     }
@@ -457,7 +566,7 @@ pub async fn create_truck_speed(configuration: &configuration::Configuration, pa
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
     local_var_req_builder = local_var_req_builder.json(&truck_speed);
 
@@ -511,13 +620,14 @@ pub async fn delete_truck(configuration: &configuration::Configuration, params: 
     }
 }
 
-/// Deletes single truck driver card. Cards are deleted when they are removed from the truck.
+/// Deletes single truck driver card. Driver cards are deleted when they are removed from the truck.  The card is first soft-deleted by setting removedAt to value sent in X-Removed-At header. A background process then checks frequently for driver cards removed over a configurable grace period ago and deletes them permanently. This is done to prevent false positive driver card states coming in from telematics device. 
 pub async fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
     let local_var_configuration = configuration;
 
     // unbox the parameters
     let truck_id = params.truck_id;
     let driver_card_id = params.driver_card_id;
+    let x_removed_at = params.x_removed_at;
 
 
     let local_var_client = &local_var_configuration.client;
@@ -528,13 +638,14 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
     }
+    local_var_req_builder = local_var_req_builder.header("X-Removed-At", x_removed_at.to_string());
     if let Some(ref local_var_apikey) = local_var_configuration.api_key {
         let local_var_key = local_var_apikey.key.clone();
         let local_var_value = match local_var_apikey.prefix {
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
     };
 
     let local_var_req = local_var_req_builder.build()?;
@@ -671,7 +782,10 @@ pub async fn list_truck_driver_cards(configuration: &configuration::Configuratio
             Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
             None => local_var_key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-API-Key", local_var_value);
+        local_var_req_builder = local_var_req_builder.header("X-Keycloak-API-Key", local_var_value);
+    };
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
     };
 
     let local_var_req = local_var_req_builder.build()?;
@@ -740,6 +854,57 @@ pub async fn list_truck_locations(configuration: &configuration::Configuration, 
     }
 }
 
+/// Lists truck odometer readings.
+pub async fn list_truck_odometer_readings(configuration: &configuration::Configuration, params: ListTruckOdometerReadingsParams) -> Result<Vec<models::TruckOdometerReading>, Error<ListTruckOdometerReadingsError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let truck_id = params.truck_id;
+    let after = params.after;
+    let before = params.before;
+    let first = params.first;
+    let max = params.max;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_str) = after {
+        local_var_req_builder = local_var_req_builder.query(&[("after", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = before {
+        local_var_req_builder = local_var_req_builder.query(&[("before", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = first {
+        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = max {
+        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    };
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        serde_json::from_str(&local_var_content).map_err(Error::from)
+    } else {
+        let local_var_entity: Option<ListTruckOdometerReadingsError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
 /// Lists Truck speeds.
 pub async fn list_truck_speeds(configuration: &configuration::Configuration, params: ListTruckSpeedsParams) -> Result<Vec<models::TruckSpeed>, Error<ListTruckSpeedsError>> {
     let local_var_configuration = configuration;
@@ -791,6 +956,53 @@ pub async fn list_truck_speeds(configuration: &configuration::Configuration, par
     }
 }
 
+/// Retrieve all temperatures from all thermometers related to a specific truck, possibly including data from archived thermometers.
+pub async fn list_truck_temperatures(configuration: &configuration::Configuration, params: ListTruckTemperaturesParams) -> Result<Vec<models::Temperature>, Error<ListTruckTemperaturesError>> {
+    let local_var_configuration = configuration;
+
+    // unbox the parameters
+    let truck_id = params.truck_id;
+    let include_archived = params.include_archived;
+    let first = params.first;
+    let max = params.max;
+
+
+    let local_var_client = &local_var_configuration.client;
+
+    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/temperatures", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
+    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
+
+    if let Some(ref local_var_str) = include_archived {
+        local_var_req_builder = local_var_req_builder.query(&[("includeArchived", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = first {
+        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = max {
+        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
+        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    }
+    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
+        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    };
+
+    let local_var_req = local_var_req_builder.build()?;
+    let local_var_resp = local_var_client.execute(local_var_req).await?;
+
+    let local_var_status = local_var_resp.status();
+    let local_var_content = local_var_resp.text().await?;
+
+    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+        serde_json::from_str(&local_var_content).map_err(Error::from)
+    } else {
+        let local_var_entity: Option<ListTruckTemperaturesError> = serde_json::from_str(&local_var_content).ok();
+        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
+        Err(Error::ResponseError(local_var_error))
+    }
+}
+
 /// Lists Trucks.
 pub async fn list_trucks(configuration: &configuration::Configuration, params: ListTrucksParams) -> Result<Vec<models::Truck>, Error<ListTrucksError>> {
     let local_var_configuration = configuration;
@@ -798,6 +1010,8 @@ pub async fn list_trucks(configuration: &configuration::Configuration, params: L
     // unbox the parameters
     let plate_number = params.plate_number;
     let archived = params.archived;
+    let sort_by = params.sort_by;
+    let sort_direction = params.sort_direction;
     let first = params.first;
     let max = params.max;
 
@@ -812,6 +1026,12 @@ pub async fn list_trucks(configuration: &configuration::Configuration, params: L
     }
     if let Some(ref local_var_str) = archived {
         local_var_req_builder = local_var_req_builder.query(&[("archived", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = sort_by {
+        local_var_req_builder = local_var_req_builder.query(&[("sortBy", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = sort_direction {
+        local_var_req_builder = local_var_req_builder.query(&[("sortDirection", &local_var_str.to_string())]);
     }
     if let Some(ref local_var_str) = first {
         local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
