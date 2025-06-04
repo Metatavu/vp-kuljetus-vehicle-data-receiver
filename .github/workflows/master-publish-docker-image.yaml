@@ -23,18 +23,21 @@ jobs:
 
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        ref: master
 
     - name: Merge develop -> master
       run: |
-        git fetch
         git checkout master
-        git pull
         CHANGES=$(git log master..origin/develop --oneline)
         if [[ -z "$CHANGES" ]]; then
           echo "No changes to merge."
           echo "has_changes=no" >> $GITHUB_ENV
         else
           git merge origin/develop
+          git submodule update --init --recursive
           echo "has_changes=yes" >> $GITHUB_ENV
         fi
 
@@ -67,3 +70,10 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ steps.image_name.outputs.IMAGE_NAME }}:latest
         labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Push changes to master
+      if: env.has_changes == 'yes'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git push origin master
