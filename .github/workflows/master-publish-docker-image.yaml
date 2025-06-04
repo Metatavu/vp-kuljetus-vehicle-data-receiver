@@ -35,6 +35,7 @@ jobs:
           echo "has_changes=no" >> $GITHUB_ENV
         else
           git merge origin/develop
+          git submodule update --init --recursive
           echo "has_changes=yes" >> $GITHUB_ENV
         fi
 
