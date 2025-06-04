@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::{debug, info, warn};
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
@@ -121,6 +121,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         _: &str,
     ) -> Result<(), Error<CreateTemperatureReadingError>> {
         let mut errors = Vec::new();
+        debug!("Amount of readings: {}", event_data.len());
 
         for reading in event_data {
             let mut reading = reading.clone();
@@ -136,8 +137,11 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
             )
             .await
             {
-                Ok(_) => (),
+                Ok(_) => {
+                    debug!("Successfully sent temperature reading");
+                },
                 Err(e) => {
+                    debug!("Failed to send temperature reading");
                     errors.push(e);
                 }
             }
