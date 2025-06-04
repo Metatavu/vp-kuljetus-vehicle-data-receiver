@@ -23,12 +23,14 @@ jobs:
 
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        ref: master
 
     - name: Merge develop -> master
       run: |
-        git fetch
         git checkout master
-        git pull
         CHANGES=$(git log master..origin/develop --oneline)
         if [[ -z "$CHANGES" ]]; then
           echo "No changes to merge."
