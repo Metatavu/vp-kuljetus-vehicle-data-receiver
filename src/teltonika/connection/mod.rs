@@ -83,7 +83,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                     return Err(Error::new(ErrorKind::ConnectionAborted, "Invalid IMEI"));
                 }
 
-                info!(target: &imei, "New client connected");
+                //info!(target: &imei, "New client connected");
                 stream
                     .write_imei_approval_async()
                     .await

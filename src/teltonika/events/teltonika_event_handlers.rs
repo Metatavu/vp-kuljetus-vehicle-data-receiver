@@ -337,9 +337,9 @@ where
         }
         let successful_events_count = cache.len() - failed_events.len();
         let failed_events_count = failed_events.len();
-        debug!(target: log_target,
+        /*debug!(target: log_target,
             "Purged {successful_events_count} events for event ids: {event_ids} from cache with {failed_events_count} failures",
-        );
+        );*/
         T::write_vec_to_file(failed_events, base_cache_path).expect("Failed to write cache");
     }
 }
