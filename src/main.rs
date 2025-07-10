@@ -3,11 +3,15 @@ mod teltonika;
 mod utils;
 mod worker;
 
-use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable};
+use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable, worker::WORKER_TASKS};
 use futures::future::join_all;
 use lazy_static::lazy_static;
 use log::{info, warn};
-use std::{io::ErrorKind, path::Path};
+use std::{
+    io::{Error, ErrorKind},
+    path::Path,
+    time::Duration,
+};
 use tokio::net::TcpListener;
 
 const BASE_FILE_PATH_ENV_KEY: &str = "BASE_FILE_PATH";
@@ -80,13 +84,14 @@ async fn start_listener(listener: Listener) {
         });
     }
 }
+
 /// VP-Kuljetus Vehicle Data Receiver
 ///
 /// This application handles incoming TCP connections from Teltonika Telematics devices,
 /// processes the data and sends it to the VP-Kuljetus Vehicle Management Service API.
 ///
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     // This is retrieved from the environment on-demand but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY);
 
@@ -99,7 +104,20 @@ async fn main() {
         futures.push(start_listener(*listener));
     }
 
+    tokio::spawn(async move {
+        loop {
+            if let Ok(mut tasks) = WORKER_TASKS.lock() {
+                tasks.retain(|task| !task.is_finished());
+            } else {
+                warn!("Unable to achieve lock on WORKER_TASKS");
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    })
+    .await?;
     join_all(futures).await;
+
+    Ok(())
 }
 
 #[cfg(test)]

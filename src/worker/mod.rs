@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use lazy_static::lazy_static;
 use log::debug;
@@ -7,6 +10,7 @@ use rand::{thread_rng, Rng};
 use tokio::{
     runtime::{Builder, Runtime},
     sync::mpsc::Receiver,
+    task::JoinHandle,
 };
 use vehicle_management_service::models::Trackable;
 
@@ -26,6 +30,8 @@ lazy_static! {
         .enable_all()
         .build()
         .unwrap();
+
+    pub static ref WORKER_TASKS: Arc<Mutex<Vec<JoinHandle<()>>>> = Arc::new(Mutex::new(vec![]));
 }
 
 /// Message that is sent to the worker pool
@@ -44,7 +50,7 @@ pub enum WorkerMessage {
 /// This is called once a new connection is established and we start receiving records from the device.
 /// A multi-products single-consumer (MPSC) channel is created, receiver is passed to this function and the sender is used to send messages from the connection handler to the worker pool.
 pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
-    WORKER_RUNTIME.spawn(async move {
+    let task = WORKER_RUNTIME.spawn(async move {
         while let Some(msg) = receiver_channel.recv().await {
             match msg {
                 WorkerMessage::IncomingFrame {
@@ -57,6 +63,10 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
             }
         }
     });
+
+    if let Ok(mut tasks) = WORKER_TASKS.lock() {
+        tasks.push(task);
+    }
 }
 
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
