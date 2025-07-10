@@ -113,7 +113,7 @@ impl TeltonikaRecordsHandler {
     async fn handle_record_location(&self, record: &AVLRecord) {
         let location_data = TruckLocation::from_teltonika_record(record).unwrap();
         if let Some(trackable) = self.trackable.clone() {
-            debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
+            // debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
                 &get_vehicle_management_api_config(),
                 CreateTruckLocationParams {

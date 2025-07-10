@@ -74,8 +74,6 @@ fn handle_incoming_frame(
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
         if (imei == "864275072736500") {
             debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
-
-            debug!(target: &log_target, "Worker finished processing incoming frame");
         }
         TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
             .handle_records(frame.records, &listener, &imei)
@@ -91,10 +89,10 @@ fn handle_incoming_frame(
             CacheHandler::new(log_target.clone(), trackable, base_cache_path)
                 .purge_cache(purge_cache_size, &listener)
                 .await;
-            debug!(target: &log_target, "Worker finished purging cache",);
+            // debug!(target: &log_target, "Worker finished purging cache",);
         }
 
-        debug!(target: &log_target, "Worker finished purging cache");
+        // debug!(target: &log_target, "Worker finished purging cache");
     });
 }
 
