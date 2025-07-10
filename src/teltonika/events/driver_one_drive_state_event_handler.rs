@@ -17,6 +17,7 @@ use crate::{
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
 
+#[derive(Debug)]
 pub struct DriverOneDriveStateEventHandler;
 
 impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for DriverOneDriveStateEventHandler {

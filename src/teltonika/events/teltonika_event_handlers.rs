@@ -15,12 +15,19 @@ use vehicle_management_service::models::Trackable;
 /// Enumeration for Teltonika event handlers.
 ///
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
+#[derive(Debug)]
 pub enum TeltonikaEventHandlers<'a> {
     SpeedEventHandler((SpeedEventHandler, &'a str)),
     DriverOneCardEventHandler((DriverOneCardEventHandler, &'a str)),
     DriverOneDriveStateEventHandler((DriverOneDriveStateEventHandler, &'a str)),
     OdometerReadingEventHandler((OdometerReadingEventHandler, &'a str)),
     TemperatureSensorsReadingEventHandler((TemperatureSensorsReadingEventHandler, &'a str)),
+}
+
+impl Drop for TeltonikaEventHandlers<'_> {
+    fn drop(&mut self) {
+        debug!("Dropping TeltonikaEventHandler: {:?}", self);
+    }
 }
 
 impl<'a> TeltonikaEventHandlers<'a> {

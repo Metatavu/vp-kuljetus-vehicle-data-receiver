@@ -13,6 +13,7 @@ use crate::{
     Listener,
 };
 
+#[derive(Debug)]
 pub struct SpeedEventHandler;
 
 impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEventHandler {

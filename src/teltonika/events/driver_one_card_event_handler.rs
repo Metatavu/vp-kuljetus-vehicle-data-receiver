@@ -21,6 +21,7 @@ use crate::{
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
 
+#[derive(Debug)]
 pub struct DriverOneCardEventHandler;
 
 impl DriverOneCardEventHandler {
