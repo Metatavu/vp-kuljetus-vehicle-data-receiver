@@ -85,6 +85,24 @@ async fn start_listener(listener: Listener) {
     }
 }
 
+async fn clean_up_workers() {
+    tokio::spawn(async move {
+        loop {
+            if let Ok(mut tasks) = WORKER_TASKS.lock() {
+                let len = tasks.len();
+                info!("Cleaning finished tasks in WORKER_TASKS");
+                tasks.retain(|task| !task.is_finished());
+                let new_len = tasks.len();
+                let removed = len - new_len;
+                info!("Removed {removed} finished tasks from WORKER_TASKS, {new_len} tasks remaining",);
+            } else {
+                warn!("Unable to achieve lock on WORKER_TASKS");
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+}
+
 /// VP-Kuljetus Vehicle Data Receiver
 ///
 /// This application handles incoming TCP connections from Teltonika Telematics devices,
@@ -101,20 +119,11 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
     let mut futures = Vec::new();
     for listener in LISTENERS.iter() {
-        futures.push(start_listener(*listener));
+        let task = start_listener(*listener);
+        futures.push(task);
     }
 
-    tokio::spawn(async move {
-        loop {
-            if let Ok(mut tasks) = WORKER_TASKS.lock() {
-                tasks.retain(|task| !task.is_finished());
-            } else {
-                warn!("Unable to achieve lock on WORKER_TASKS");
-            }
-            tokio::time::sleep(Duration::from_secs(5)).await;
-        }
-    })
-    .await?;
+    clean_up_workers().await;
     join_all(futures).await;
 
     Ok(())
