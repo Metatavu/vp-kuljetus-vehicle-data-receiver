@@ -20,7 +20,7 @@ const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SER
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
 /// Allows for different configurations for different device types
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Listener {
     TeltonikaFMC650,
     TeltonikaFMC234,
@@ -56,8 +56,9 @@ async fn start_listener(listener: Listener) {
     };
 
     info!("Listening on: {}", address);
-
+    let mut connections = Vec::new();
     loop {
+        println!("Currently got {} connections for {listener:?}", connections.len());
         let socket = match tcp_listener.accept().await {
             Ok((sock, _)) => sock,
             Err(e) => {
@@ -68,7 +69,7 @@ async fn start_listener(listener: Listener) {
             true => file_path.clone(),
             false => "".to_string(),
         };
-        tokio::spawn(async move {
+        let connection = tokio::spawn(async move {
             if let Err(error) =
                 TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path), &listener).await
             {
@@ -82,6 +83,8 @@ async fn start_listener(listener: Listener) {
                 }
             };
         });
+
+        connections.push(connection);
     }
 }
 
