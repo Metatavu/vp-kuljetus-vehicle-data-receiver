@@ -6,7 +6,6 @@ use crate::{
 };
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
-use serde_json::de;
 use vehicle_management_service::{
     apis::trucks_api::CreateTruckLocationParams,
     models::{Trackable, TruckLocation},
@@ -59,6 +58,7 @@ impl TeltonikaRecordsHandler {
         debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
         debug!(target: &self.log_target, "Record trigger event id: {:?}", record.trigger_event_id);
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
+            debug!("Processing handler {handler:?}");
             let trigger_event_ids = handler.get_trigger_event_ids();
             if !trigger_event_ids.is_empty() && !trigger_event_ids.contains(&record.trigger_event_id) {
                 continue;

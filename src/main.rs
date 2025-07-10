@@ -20,7 +20,7 @@ const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SER
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
 /// Allows for different configurations for different device types
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Listener {
     TeltonikaFMC650,
     TeltonikaFMC234,
@@ -56,9 +56,10 @@ async fn start_listener(listener: Listener) {
     };
 
     info!("Listening on: {}", address);
-
+    let mut connections = Vec::new();
     loop {
-        let mut socket = match tcp_listener.accept().await {
+        println!("Currently got {} connections for {listener:?}", connections.len());
+        let socket = match tcp_listener.accept().await {
             Ok((sock, _)) => sock,
             Err(e) => {
                 panic!("Failed to accept connection: {}", e);
@@ -68,7 +69,7 @@ async fn start_listener(listener: Listener) {
             true => file_path.clone(),
             false => "".to_string(),
         };
-        tokio::spawn(async move {
+        let connection = tokio::spawn(async move {
             if let Err(error) =
                 TeltonikaConnection::handle_connection(socket, Path::new(&base_file_path), &listener).await
             {
@@ -82,7 +83,34 @@ async fn start_listener(listener: Listener) {
                 }
             };
         });
+
+        connections.push(connection);
     }
+}
+
+async fn clean_up_workers() {
+    tokio::spawn(async move {
+        loop {
+            if let Ok(mut tasks) = WORKER_TASKS.lock() {
+                let len = tasks.len();
+                info!("Cleaning finished tasks in WORKER_TASKS");
+                tasks.retain(|id, task| {
+                    if task.is_finished() {
+                        info!("Removing finished task with identifier: {id}");
+                        false // Remove the task
+                    } else {
+                        true // Keep the task
+                    }
+                });
+                let new_len = tasks.len();
+                let removed = len - new_len;
+                info!("Removed {removed} finished tasks from WORKER_TASKS, {new_len} tasks remaining",);
+            } else {
+                warn!("Unable to achieve lock on WORKER_TASKS");
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
 }
 
 /// VP-Kuljetus Vehicle Data Receiver
@@ -101,20 +129,11 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
     let mut futures = Vec::new();
     for listener in LISTENERS.iter() {
-        futures.push(start_listener(*listener));
+        let task = start_listener(*listener);
+        futures.push(task);
     }
 
-    tokio::spawn(async move {
-        loop {
-            if let Ok(mut tasks) = WORKER_TASKS.lock() {
-                tasks.retain(|task| !task.is_finished());
-            } else {
-                warn!("Unable to achieve lock on WORKER_TASKS");
-            }
-            tokio::time::sleep(Duration::from_secs(5)).await;
-        }
-    })
-    .await?;
+    clean_up_workers().await;
     join_all(futures).await;
 
     Ok(())

@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{debug, warn};
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
@@ -19,6 +19,7 @@ use crate::{
 
 use super::{teltonika_event_handlers::TeltonikaEventHandler, TeltonikaTemperatureSensors};
 
+#[derive(Debug)]
 pub struct TemperatureSensorsReadingEventHandler;
 
 impl TemperatureSensorsReadingEventHandler {
