@@ -72,15 +72,18 @@ fn handle_incoming_frame(
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
+        if (imei == "864275072736500") {
+            debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
 
-        debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
-
+            debug!(target: &log_target, "Worker finished processing incoming frame");
+        }
         TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
-            .handle_records(frame.records, &listener)
+            .handle_records(frame.records, &listener, &imei)
             .await;
 
-        debug!(target: &log_target, "Worker finished processing incoming frame");
-
+        if (imei == "864275072736500") {
+            debug!(target: &log_target, "Worker finished processing incoming frame");
+        }
         if let Some(trackable) = trackable {
             let purge_cache_size =
                 read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);

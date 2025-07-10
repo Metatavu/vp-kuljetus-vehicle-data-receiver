@@ -139,7 +139,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
             {
                 Ok(_) => {
                     debug!("Successfully sent temperature reading");
-                },
+                }
                 Err(e) => {
                     debug!("Failed to send temperature reading");
                     errors.push(e);

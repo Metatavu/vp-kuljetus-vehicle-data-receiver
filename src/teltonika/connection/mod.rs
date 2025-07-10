@@ -136,12 +136,13 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             match self.teltonika_stream.read_frame_async().await {
                 Ok(frame) => {
                     let records_count = frame.records.len();
-
-                    debug!(
-                        target: self.log_target(),
-                        "Received frame with {} records from",
-                        records_count
-                    );
+                    if (self.imei == "864275072736500") {
+                        debug!(
+                            target: self.log_target(),
+                            "Received frame with {} records from",
+                            records_count
+                        );
+                    }
 
                     self.write_data_to_log_file(&mut file_handle, &frame);
 

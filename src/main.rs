@@ -318,7 +318,11 @@ mod tests {
         let packet = AVLFrameBuilder::new().add_record(record).build();
 
         record_handler
-            .handle_records(packet.records, &Listener::TeltonikaFMC650)
+            .handle_records(
+                packet.records,
+                &Listener::TeltonikaFMC650,
+                &String::from("1069619335000001"),
+            )
             .await;
 
         let base_cache_path = record_handler.base_cache_path();

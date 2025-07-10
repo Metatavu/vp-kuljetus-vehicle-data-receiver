@@ -6,6 +6,7 @@ use crate::{
 };
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
+use serde_json::de;
 use vehicle_management_service::{
     apis::trucks_api::CreateTruckLocationParams,
     models::{Trackable, TruckLocation},
@@ -37,9 +38,9 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
-    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener) {
+    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener, imei: &String) {
         for record in teltonika_records.iter() {
-            self.handle_record(record, listener).await;
+            self.handle_record(record, listener, imei).await;
         }
     }
 
@@ -49,15 +50,17 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
-    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) {
+    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener, imei: &String) {
         self.handle_record_location(record).await;
         let trigger_event = record
             .io_events
             .iter()
             .find(|event| event.id == record.trigger_event_id);
-        debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
-        debug!(target: &self.log_target, "Record trigger event id: {:?}", record.trigger_event_id);
-        
+        //debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
+        //debug!(target: &self.log_target, "Record trigger event id: {:?}", record.trigger_event_id);
+        if (imei == "864275072736500") {
+            debug!("HANDLING RECORD");
+        }
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             let trigger_event_ids = handler.get_trigger_event_ids();
             if !trigger_event_ids.is_empty() && !trigger_event_ids.contains(&record.trigger_event_id) {
@@ -82,6 +85,10 @@ impl TeltonikaRecordsHandler {
             // If the handler requires all events and we don't have all of them we skip the handler
             if handler.require_all_events() && handler.get_event_ids(listener).len() != events.len() {
                 continue;
+            }
+
+            if (imei == "864275072736500") {
+                debug!("HANDLING EVENTS");
             }
             handler
                 .handle_events(
