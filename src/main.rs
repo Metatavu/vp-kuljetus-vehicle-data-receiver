@@ -37,7 +37,7 @@ impl Listener {
 }
 
 lazy_static! {
-    static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC234, Listener::TeltonikaFMC650];
+    static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC650, Listener::TeltonikaFMC234];
 }
 
 /// Starts a listener
