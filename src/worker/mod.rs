@@ -50,23 +50,25 @@ pub enum WorkerMessage {
 /// This is called once a new connection is established and we start receiving records from the device.
 /// A multi-products single-consumer (MPSC) channel is created, receiver is passed to this function and the sender is used to send messages from the connection handler to the worker pool.
 pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
-    let task = WORKER_RUNTIME.spawn(async move {
+    WORKER_RUNTIME.spawn(async move {
         while let Some(msg) = receiver_channel.recv().await {
-            match msg {
-                WorkerMessage::IncomingFrame {
-                    frame,
-                    trackable,
-                    base_cache_path,
-                    imei,
-                    listener,
-                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener).await,
+            let task = tokio::spawn(async move {
+                match msg {
+                    WorkerMessage::IncomingFrame {
+                        frame,
+                        trackable,
+                        base_cache_path,
+                        imei,
+                        listener,
+                    } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener).await,
+                }
+            });
+
+            if let Ok(mut tasks) = WORKER_TASKS.lock() {
+                tasks.push(task);
             }
         }
     });
-
-    if let Ok(mut tasks) = WORKER_TASKS.lock() {
-        tasks.push(task);
-    }
 }
 
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
