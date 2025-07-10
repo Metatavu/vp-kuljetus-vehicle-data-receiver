@@ -58,7 +58,7 @@ async fn start_listener(listener: Listener) {
     info!("Listening on: {}", address);
 
     loop {
-        let mut socket = match tcp_listener.accept().await {
+        let socket = match tcp_listener.accept().await {
             Ok((sock, _)) => sock,
             Err(e) => {
                 panic!("Failed to accept connection: {}", e);
@@ -91,7 +91,14 @@ async fn clean_up_workers() {
             if let Ok(mut tasks) = WORKER_TASKS.lock() {
                 let len = tasks.len();
                 info!("Cleaning finished tasks in WORKER_TASKS");
-                tasks.retain(|task| !task.is_finished());
+                tasks.retain(|id, task| {
+                    if task.is_finished() {
+                        info!("Removing finished task with identifier: {id}");
+                        false // Remove the task
+                    } else {
+                        true // Keep the task
+                    }
+                });
                 let new_len = tasks.len();
                 let removed = len - new_len;
                 info!("Removed {removed} finished tasks from WORKER_TASKS, {new_len} tasks remaining",);

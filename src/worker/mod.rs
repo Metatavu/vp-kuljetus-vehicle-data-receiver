@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -31,7 +32,7 @@ lazy_static! {
         .build()
         .unwrap();
 
-    pub static ref WORKER_TASKS: Arc<Mutex<Vec<JoinHandle<()>>>> = Arc::new(Mutex::new(vec![]));
+    pub static ref WORKER_TASKS: Arc<Mutex<HashMap<u32, JoinHandle<()>>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 /// Message that is sent to the worker pool
@@ -52,6 +53,7 @@ pub enum WorkerMessage {
 pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
     WORKER_RUNTIME.spawn(async move {
         while let Some(msg) = receiver_channel.recv().await {
+            let identifier: u32 = thread_rng().gen();
             let task = tokio::spawn(async move {
                 match msg {
                     WorkerMessage::IncomingFrame {
@@ -60,12 +62,12 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
                         base_cache_path,
                         imei,
                         listener,
-                    } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener).await,
+                    } => handle_incoming_frame(identifier, frame, trackable, base_cache_path, imei, listener).await,
                 }
             });
 
             if let Ok(mut tasks) = WORKER_TASKS.lock() {
-                tasks.push(task);
+                tasks.insert(identifier, task);
             }
         }
     });
@@ -75,13 +77,13 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
 async fn handle_incoming_frame(
+    identifier: u32,
     frame: AVLFrame,
     trackable: Option<Trackable>,
     base_cache_path: PathBuf,
     imei: String,
     listener: Listener,
 ) {
-    let identifier: u32 = thread_rng().gen();
     let log_target = imei.clone() + "-" + identifier.to_string().as_str();
 
     debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
