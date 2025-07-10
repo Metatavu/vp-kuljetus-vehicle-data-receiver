@@ -249,7 +249,7 @@ where
                 self.cache_event_data(event_data, base_cache_path);
             }
         } else {
-            debug!(target: log_target, "Caching event for yet unknown truck");
+            //debug!(target: log_target, "Caching event for yet unknown truck");
             self.cache_event_data(event_data, base_cache_path);
         };
     }
