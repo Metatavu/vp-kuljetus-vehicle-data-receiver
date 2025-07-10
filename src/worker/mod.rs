@@ -53,7 +53,7 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
                     base_cache_path,
                     imei,
                     listener,
-                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
+                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener).await,
             }
         }
     });
@@ -62,38 +62,35 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(
+async fn handle_incoming_frame(
     frame: AVLFrame,
     trackable: Option<Trackable>,
     base_cache_path: PathBuf,
     imei: String,
     listener: Listener,
 ) {
-    tokio::spawn(async move {
-        let identifier: u32 = thread_rng().gen();
-        let log_target = imei.clone() + "-" + identifier.to_string().as_str();
-        if (imei == "864275072736500") {
-            debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
-        }
-        TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
-            .handle_records(frame.records, &listener, &imei)
+    let identifier: u32 = thread_rng().gen();
+    let log_target = imei.clone() + "-" + identifier.to_string().as_str();
+    if (imei == "864275072736500") {
+        debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
+    }
+    TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), base_cache_path.clone())
+        .handle_records(frame.records, &listener, &imei)
+        .await;
+
+    if (imei == "864275072736500") {
+        debug!(target: &log_target, "Worker finished processing incoming frame");
+    }
+    if let Some(trackable) = trackable {
+        let purge_cache_size = read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);
+        debug!(target: &log_target, "Purging cache for trackable {}", trackable.id.clone());
+        CacheHandler::new(log_target.clone(), trackable, base_cache_path)
+            .purge_cache(purge_cache_size, &listener)
             .await;
+        // debug!(target: &log_target, "Worker finished purging cache",);
+    }
 
-        if (imei == "864275072736500") {
-            debug!(target: &log_target, "Worker finished processing incoming frame");
-        }
-        if let Some(trackable) = trackable {
-            let purge_cache_size =
-                read_env_variable_with_default_value(PURGE_CHUNK_SIZE_ENV_KEY, DEFAULT_PURGE_CHUNK_SIZE);
-            debug!(target: &log_target, "Purging cache for trackable {}", trackable.id.clone());
-            CacheHandler::new(log_target.clone(), trackable, base_cache_path)
-                .purge_cache(purge_cache_size, &listener)
-                .await;
-            // debug!(target: &log_target, "Worker finished purging cache",);
-        }
-
-        // debug!(target: &log_target, "Worker finished purging cache");
-    });
+    // debug!(target: &log_target, "Worker finished purging cache");
 }
 
 #[cfg(test)]
