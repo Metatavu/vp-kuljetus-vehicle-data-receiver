@@ -20,7 +20,7 @@ pub async fn get_trackable(imei: &str) -> Option<Trackable> {
     {
         Ok(trackable) => Some(trackable),
         Err(err) => {
-            //warn!("Failed to get trackable by IMEI [{}]: {}", imei, err);
+            warn!("Failed to get trackable by IMEI [{}]: {}", imei, err);
             None
         }
     }

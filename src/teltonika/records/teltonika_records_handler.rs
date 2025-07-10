@@ -56,11 +56,8 @@ impl TeltonikaRecordsHandler {
             .io_events
             .iter()
             .find(|event| event.id == record.trigger_event_id);
-        //debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
-        //debug!(target: &self.log_target, "Record trigger event id: {:?}", record.trigger_event_id);
-        if (imei == "864275072736500") {
-            debug!("HANDLING RECORD");
-        }
+        debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
+        debug!(target: &self.log_target, "Record trigger event id: {:?}", record.trigger_event_id);
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             let trigger_event_ids = handler.get_trigger_event_ids();
             if !trigger_event_ids.is_empty() && !trigger_event_ids.contains(&record.trigger_event_id) {
@@ -87,9 +84,6 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
 
-            if (imei == "864275072736500") {
-                debug!("HANDLING EVENTS");
-            }
             handler
                 .handle_events(
                     record.trigger_event_id,
@@ -113,7 +107,7 @@ impl TeltonikaRecordsHandler {
     async fn handle_record_location(&self, record: &AVLRecord) {
         let location_data = TruckLocation::from_teltonika_record(record).unwrap();
         if let Some(trackable) = self.trackable.clone() {
-            // debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
+            debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
                 &get_vehicle_management_api_config(),
                 CreateTruckLocationParams {
@@ -132,7 +126,7 @@ impl TeltonikaRecordsHandler {
                     .expect("Error caching location");
             }
         } else {
-            // debug!(target: &self.log_target, "Caching location for yet unknown truck");
+            debug!(target: &self.log_target, "Caching location for yet unknown truck");
             location_data
                 .write_to_file(self.base_cache_path.clone())
                 .expect("Error caching location");

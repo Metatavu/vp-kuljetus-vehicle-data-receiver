@@ -63,9 +63,9 @@ impl CacheHandler {
         let mut failed_locations = Vec::new();
 
         let purge_cache_size = cache.len();
-        /*debug!(target: &self.log_target,
+        debug!(target: &self.log_target,
             "Purging location cache of {purge_cache_size}/{cache_size} locations.",
-        );*/
+        );
 
         for cached_location in cache.iter() {
             match &self.trackable.trackable_type {
@@ -92,9 +92,9 @@ impl CacheHandler {
         }
         let successful_locations_count = cache.len() - failed_locations.len();
         let failed_locations_count = failed_locations.len();
-        /*debug!(target: &self.log_target,
+        debug!(target: &self.log_target,
             "Purged location cache of {successful_locations_count} locations. {failed_locations_count} failed to send.",
-        );*/
+        );
         TruckLocation::write_vec_to_file(failed_locations, self.base_cache_path.clone())
             .expect("Error caching locations");
     }
