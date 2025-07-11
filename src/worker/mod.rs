@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use lazy_static::lazy_static;
 use log::debug;
@@ -22,7 +22,7 @@ lazy_static! {
     ///
     /// The worker pool is responsible for processing incoming or cached AVL frames on the background.
     static ref WORKER_RUNTIME: Runtime = Builder::new_multi_thread()
-        .thread_name("worker-pool")
+        .thread_name("worker-pool").thread_keep_alive(Duration::from_secs(120))
         .enable_all()
         .build()
         .unwrap();
