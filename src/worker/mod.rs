@@ -69,7 +69,7 @@ fn handle_incoming_frame(
     imei: String,
     listener: Listener,
 ) {
-    tokio::spawn(async move {
+    WORKER_RUNTIME.spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
 
