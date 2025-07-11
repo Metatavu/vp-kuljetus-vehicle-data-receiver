@@ -145,8 +145,8 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     debug!(
                         target: self.log_target(),
-                        "Received frame with {} records from",
-                        records_count
+                        "Received frame with {records_count} records from"
+
                     );
 
                     self.write_data_to_log_file(&mut file_handle, &frame);

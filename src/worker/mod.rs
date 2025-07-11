@@ -45,15 +45,21 @@ pub enum WorkerMessage {
 /// A multi-products single-consumer (MPSC) channel is created, receiver is passed to this function and the sender is used to send messages from the connection handler to the worker pool.
 pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
     WORKER_RUNTIME.spawn(async move {
-        while let Some(msg) = receiver_channel.recv().await {
-            match msg {
-                WorkerMessage::IncomingFrame {
-                    frame,
-                    trackable,
-                    base_cache_path,
-                    imei,
-                    listener,
-                } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
+        loop {
+            match receiver_channel.recv().await {
+                Some(msg) => match msg {
+                    WorkerMessage::IncomingFrame {
+                        frame,
+                        trackable,
+                        base_cache_path,
+                        imei,
+                        listener,
+                    } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
+                },
+                None => {
+                    debug!("Worker channel closed, exiting worker loop");
+                    break;
+                }
             }
         }
     });
