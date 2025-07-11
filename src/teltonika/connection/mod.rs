@@ -1,6 +1,6 @@
 use base64::Engine;
 use chrono::{Datelike, Utc};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
 use rand::{thread_rng, Rng};
 use serde::Serialize;
@@ -8,10 +8,12 @@ use std::{
     fs::{create_dir_all, File, OpenOptions},
     io::{Error, ErrorKind, Write},
     path::{Path, PathBuf},
+    time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::mpsc::{self, Sender},
+    time::timeout,
 };
 use vehicle_management_service::models::Trackable;
 
@@ -149,8 +151,17 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     self.write_data_to_log_file(&mut file_handle, &frame);
 
-                    self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
+                    let ack_result = timeout(
+                        Duration::from_secs(5),
+                        self.teltonika_stream.write_frame_ack_async(Some(&frame)),
+                    )
+                    .await;
 
+                    match ack_result {
+                        Ok(Ok(())) => debug!(target: self.log_target(),"ACK sent successfully"),
+                        Ok(Err(e)) => error!(target: self.log_target(),"ACK write failed: {}", e),
+                        Err(_) => warn!(target: self.log_target(),"ACK write timed out"),
+                    }
                     if let Err(err) = self
                         .sender_channel
                         .send(WorkerMessage::IncomingFrame {
