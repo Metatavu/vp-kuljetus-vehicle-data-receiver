@@ -19,6 +19,7 @@ use crate::{
 
 use super::{teltonika_event_handlers::TeltonikaEventHandler, TeltonikaTemperatureSensors};
 
+#[derive(Debug)]
 pub struct TemperatureSensorsReadingEventHandler;
 
 impl TemperatureSensorsReadingEventHandler {

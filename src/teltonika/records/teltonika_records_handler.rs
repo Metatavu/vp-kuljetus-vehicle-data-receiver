@@ -4,6 +4,7 @@ use crate::{
     telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
     Listener,
 };
+use futures::future::join_all;
 use log::debug;
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use vehicle_management_service::{
@@ -38,9 +39,10 @@ impl TeltonikaRecordsHandler {
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
     pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener) {
-        for record in teltonika_records.iter() {
-            self.handle_record(record, listener).await;
-        }
+        let tasks = teltonika_records
+            .iter()
+            .map(|record| self.handle_record(record, listener));
+        join_all(tasks).await;
     }
 
     /// Handles a single Teltonika [AVLRecord].

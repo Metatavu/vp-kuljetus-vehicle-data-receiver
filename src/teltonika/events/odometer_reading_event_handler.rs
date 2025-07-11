@@ -16,6 +16,7 @@ use crate::{
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
 
+#[derive(Debug)]
 pub struct OdometerReadingEventHandler;
 
 impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadingError>>

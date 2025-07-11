@@ -200,6 +200,7 @@ where
     T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
     E: Debug,
     Vec<T>: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
+    Self: std::fmt::Debug,
 {
     fn require_all_events(&self) -> bool {
         true
@@ -238,6 +239,7 @@ where
     ) {
         let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target, listener);
         if event_data.is_none() {
+            debug!(target: &log_target, "No event data to handle for {self:?}");
             return;
         }
         let event_data = event_data.unwrap();
