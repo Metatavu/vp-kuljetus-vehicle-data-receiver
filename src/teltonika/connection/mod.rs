@@ -19,7 +19,7 @@ use crate::{
     telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
     teltonika::records::TeltonikaRecordsHandler,
     utils::{api::get_trackable, read_env_variable_with_default_value},
-    worker::{self, handle_incoming_frame, WorkerMessage},
+    worker::{self, WorkerMessage},
     Listener,
 };
 
@@ -48,7 +48,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             listener: listener,
         };
 
-        //worker::spawn(rx);
+        worker::spawn(rx);
 
         teltonika_connection
     }
@@ -151,7 +151,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
 
-                    /*if let Err(err) = self
+                    if let Err(err) = self
                         .sender_channel
                         .send(WorkerMessage::IncomingFrame {
                             frame: frame.clone(),
@@ -163,15 +163,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         .await
                     {
                         error!(target: self.log_target(), "Failed to send frame to worker: {}", err);
-                    };*/
-
-                    handle_incoming_frame(
-                        frame.clone(),
-                        self.trackable.clone(),
-                        base_log_file_path.clone(),
-                        self.imei.clone(),
-                        self.listener,
-                    );
+                    };
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {
