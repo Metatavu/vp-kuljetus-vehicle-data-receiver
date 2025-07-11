@@ -62,14 +62,14 @@ pub fn spawn(mut receiver_channel: Receiver<WorkerMessage>) {
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-fn handle_incoming_frame(
+pub fn handle_incoming_frame(
     frame: AVLFrame,
     trackable: Option<Trackable>,
     base_cache_path: PathBuf,
     imei: String,
     listener: Listener,
 ) {
-    WORKER_RUNTIME.spawn(async move {
+    tokio::spawn(async move {
         let identifier: u32 = thread_rng().gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
 
