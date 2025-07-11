@@ -152,7 +152,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                     self.write_data_to_log_file(&mut file_handle, &frame);
 
                     let ack_result = timeout(
-                        Duration::from_secs(5),
+                        Duration::from_secs(60),
                         self.teltonika_stream.write_frame_ack_async(Some(&frame)),
                     )
                     .await;
