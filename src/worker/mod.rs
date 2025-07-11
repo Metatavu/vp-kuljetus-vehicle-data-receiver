@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::{io::Error, path::PathBuf, time::Duration};
 
 use lazy_static::lazy_static;
 use log::debug;
@@ -6,7 +6,8 @@ use nom_teltonika::AVLFrame;
 use rand::{thread_rng, Rng};
 use tokio::{
     runtime::{Builder, Runtime},
-    sync::mpsc::Receiver,
+    sync::mpsc::{error::SendError, Receiver, Sender},
+    task::JoinHandle,
 };
 use vehicle_management_service::models::Trackable;
 
@@ -22,7 +23,7 @@ lazy_static! {
     ///
     /// The worker pool is responsible for processing incoming or cached AVL frames on the background.
     static ref WORKER_RUNTIME: Runtime = Builder::new_multi_thread()
-        .thread_name("worker-pool").thread_keep_alive(Duration::from_secs(120))
+        .thread_name("worker-pool")
         .enable_all()
         .build()
         .unwrap();
@@ -37,6 +38,42 @@ pub enum WorkerMessage {
         imei: String,
         listener: Listener,
     },
+}
+
+pub struct Worker {
+    handle: JoinHandle<()>,
+    sender: Sender<WorkerMessage>,
+}
+
+impl Worker {
+    pub async fn send(&self, msg: WorkerMessage) -> Result<(), SendError<WorkerMessage>> {
+        self.sender.send(msg).await
+    }
+}
+
+pub fn spawn_2(channel: (Sender<WorkerMessage>, Receiver<WorkerMessage>)) -> Worker {
+    let (sender, mut receiver) = channel;
+    let handle = WORKER_RUNTIME.spawn(async move {
+        loop {
+            match receiver.recv().await {
+                Some(msg) => match msg {
+                    WorkerMessage::IncomingFrame {
+                        frame,
+                        trackable,
+                        base_cache_path,
+                        imei,
+                        listener,
+                    } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
+                },
+                None => {
+                    debug!("Worker channel closed, exiting worker loop");
+                    break;
+                }
+            }
+        }
+    });
+
+    Worker { handle, sender }
 }
 
 /// Spawns a future that listens for incoming messages on the receiver channel

@@ -1,6 +1,6 @@
 use base64::Engine;
 use chrono::{Datelike, Utc};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
 use rand::{thread_rng, Rng};
 use serde::Serialize;
@@ -8,10 +8,12 @@ use std::{
     fs::{create_dir_all, File, OpenOptions},
     io::{Error, ErrorKind, Write},
     path::{Path, PathBuf},
+    time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::mpsc::{self, Sender},
+    time::timeout,
 };
 use vehicle_management_service::models::Trackable;
 
@@ -19,7 +21,7 @@ use crate::{
     telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
     teltonika::records::TeltonikaRecordsHandler,
     utils::{api::get_trackable, read_env_variable_with_default_value},
-    worker::{self, WorkerMessage},
+    worker::{self, Worker, WorkerMessage},
     Listener,
 };
 
@@ -27,7 +29,7 @@ pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
     trackable: Option<Trackable>,
-    sender_channel: Sender<WorkerMessage>,
+    worker: Worker,
     listener: Listener,
 }
 
@@ -39,16 +41,14 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `imei` - IMEI of the device
     /// * `listener` - Listener
     pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener) -> Self {
-        let (tx, rx) = mpsc::channel::<WorkerMessage>(4000);
+        let channel = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei,
             trackable: None,
-            sender_channel: tx,
+            worker: worker::spawn_2(channel),
             listener: listener,
         };
-
-        worker::spawn(rx);
 
         teltonika_connection
     }
@@ -149,10 +149,20 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     self.write_data_to_log_file(&mut file_handle, &frame);
 
-                    self.teltonika_stream.write_frame_ack_async(Some(&frame)).await?;
+                    let ack_result = timeout(
+                        Duration::from_secs(60),
+                        self.teltonika_stream.write_frame_ack_async(Some(&frame)),
+                    )
+                    .await;
+
+                    match ack_result {
+                        Ok(Ok(())) => debug!(target: self.log_target(),"ACK sent successfully"),
+                        Ok(Err(e)) => error!(target: self.log_target(),"ACK write failed: {}", e),
+                        Err(_) => warn!(target: self.log_target(),"ACK write timed out"),
+                    }
 
                     if let Err(err) = self
-                        .sender_channel
+                        .worker
                         .send(WorkerMessage::IncomingFrame {
                             frame: frame.clone(),
                             trackable: self.trackable.clone(),
