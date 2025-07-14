@@ -15,6 +15,7 @@ use vehicle_management_service::models::Trackable;
 /// Enumeration for Teltonika event handlers.
 ///
 /// This enumeration is used to store the different Teltonika event handlers and allow inheritance-like behavior.
+#[derive(Debug)]
 pub enum TeltonikaEventHandlers<'a> {
     SpeedEventHandler((SpeedEventHandler, &'a str)),
     DriverOneCardEventHandler((DriverOneCardEventHandler, &'a str)),

@@ -78,7 +78,9 @@ impl TeltonikaRecordsHandler {
                 .flatten()
                 .collect::<Vec<&AVLEventIO>>();
             // If we don't have any events we skip the handler
+            debug!(target: &self.log_target, "{record:#?}");
             if events.is_empty() {
+                debug!(target: &self.log_target, "No events found for handler: {handler:?}");
                 continue;
             }
             // If the handler requires all events and we don't have all of them we skip the handler
