@@ -44,9 +44,9 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         let channel = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
-            imei,
+            imei: imei.clone(),
             trackable: None,
-            worker: worker::spawn_2(channel),
+            worker: worker::spawn_2(channel, imei),
             listener: listener,
         };
 

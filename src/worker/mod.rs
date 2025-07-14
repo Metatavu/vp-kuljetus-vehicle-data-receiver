@@ -51,22 +51,27 @@ impl Worker {
     }
 }
 
-pub fn spawn_2(channel: (Sender<WorkerMessage>, Receiver<WorkerMessage>)) -> Worker {
+pub fn spawn_2(channel: (Sender<WorkerMessage>, Receiver<WorkerMessage>), imei: String) -> Worker {
+    debug!(target: &imei, "Spawning worker");
     let (sender, mut receiver) = channel;
     let handle = WORKER_RUNTIME.spawn(async move {
         loop {
+            debug!(target: &imei, "Waiting for incoming frame");
             match receiver.recv().await {
-                Some(msg) => match msg {
-                    WorkerMessage::IncomingFrame {
-                        frame,
-                        trackable,
-                        base_cache_path,
-                        imei,
-                        listener,
-                    } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
-                },
+                Some(msg) => {
+                    debug!(target: &imei, "Received incoming frame");
+                    match msg {
+                        WorkerMessage::IncomingFrame {
+                            frame,
+                            trackable,
+                            base_cache_path,
+                            imei,
+                            listener,
+                        } => handle_incoming_frame(frame, trackable, base_cache_path, imei, listener),
+                    }
+                }
                 None => {
-                    debug!("Worker channel closed, exiting worker loop");
+                    debug!(target: &imei, "Worker channel closed, exiting worker loop");
                     break;
                 }
             }
