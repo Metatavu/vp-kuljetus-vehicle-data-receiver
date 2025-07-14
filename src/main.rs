@@ -16,7 +16,7 @@ const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SER
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
 /// Allows for different configurations for different device types
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Listener {
     TeltonikaFMC650,
     TeltonikaFMC234,

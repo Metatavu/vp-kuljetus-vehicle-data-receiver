@@ -52,7 +52,11 @@ impl TeltonikaRecordsHandler {
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
     pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) {
-        self.handle_record_location(record).await;
+        if *listener == Listener::TeltonikaFMC234 {
+            debug!(target: &self.log_target, "Skipping location for {listener:?} listener as not yet implemented on backend")
+        } else {
+            self.handle_record_location(record).await;
+        }
         let trigger_event = record
             .io_events
             .iter()
@@ -109,7 +113,7 @@ impl TeltonikaRecordsHandler {
     /// * `record` - The [AVLRecord] to handle the location for.
     async fn handle_record_location(&self, record: &AVLRecord) {
         let location_data = TruckLocation::from_teltonika_record(record).unwrap();
-        if let Some(trackable) = self.trackable.clone() {
+        if let Some(trackable) = &self.trackable {
             debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
                 &get_vehicle_management_api_config(),
