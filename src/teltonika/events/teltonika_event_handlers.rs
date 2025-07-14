@@ -244,7 +244,7 @@ where
         }
         let event_data = event_data.unwrap();
         if let Some(trackable) = trackable {
-            debug!(target: log_target, "Handling event for {}: {}", trackable.trackable_type, trackable.id);
+            debug!(target: log_target, "[{self:?}] handling  event for {}: {}", trackable.trackable_type, trackable.id);
             let send_event_result = self.send_event(&event_data, trackable, log_target).await;
             if let Err(err) = send_event_result {
                 error!(target: log_target, "Error sending event: {err:?}. Caching it for further use.");

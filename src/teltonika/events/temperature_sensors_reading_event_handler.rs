@@ -171,7 +171,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         for sensor in TeltonikaTemperatureSensors::iterator() {
             readings.push(self.parse_readings_from_events(log_target, events, sensor, timestamp, listener));
         }
-
+        debug!(target: log_target, "Parsed readings: {:?}", readings);
         Some(
             readings
                 .iter()
