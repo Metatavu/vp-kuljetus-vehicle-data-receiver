@@ -65,13 +65,8 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
                 let file_path = base_file_path.join(&imei);
-
-                if (imei == "864275072736500") {
-                    let mut connection = Self::new(stream, imei, *listener);
-
-                    connection.run(&file_path).await.expect("Failed to run");
-                }
-
+                let mut connection = Self::new(stream, imei, *listener);
+                connection.run(&file_path).await.expect("Failed to run");
                 Ok(())
             }
             Err(err) => Err(err),
