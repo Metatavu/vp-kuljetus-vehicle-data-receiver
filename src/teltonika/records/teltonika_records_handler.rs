@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    error::{self, Error},
+    path::PathBuf,
+};
 
 use crate::{
     telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
@@ -82,7 +85,7 @@ impl TeltonikaRecordsHandler {
                 .flatten()
                 .collect::<Vec<&AVLEventIO>>();
             // If we don't have any events we skip the handler
-            debug!(target: &self.log_target, "{record:#?}");
+            //debug!(target: &self.log_target, "{record:#?}");
             if events.is_empty() {
                 debug!(target: &self.log_target, "No events found for handler: {handler:?}");
                 continue;
@@ -91,6 +94,7 @@ impl TeltonikaRecordsHandler {
             if handler.require_all_events() && handler.get_event_ids(listener).len() != events.len() {
                 continue;
             }
+
             handler
                 .handle_events(
                     record.trigger_event_id,
@@ -101,6 +105,7 @@ impl TeltonikaRecordsHandler {
                     listener,
                 )
                 .await;
+            debug!(target: &self.log_target, "Handler {handler:?} processed events successfully")
         }
     }
 

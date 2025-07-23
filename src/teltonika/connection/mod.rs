@@ -160,7 +160,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         Err(_) => warn!(target: self.log_target(),"ACK write timed out"),
                     }
 
-                    if let Err(err) = self
+                    let send_result = self
                         .worker
                         .send(WorkerMessage::IncomingFrame {
                             frame: frame.clone(),
@@ -169,9 +169,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                             imei: self.imei.clone(),
                             listener: self.listener,
                         })
-                        .await
-                    {
-                        error!(target: self.log_target(), "Failed to send frame to worker: {}", err);
+                        .await;
+
+                    match send_result {
+                        Ok(_) => debug!(target: self.log_target(), "Frame sent to worker successfully"),
+                        Err(err) => error!(target: self.log_target(), "Failed to send frame to worker: {}", err),
                     };
                 }
                 Err(err) => match err.kind() {
