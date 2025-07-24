@@ -119,10 +119,10 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         &self,
         event_data: &Vec<TemperatureReading>,
         trackable: Trackable,
-        _: &str,
+        log_target: &str,
     ) -> Result<(), Error<CreateTemperatureReadingError>> {
         let mut errors = Vec::new();
-        debug!("Amount of readings: {}", event_data.len());
+        debug!(target: log_target, "Amount of readings: {}", event_data.len());
 
         for reading in event_data {
             let mut reading = reading.clone();
@@ -139,10 +139,10 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
             .await
             {
                 Ok(_) => {
-                    debug!("Successfully sent temperature reading");
+                    debug!(target: log_target, "Successfully sent temperature reading");
                 }
                 Err(e) => {
-                    debug!("Failed to send temperature reading");
+                    debug!(target: log_target, "Failed to send temperature reading");
                     errors.push(e);
                 }
             }
