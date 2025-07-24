@@ -130,6 +130,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
                 TrackableType::Towable => TemperatureReadingSourceType::Towable,
                 TrackableType::Truck => TemperatureReadingSourceType::Truck,
             };
+            debug!(target: log_target, "Sending reading to server");
             match create_temperature_reading(
                 &get_vehicle_management_api_config(),
                 CreateTemperatureReadingParams {
