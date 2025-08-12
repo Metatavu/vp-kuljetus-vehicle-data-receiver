@@ -1,7 +1,6 @@
 mod test_utils;
 
 use chrono::{DateTime, Duration, Utc};
-use log::info;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue, AVLFrame, Priority};
 use tokio::io::AsyncWriteExt;
 
@@ -12,6 +11,15 @@ use vp_kuljetus_vehicle_data_receiver::utils::imei::get_random_imei;
 use test_utils::tms_services_test_container::TmsServicesTestContainer;
 
 use crate::test_utils::data_receiver_test_container::DataReceiverTestContainer;
+
+fn setup_logging() {
+    let _ = env_logger::builder()
+        .is_test(true)
+        .target(env_logger::Target::Stdout)
+        .try_init();
+}
+
+// docker build . -t vp-kuljetus-vehicle-data-receiver:test && RUST_LOG=trace cargo test -- --nocapture
 
 fn create_frame_with_temperature(timestamp: DateTime<Utc>) -> AVLFrame {
     return AVLFrameBuilder::new()
@@ -78,11 +86,7 @@ fn create_frame_with_temperature(timestamp: DateTime<Utc>) -> AVLFrame {
 /// This test sends a frame with a temperature reading and checks if the reading is correctly processed and stored.
 #[tokio::test]
 async fn test_fmc234_single_temperature() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Trace)
-        .target(env_logger::Target::Stdout)
-        .try_init();
+    setup_logging();
 
     let imei = get_random_imei();
 
@@ -107,8 +111,6 @@ async fn test_fmc234_single_temperature() {
 
     let frame_with_temperature = create_frame_with_temperature(timestamp);
 
-    info!("Sending frame with temperature: {:?}", frame_with_temperature);
-
     data_receiver_test_container
         .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
         .await;
@@ -118,18 +120,15 @@ async fn test_fmc234_single_temperature() {
 
     fmc234_tcp_stream.shutdown().await.ok();
 
-    info!("Connection to FMC 234 server closed");
+    api_services_test_container.stop().await;
+    data_receiver_test_container.stop().await;
 }
 
 /// Test for multiple temperature readings from FMC 234
 /// This test sends multiple frames with temperature readings and checks if all readings are correctly processed and stored.
 #[tokio::test]
 async fn test_fmc234_multiple_temperatures() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Trace)
-        .target(env_logger::Target::Stdout)
-        .try_init();
+    setup_logging();
 
     let imei = get_random_imei();
 
@@ -154,7 +153,6 @@ async fn test_fmc234_multiple_temperatures() {
     for i in 0..100 {
         let timestamp = start_time + Duration::seconds(i);
         let frame_with_temperature = create_frame_with_temperature(timestamp);
-        info!("Sending frame with temperature: {:?}", frame_with_temperature);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
             .await;
@@ -165,18 +163,15 @@ async fn test_fmc234_multiple_temperatures() {
 
     fmc234_tcp_stream.shutdown().await.ok();
 
-    info!("Connection to FMC 234 server closed");
+    api_services_test_container.stop().await;
+    data_receiver_test_container.stop().await;
 }
 
 /// Test for multiple temperature readings from FMC 234 with poor connection.
 /// Poor connection is simulated by disconnecting the TCP stream after sending the frames.
 #[tokio::test]
 async fn test_fmc234_multiple_temperatures_with_poor_connection() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Trace)
-        .target(env_logger::Target::Stdout)
-        .try_init();
+    setup_logging();
 
     let imei = get_random_imei();
 
@@ -202,28 +197,24 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
             .send_imei_packet(&mut fmc234_tcp_stream, &imei)
             .await;
 
-        info!("Sending frame with temperature: {:?}", frame_with_temperature);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
             .await;
 
         fmc234_tcp_stream.shutdown().await.ok();
-
-        info!("Connection to FMC 234 server closed");
     }
 
     let reading_count = api_services_test_container.wait_for_temperature_reading(100).await;
     assert_eq!(100, reading_count, "Expected {} temperature readings to be sent", 100);
+
+    api_services_test_container.stop().await;
+    data_receiver_test_container.stop().await;
 }
 
 /// Tests for sending temperature readings from multiple FMC 234 devices simultaneously.
 #[tokio::test]
 async fn test_fmc234_multiple_devices_temperature() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Trace)
-        .target(env_logger::Target::Stdout)
-        .try_init();
+    setup_logging();
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
@@ -240,6 +231,7 @@ async fn test_fmc234_multiple_devices_temperature() {
 
     for _i in 0..10 {
         let imei = get_random_imei();
+        api_services_test_container.mock_get_trackable(imei.as_str()).await;
         let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
 
         data_receiver_test_container
@@ -247,8 +239,6 @@ async fn test_fmc234_multiple_devices_temperature() {
             .await;
 
         streams.push(fmc234_tcp_stream);
-
-        api_services_test_container.mock_get_trackable(imei.as_str()).await;
     }
 
     for i in 0..100 {
@@ -256,7 +246,6 @@ async fn test_fmc234_multiple_devices_temperature() {
             let timestamp = start_time + Duration::seconds(i);
             let frame_with_temperature = create_frame_with_temperature(timestamp);
 
-            info!("Sending frame with temperature: {:?}", frame_with_temperature);
             data_receiver_test_container
                 .send_avl_frame(stream, &frame_with_temperature)
                 .await;
@@ -267,9 +256,10 @@ async fn test_fmc234_multiple_devices_temperature() {
         stream.shutdown().await.ok();
     }
 
-    info!("Connections to FMC 234 server closed");
-
     // Wait for all temperature readings to be processed (10 devices with 100 frames = 1000 readings)
     let reading_count = api_services_test_container.wait_for_temperature_reading(1000).await;
     assert_eq!(1000, reading_count, "Expected {} temperature readings to be sent", 100);
+
+    api_services_test_container.stop().await;
+    data_receiver_test_container.stop().await;
 }

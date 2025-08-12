@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use log::info;
 use serde_json::json;
 use testcontainers::{
     core::{logs::consumer::logging_consumer::LoggingConsumer, IntoContainerPort, WaitFor},
@@ -45,6 +46,14 @@ impl TmsServicesTestContainer {
         self.wiremock_container = Some(wiremock_container.start().await.unwrap());
 
         return self;
+    }
+
+    /// Stops the Wiremock container.
+    pub async fn stop(&mut self) {
+        if let Some(container) = self.wiremock_container.take() {
+            container.stop().await.unwrap();
+            container.rm().await.unwrap();
+        }
     }
 
     /// Mocks the creation of a temperature reading.

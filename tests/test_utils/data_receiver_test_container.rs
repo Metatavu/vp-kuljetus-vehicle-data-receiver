@@ -46,7 +46,7 @@ impl DataReceiverTestContainer {
             .with_env_var("RUST_LOG", "debug,reqwest=off,hyper=off")
             .with_env_var("PURGE_CHUNK_SIZE", "1000")
             .with_env_var("BASE_FILE_PATH", "/tmp/")
-            .with_log_consumer(LoggingConsumer::new().with_prefix("app"))
+            // .with_log_consumer(LoggingConsumer::new().with_prefix("app"))
             .with_network("tests")
             .with_container_name("data-receiver")
             .with_mapped_port(
@@ -61,6 +61,14 @@ impl DataReceiverTestContainer {
         self.data_receiver_container = Some(data_receiver_container.start().await.unwrap());
 
         return self;
+    }
+
+    /// Stops the data receiver container.
+    pub async fn stop(&mut self) {
+        if let Some(container) = self.data_receiver_container.take() {
+            container.stop().await.unwrap();
+            container.rm().await.unwrap();
+        }
     }
 
     /// Retrieves the host address of the data receiver container.
@@ -127,13 +135,10 @@ impl DataReceiverTestContainer {
     /// Panics if the IMEI packet cannot be built or sent.
     pub async fn send_imei_packet(&self, tcp_stream: &mut tokio::net::TcpStream, imei: &str) {
         let imei_packet = build_valid_imei_packet(&imei);
-        info!("Sending IMEI packet: {:?}", imei_packet);
         tcp_stream.write_all(&imei_packet).await.unwrap();
-
         let mut ack = [0u8; 1];
         tcp_stream.read_exact(&mut ack).await.unwrap();
         assert_eq!(ack[0], 0x01, "server did not ACK with 0x01");
-        info!("Received ACK from server {}", ack[0]);
     }
 
     /// Sends an AVL frame to the data receiver container.
@@ -153,7 +158,6 @@ impl DataReceiverTestContainer {
 
         let mut buf = [0u8; 4];
         tcp_stream.read(&mut buf).await.unwrap();
-        info!("Received buffer: {:?}", buf);
 
         let count_with = u32::from_be_bytes(buf);
         assert_eq!(
