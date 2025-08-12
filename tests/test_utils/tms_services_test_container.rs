@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::test_utils::wiremock_client::WiremockClient;
 
 /// A mock service for VP TMS API services using Wiremock.
-pub struct TmsServicesMock {
+pub struct TmsServicesTestContainer {
     wiremock_container: Option<ContainerAsync<GenericImage>>,
 }
 
@@ -19,10 +19,10 @@ pub struct TmsServicesMock {
 ///
 /// This struct provides methods to start a Wiremock container and set up stubs for various API endpoints used in the VP TMS system.
 /// It allows for mocking API responses and verifying interactions with the API during tests.
-impl TmsServicesMock {
-    /// Creates a new instance of TmsServicesMock.
+impl TmsServicesTestContainer {
+    /// Creates a new instance of TmsServicesTestContainer.
     /// # Returns
-    /// A new instance of TmsServicesMock.
+    /// A new instance of TmsServicesTestContainer.
     pub fn new() -> Self {
         Self {
             wiremock_container: None,
