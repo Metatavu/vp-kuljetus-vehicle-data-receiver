@@ -208,10 +208,68 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
             .await;
 
         fmc234_tcp_stream.shutdown().await.ok();
+
+        info!("Connection to FMC 234 server closed");
     }
 
     let reading_count = api_services_test_container.wait_for_temperature_reading(100).await;
     assert_eq!(100, reading_count, "Expected {} temperature readings to be sent", 100);
+}
 
-    info!("Connection to FMC 234 server closed");
+/// Tests for sending temperature readings from multiple FMC 234 devices simultaneously.
+#[tokio::test]
+async fn test_fmc234_multiple_devices_temperature() {
+    let _ = env_logger::builder()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Trace)
+        .target(env_logger::Target::Stdout)
+        .try_init();
+
+    let mut api_services_test_container = TmsServicesTestContainer::new();
+    api_services_test_container.start().await;
+    api_services_test_container.mock_create_temperature_reading().await;
+
+    let mut data_receiver_test_container = DataReceiverTestContainer::new();
+    data_receiver_test_container.start().await;
+
+    let mut streams = Vec::new();
+
+    let start_time = DateTime::parse_from_rfc3339("2023-10-01T12:00:00+00:00")
+        .unwrap()
+        .to_utc();
+
+    for _i in 0..10 {
+        let imei = get_random_imei();
+        let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
+
+        data_receiver_test_container
+            .send_imei_packet(&mut fmc234_tcp_stream, &imei)
+            .await;
+
+        streams.push(fmc234_tcp_stream);
+
+        api_services_test_container.mock_get_trackable(imei.as_str()).await;
+    }
+
+    for i in 0..100 {
+        for stream in streams.iter_mut() {
+            let timestamp = start_time + Duration::seconds(i);
+            let frame_with_temperature = create_frame_with_temperature(timestamp);
+
+            info!("Sending frame with temperature: {:?}", frame_with_temperature);
+            data_receiver_test_container
+                .send_avl_frame(stream, &frame_with_temperature)
+                .await;
+        }
+    }
+
+    for stream in streams.iter_mut() {
+        stream.shutdown().await.ok();
+    }
+
+    info!("Connections to FMC 234 server closed");
+
+    // Wait for all temperature readings to be processed (10 devices with 100 frames = 1000 readings)
+    let reading_count = api_services_test_container.wait_for_temperature_reading(1000).await;
+    assert_eq!(1000, reading_count, "Expected {} temperature readings to be sent", 100);
 }
