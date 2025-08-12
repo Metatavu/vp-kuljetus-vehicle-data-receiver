@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
+use log::debug;
 use reqwest::Url;
 use serde_json::{json, Value};
 
@@ -161,8 +162,9 @@ impl WiremockClient {
         loop {
             let count = self.count_requests(method, url_path).await?;
             if count == expected {
-                return Ok((count));
+                return Ok(count);
             }
+
             if start.elapsed() > timeout {
                 return Err(anyhow!(
                     "timeout waiting for {} {} requests to '{}', got {}",
@@ -172,7 +174,13 @@ impl WiremockClient {
                     count
                 ));
             }
+
             tokio::time::sleep(Duration::from_millis(100)).await;
+
+            debug!(
+                "Waiting for {} {} requests to '{}', current count: {}",
+                method, expected, url_path, count
+            );
         }
     }
 }
