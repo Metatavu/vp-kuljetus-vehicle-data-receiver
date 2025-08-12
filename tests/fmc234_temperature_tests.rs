@@ -167,3 +167,51 @@ async fn test_fmc234_multiple_temperatures() {
 
     info!("Connection to FMC 234 server closed");
 }
+
+/// Test for multiple temperature readings from FMC 234 with poor connection.
+/// Poor connection is simulated by disconnecting the TCP stream after sending the frames.
+#[tokio::test]
+async fn test_fmc234_multiple_temperatures_with_poor_connection() {
+    let _ = env_logger::builder()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Trace)
+        .target(env_logger::Target::Stdout)
+        .try_init();
+
+    let imei = get_random_imei();
+
+    let mut api_services_test_container = TmsServicesTestContainer::new();
+    api_services_test_container.start().await;
+    api_services_test_container.mock_create_temperature_reading().await;
+    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+
+    let mut data_receiver_test_container = DataReceiverTestContainer::new();
+    data_receiver_test_container.start().await;
+
+    let start_time = DateTime::parse_from_rfc3339("2023-10-01T12:00:00+00:00")
+        .unwrap()
+        .to_utc();
+
+    for i in 0..100 {
+        let timestamp = start_time + Duration::seconds(i);
+        let frame_with_temperature = create_frame_with_temperature(timestamp);
+
+        let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
+
+        data_receiver_test_container
+            .send_imei_packet(&mut fmc234_tcp_stream, &imei)
+            .await;
+
+        info!("Sending frame with temperature: {:?}", frame_with_temperature);
+        data_receiver_test_container
+            .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
+            .await;
+
+        fmc234_tcp_stream.shutdown().await.ok();
+    }
+
+    let reading_count = api_services_test_container.wait_for_temperature_reading(100).await;
+    assert_eq!(100, reading_count, "Expected {} temperature readings to be sent", 100);
+
+    info!("Connection to FMC 234 server closed");
+}
