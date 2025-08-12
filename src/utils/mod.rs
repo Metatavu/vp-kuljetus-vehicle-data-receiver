@@ -8,7 +8,6 @@ pub mod api;
 pub mod avl_frame_builder;
 pub mod avl_packet;
 pub mod avl_record_builder;
-#[cfg(test)]
 pub mod imei;
 #[cfg(test)]
 pub mod test_utils;

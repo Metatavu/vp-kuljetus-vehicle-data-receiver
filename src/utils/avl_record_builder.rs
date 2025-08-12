@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 /// Module containing utilities testing building AVL Records sent by Teltonika Telematics devices for testing purposes
-#[cfg(test)]
 pub mod avl_record_builder {
     use chrono::{DateTime, Utc};
     use nom_teltonika::{AVLEventIO, AVLRecord, Priority};
