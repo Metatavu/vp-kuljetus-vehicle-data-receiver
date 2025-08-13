@@ -59,13 +59,17 @@ impl TmsServicesTestContainer {
     /// Mocks the creation of a temperature reading.
     /// This method sets up a stub for the `/v1/temperatureReadings` endpoint
     /// that returns a 200 OK response with an empty JSON body.
+    /// # Arguments
+    /// * `status` - The HTTP status code to return for the stubbed request.
     /// # Errors
     /// Returns an error if the stub setup fails.
-    pub async fn mock_create_temperature_reading(&self) {
+    /// # Panics
+    /// Panics if the Wiremock client fails to create the stub.
+    pub async fn mock_create_temperature_reading(&self, status: u16) {
         let wiremock_client = self.get_wiremock_client().await;
 
         wiremock_client
-            .stub("POST", "/v1/temperatureReadings", 200, Some(json!({})), None)
+            .stub("POST", "/v1/temperatureReadings", status, Some(json!({})), None)
             .await
             .unwrap();
     }

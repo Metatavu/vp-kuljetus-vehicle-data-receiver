@@ -1,6 +1,7 @@
 mod test_utils;
 
 use chrono::{DateTime, Duration, Utc};
+use log::info;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue, AVLFrame, Priority};
 use tokio::io::AsyncWriteExt;
 
@@ -18,8 +19,6 @@ fn setup_logging() {
         .target(env_logger::Target::Stdout)
         .try_init();
 }
-
-// docker build . -t vp-kuljetus-vehicle-data-receiver:test && RUST_LOG=trace cargo test -- --nocapture
 
 fn create_frame_with_temperature(timestamp: DateTime<Utc>) -> AVLFrame {
     return AVLFrameBuilder::new()
@@ -93,7 +92,7 @@ async fn test_fmc234_single_temperature() {
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
 
-    api_services_test_container.mock_create_temperature_reading().await;
+    api_services_test_container.mock_create_temperature_reading(200).await;
     api_services_test_container.mock_get_trackable(imei.as_str()).await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
@@ -113,7 +112,8 @@ async fn test_fmc234_single_temperature() {
 
     data_receiver_test_container
         .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
-        .await;
+        .await
+        .unwrap();
 
     let reading_count = api_services_test_container.wait_for_temperature_reading(1).await;
     assert_eq!(1, reading_count, "Expected {} temperature readings to be sent", 1);
@@ -134,7 +134,7 @@ async fn test_fmc234_multiple_temperatures() {
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
-    api_services_test_container.mock_create_temperature_reading().await;
+    api_services_test_container.mock_create_temperature_reading(200).await;
     api_services_test_container.mock_get_trackable(imei.as_str()).await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
@@ -155,7 +155,8 @@ async fn test_fmc234_multiple_temperatures() {
         let frame_with_temperature = create_frame_with_temperature(timestamp);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
-            .await;
+            .await
+            .unwrap();
     }
 
     let reading_count = api_services_test_container.wait_for_temperature_reading(100).await;
@@ -177,7 +178,7 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
-    api_services_test_container.mock_create_temperature_reading().await;
+    api_services_test_container.mock_create_temperature_reading(200).await;
     api_services_test_container.mock_get_trackable(imei.as_str()).await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
@@ -199,7 +200,8 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
 
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
-            .await;
+            .await
+            .unwrap();
 
         fmc234_tcp_stream.shutdown().await.ok();
     }
@@ -218,7 +220,7 @@ async fn test_fmc234_multiple_devices_temperature() {
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
-    api_services_test_container.mock_create_temperature_reading().await;
+    api_services_test_container.mock_create_temperature_reading(200).await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
     data_receiver_test_container.start().await;
@@ -248,7 +250,8 @@ async fn test_fmc234_multiple_devices_temperature() {
 
             data_receiver_test_container
                 .send_avl_frame(stream, &frame_with_temperature)
-                .await;
+                .await
+                .unwrap();
         }
     }
 
@@ -259,6 +262,111 @@ async fn test_fmc234_multiple_devices_temperature() {
     // Wait for all temperature readings to be processed (10 devices with 100 frames = 1000 readings)
     let reading_count = api_services_test_container.wait_for_temperature_reading(1000).await;
     assert_eq!(1000, reading_count, "Expected {} temperature readings to be sent", 100);
+
+    api_services_test_container.stop().await;
+    data_receiver_test_container.stop().await;
+}
+
+/// Tests for sending temperature readings with erroneous data in stream
+#[tokio::test]
+async fn test_fmc234_temperature_with_error() {
+    setup_logging();
+
+    let imei = get_random_imei();
+
+    let mut api_services_test_container = TmsServicesTestContainer::new();
+    api_services_test_container.start().await;
+    api_services_test_container.mock_create_temperature_reading(200).await;
+    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+
+    let mut data_receiver_test_container = DataReceiverTestContainer::new();
+    data_receiver_test_container.start().await;
+
+    let start_time = DateTime::parse_from_rfc3339("2023-10-01T12:00:00+00:00")
+        .unwrap()
+        .to_utc();
+
+    let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
+
+    data_receiver_test_container
+        .send_imei_packet(&mut fmc234_tcp_stream, &imei)
+        .await;
+
+    info!("Sending 10 frames with temperature readings");
+
+    // Send 10 frams with temperature readings
+
+    for i in 0..10 {
+        let timestamp = start_time + Duration::seconds(i);
+        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        data_receiver_test_container
+            .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
+            .await
+            .unwrap();
+    }
+
+    info!("Sending garbage data");
+
+    // Send some garbage data
+
+    let garbage_data = vec![0x01, 0x02, 0x03, 0x04, 0x05];
+    fmc234_tcp_stream.write_all(&garbage_data).await.unwrap();
+
+    let failing_frame = create_frame_with_temperature(start_time + Duration::seconds(11));
+
+    let failing_frame_result = data_receiver_test_container
+        .send_avl_frame(&mut fmc234_tcp_stream, &failing_frame)
+        .await;
+
+    assert!(
+        failing_frame_result.is_err(),
+        "Expected error when sending frame with garbage data"
+    );
+
+    fmc234_tcp_stream.shutdown().await.ok();
+
+    api_services_test_container.stop().await;
+    data_receiver_test_container.stop().await;
+}
+
+/// Tests for sending temperature readings with errorneous response from the server
+#[tokio::test]
+async fn test_fmc234_temperature_with_error_response() {
+    setup_logging();
+
+    let imei = get_random_imei();
+
+    let mut api_services_test_container = TmsServicesTestContainer::new();
+    api_services_test_container.start().await;
+    api_services_test_container.mock_create_temperature_reading(500).await;
+    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+
+    let mut data_receiver_test_container = DataReceiverTestContainer::new();
+    data_receiver_test_container.start().await;
+
+    let start_time = DateTime::parse_from_rfc3339("2023-10-01T12:00:00+00:00")
+        .unwrap()
+        .to_utc();
+
+    let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
+
+    data_receiver_test_container
+        .send_imei_packet(&mut fmc234_tcp_stream, &imei)
+        .await;
+
+    info!("Sending 10 frames with temperature readings");
+
+    // Send 10 frames with temperature readings
+    for i in 0..10 {
+        let timestamp = start_time + Duration::seconds(i);
+        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        data_receiver_test_container
+            .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
+            .await
+            .unwrap();
+    }
+
+    fmc234_tcp_stream.shutdown().await.ok();
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;

@@ -38,7 +38,7 @@ async fn start_listener(listener: Listener) {
     info!("Listening on: {}", address);
 
     loop {
-        let mut socket = match tcp_listener.accept().await {
+        let socket = match tcp_listener.accept().await {
             Ok((sock, _)) => sock,
             Err(e) => {
                 panic!("Failed to accept connection: {}", e);

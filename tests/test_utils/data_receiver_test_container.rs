@@ -5,7 +5,7 @@ use testcontainers::{
     runners::AsyncRunner,
     ContainerAsync, GenericImage, ImageExt,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
 use vp_kuljetus_vehicle_data_receiver::utils::avl_packet::AVLPacketToBytes;
 use vp_kuljetus_vehicle_data_receiver::utils::imei::build_valid_imei_packet;
 
@@ -141,30 +141,58 @@ impl DataReceiverTestContainer {
         assert_eq!(ack[0], 0x01, "server did not ACK with 0x01");
     }
 
-    /// Sends an AVL frame to the data receiver container.
+    /// Sends an AVL frame to the data receiver container and verifies the server’s acknowledgment.
+    ///
     /// # Arguments
     /// * `tcp_stream` - A mutable reference to the TCP stream to send the AVL frame.
     /// * `avl_frame` - A reference to the AVL frame to send.
+    ///
     /// # Returns
-    /// A `Result` indicating success or failure.
+    /// * `Ok(())` if the frame was successfully sent and acknowledged by the server.
+    /// * `Err(anyhow::Error)` if the send or acknowledgment process fails at any step.
+    ///
     /// # Errors
-    /// Returns an error if the AVL frame cannot be sent or acknowledged.
-    /// # Panics
-    /// Panics if the AVL frame cannot be converted to bytes or sent.
-    /// # Panics
-    /// Panics if the server does not return the correct record count.
-    pub async fn send_avl_frame(&self, tcp_stream: &mut tokio::net::TcpStream, avl_frame: &AVLFrame) {
-        tcp_stream.write_all(&avl_frame.to_bytes()).await.unwrap();
+    /// This function returns an error if:
+    /// - The AVL frame cannot be serialized to bytes.
+    /// - The frame fails to write to the TCP stream.
+    /// - The acknowledgment cannot be read from the TCP stream.
+    /// - The server returns an incorrect record count.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let result = api.send_avl_frame(&mut tcp_stream, &frame).await;
+    /// assert!(result.is_ok(), "Expected successful frame send: {:?}", result);
+    /// ```
+    pub async fn send_avl_frame(
+        &self,
+        tcp_stream: &mut tokio::net::TcpStream,
+        avl_frame: &AVLFrame,
+    ) -> anyhow::Result<()> {
+        info!("Sending AVL frame with {} records", avl_frame.records.len());
 
+        tcp_stream
+            .write_all(&avl_frame.to_bytes())
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to write AVL frame: {}", e))?;
+
+        info!("AVL frame sent, waiting for response...");
         let mut buf = [0u8; 4];
-        tcp_stream.read(&mut buf).await.unwrap();
+        tcp_stream
+            .read_exact(&mut buf)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to read response: {}", e))?;
 
         let count_with = u32::from_be_bytes(buf);
-        assert_eq!(
-            count_with,
-            avl_frame.records.len() as u32,
-            "server did not return correct record count"
-        );
+
+        if count_with != avl_frame.records.len() as u32 {
+            anyhow::bail!(
+                "Server returned incorrect record count: expected {}, got {}",
+                avl_frame.records.len(),
+                count_with
+            );
+        }
+
+        Ok(())
     }
 
     /// Opens a TCP stream to the FMC650 port of the data receiver container.
