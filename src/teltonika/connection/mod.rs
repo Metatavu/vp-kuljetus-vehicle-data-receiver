@@ -186,6 +186,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                             "Failed to parse frame from client: {}",
                             err
                         );
+                        break;
                     }
                     _ => {
                         error!(target: self.log_target(),
