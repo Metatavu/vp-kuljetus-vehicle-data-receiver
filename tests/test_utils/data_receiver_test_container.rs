@@ -1,4 +1,4 @@
-use log::info;
+use log::{debug, info};
 use nom_teltonika::AVLFrame;
 use testcontainers::{
     core::{logs::consumer::logging_consumer::LoggingConsumer, WaitFor},
@@ -168,14 +168,14 @@ impl DataReceiverTestContainer {
         tcp_stream: &mut tokio::net::TcpStream,
         avl_frame: &AVLFrame,
     ) -> anyhow::Result<()> {
-        info!("Sending AVL frame with {} records", avl_frame.records.len());
+        debug!("Sending AVL frame with {} records", avl_frame.records.len());
 
         tcp_stream
             .write_all(&avl_frame.to_bytes())
             .await
             .map_err(|e| anyhow::anyhow!("Failed to write AVL frame: {}", e))?;
 
-        info!("AVL frame sent, waiting for response...");
+        debug!("AVL frame sent, waiting for response...");
         let mut buf = [0u8; 4];
         tcp_stream
             .read_exact(&mut buf)

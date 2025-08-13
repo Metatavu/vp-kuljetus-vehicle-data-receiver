@@ -2,7 +2,6 @@ use base64::Engine;
 use chrono::{Datelike, Utc};
 use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
-use rand::{thread_rng, Rng};
 use serde::Serialize;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
@@ -12,15 +11,13 @@ use std::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    sync::mpsc::{self, Sender},
+    sync::mpsc::{self},
     time::timeout,
 };
 use vehicle_management_service::models::Trackable;
 
 use crate::{
-    telematics_cache::cache_handler::{CacheHandler, DEFAULT_PURGE_CHUNK_SIZE, PURGE_CHUNK_SIZE_ENV_KEY},
-    teltonika::records::TeltonikaRecordsHandler,
-    utils::{api::get_trackable, read_env_variable_with_default_value},
+    utils::api::get_trackable,
     worker::{self, Worker, WorkerMessage},
     Listener,
 };
@@ -131,6 +128,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             if self.trackable.is_none() {
                 self.trackable = get_trackable(&self.imei).await;
             }
+
             let start_of_loop = Utc::now();
             if start_of_loop.day() != start_of_connection.day() {
                 file_handle = self.get_log_file_handle(base_log_file_path);
