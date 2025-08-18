@@ -307,8 +307,6 @@ async fn test_fmc234_temperature_with_error() {
 
     info!("Sending garbage data");
 
-    // Send some garbage data
-
     let garbage_data = vec![0x01, 0x02, 0x03, 0x04, 0x05];
     fmc234_tcp_stream.write_all(&garbage_data).await.unwrap();
 
@@ -322,6 +320,15 @@ async fn test_fmc234_temperature_with_error() {
         failing_frame_result.is_err(),
         "Expected error when sending frame with garbage data"
     );
+
+    for i in 11..20 {
+        let timestamp = start_time + Duration::seconds(i);
+        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        data_receiver_test_container
+            .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
+            .await
+            .unwrap();
+    }
 
     fmc234_tcp_stream.shutdown().await.ok();
 

@@ -184,7 +184,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                             "Failed to parse frame from client: {}",
                             err
                         );
-                        break;
+
+                        // If the frame is invalid, we send an zero response to the client,
+                        // to indicate that the frame was not processed and need to be sent again.
+                        let teltonika_inner_stream = &mut self.teltonika_stream.inner_mut();
+                        teltonika_inner_stream.write_i32(0).await.unwrap();
                     }
                     _ => {
                         error!(target: self.log_target(),
