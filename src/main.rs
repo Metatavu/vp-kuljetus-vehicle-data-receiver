@@ -9,28 +9,12 @@ use lazy_static::lazy_static;
 use log::{info, warn};
 use std::{io::ErrorKind, path::Path};
 use tokio::net::TcpListener;
+use vp_kuljetus_vehicle_data_receiver::listener::Listener;
 
 const BASE_FILE_PATH_ENV_KEY: &str = "BASE_FILE_PATH";
 const WRITE_TO_FILE_ENV_KEY: &str = "WRITE_TO_FILE";
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
-
-/// Allows for different configurations for different device types
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Listener {
-    TeltonikaFMC650,
-    TeltonikaFMC234,
-}
-
-impl Listener {
-    /// Gives each device type their own port number
-    fn port(&self) -> u16 {
-        match self {
-            Listener::TeltonikaFMC650 => 6500,
-            Listener::TeltonikaFMC234 => 2340,
-        }
-    }
-}
 
 lazy_static! {
     static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC234, Listener::TeltonikaFMC650];
@@ -54,7 +38,7 @@ async fn start_listener(listener: Listener) {
     info!("Listening on: {}", address);
 
     loop {
-        let mut socket = match tcp_listener.accept().await {
+        let socket = match tcp_listener.accept().await {
             Ok((sock, _)) => sock,
             Err(e) => {
                 panic!("Failed to accept connection: {}", e);

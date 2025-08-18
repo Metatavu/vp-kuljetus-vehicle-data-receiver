@@ -1,0 +1,20 @@
+name: Run tests
+on:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  run-tests:
+    environment: develop
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build test container
+        run: docker build . -t vp-kuljetus-vehicle-data-receiver:test
+      - name: Run tests
+        env:
+          RUST_LOG: info
+        run: |
+          cargo test -- --nocapture --test-threads=1
