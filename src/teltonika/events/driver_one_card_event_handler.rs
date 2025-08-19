@@ -13,7 +13,6 @@ use vehicle_management_service::{
 };
 
 use crate::{
-    telematics_cache::Cacheable,
     teltonika::{avl_event_io_value_to_u8, driver_card_events_to_truck_driver_card},
     utils::{api::get_truck_driver_card_id, date_time_from_timestamp, VEHICLE_MANAGEMENT_API_CONFIG},
     Listener,
@@ -158,23 +157,5 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
             195 => driver_card_events_to_truck_driver_card(timestamp, events, imei),
             _ => None,
         };
-    }
-}
-
-impl Cacheable for TruckDriverCard {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_driver_card_cache.json")
-    }
-}
-
-impl Cacheable for Vec<TruckDriverCard> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_driver_card_cache.json")
     }
 }

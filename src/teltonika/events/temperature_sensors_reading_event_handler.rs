@@ -11,7 +11,6 @@ use vehicle_management_service::{
 };
 
 use crate::{
-    telematics_cache::Cacheable,
     teltonika::{avl_event_io_value_to_u16, avl_event_io_value_to_u64},
     utils::get_vehicle_management_api_config,
     Listener,
@@ -182,23 +181,5 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
                 .map(|x| x.clone().unwrap())
                 .collect(),
         )
-    }
-}
-
-impl Cacheable for Vec<TemperatureReading> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("temperature_sensors_reading_cache.json")
-    }
-}
-
-impl Cacheable for Vec<Vec<TemperatureReading>> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("temperature_sensors_reading_cache.json")
     }
 }
