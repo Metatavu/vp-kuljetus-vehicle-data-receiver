@@ -7,7 +7,7 @@
 ################################################################################
 # Create a stage for building the application.
 
-ARG RUST_VERSION=1.84.0
+ARG RUST_VERSION=1.89.0
 ARG APP_NAME=vp-kuljetus-vehicle-data-receiver
 FROM rust:${RUST_VERSION}-slim-bullseye AS build
 ARG APP_NAME
@@ -64,6 +64,7 @@ USER appuser
 
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
+ADD ./migrations /app/migrations/
 
 # Expose the port that the application listens on.
 EXPOSE 6500 2340
