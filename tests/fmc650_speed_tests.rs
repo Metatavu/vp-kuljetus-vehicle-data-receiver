@@ -21,7 +21,7 @@ fn setup_logging() {
         .try_init();
 }
 
-fn create_driver_one_card_present(timestamp: DateTime<Utc>) -> AVLFrame {
+fn create_speed_frame(timestamp: DateTime<Utc>) -> AVLFrame {
     return AVLFrameBuilder::new()
         .with_records(vec![AVLRecordBuilder::new()
             .with_priority(Priority::Low)
@@ -30,29 +30,17 @@ fn create_driver_one_card_present(timestamp: DateTime<Utc>) -> AVLFrame {
             .with_latitude(61.0)
             .with_longitude(27.0)
             .add_io_event(AVLEventIO {
-                id: 187,
-                value: AVLEventIOValue::U8(1),
-            })
-            .add_io_event(AVLEventIO {
-                id: 184,
-                value: AVLEventIOValue::U8(5),
-            })
-            .add_io_event(AVLEventIO {
-                id: 195,
-                value: AVLEventIOValue::U64(3544392526090811699),
-            })
-            .add_io_event(AVLEventIO {
-                id: 196,
-                value: AVLEventIOValue::U64(3689908453225017393),
+                id: 191,
+                value: AVLEventIOValue::U32(4000),
             })
             .with_trigger_event_id(0)
             .build()])
         .build();
 }
 
-/// Tests for sending driver one with errorneous response from the server
+/// Tests for sending odometer reading with erroneous response from the server
 #[tokio::test]
-async fn test_fmc650_driver_one_with_error_response() {
+async fn test_fmc650_speed_with_error_response() {
     setup_logging();
 
     let imei = get_random_imei();
@@ -66,13 +54,15 @@ async fn test_fmc650_driver_one_with_error_response() {
 
     // Mock the creation of a drive state as failure
     api_services_test_container
-        .mock_create_drive_state(truck_id.clone(), 500)
+        .mock_create_speed(truck_id.clone(), 500)
         .await;
 
     // Add mocks for trackable and truck location
+
     api_services_test_container
         .mock_get_trackable(imei.as_str(), &truck_id, "TRUCK")
         .await;
+
     api_services_test_container
         .mock_create_truck_location(truck_id.clone(), 200)
         .await;
@@ -93,27 +83,24 @@ async fn test_fmc650_driver_one_with_error_response() {
     // Send a driver one frame with card present
 
     data_receiver_test_container
-        .send_avl_frame(&mut fmc650_tcp_stream, &create_driver_one_card_present(start_time))
+        .send_avl_frame(&mut fmc650_tcp_stream, &create_speed_frame(start_time))
         .await
         .unwrap();
 
-    // Wait until all drive state creations are processed
-    api_services_test_container
-        .wait_for_drive_state_creation(1, &truck_id)
-        .await;
+    // Wait until all odometer readings are processed
+    api_services_test_container.wait_for_speed(1, &truck_id).await;
 
     // Assert that all events requests were processed as failures
-    assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 1);
+    let failed_events = mysql_test_container.count_failed_events().await.unwrap();
+    assert_eq!(failed_events, 1);
 
     api_services_test_container
-        .mock_create_drive_state(truck_id.clone(), 200)
+        .mock_create_speed(truck_id.clone(), 200)
         .await;
     api_services_test_container.reset_counts().await;
 
     // Wait until failed events are processed
-    api_services_test_container
-        .wait_for_drive_state_creation(1, &truck_id)
-        .await;
+    api_services_test_container.wait_for_speed(1, &truck_id).await;
 
     // Assert that all readings were processed as successes
     assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 0);

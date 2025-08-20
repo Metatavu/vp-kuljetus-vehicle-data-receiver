@@ -419,8 +419,7 @@ async fn test_fmc234_temperature_with_error_response() {
     api_services_test_container.wait_for_temperature_reading(10).await;
 
     // Assert that all readings were processed as failures
-    let failed_trackable_events = mysql_test_container.count_failed_events().await.unwrap();
-    assert_eq!(failed_trackable_events, 10);
+    assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 10);
 
     api_services_test_container.mock_create_temperature_reading(200).await;
     api_services_test_container.reset_counts().await;
@@ -429,8 +428,7 @@ async fn test_fmc234_temperature_with_error_response() {
     api_services_test_container.wait_for_temperature_reading(10).await;
 
     // Assert that all readings were processed as successes
-    let successful_trackable_events = mysql_test_container.count_failed_events().await.unwrap();
-    assert_eq!(successful_trackable_events, 0);
+    assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 0);
 
     fmc234_tcp_stream.shutdown().await.ok();
 

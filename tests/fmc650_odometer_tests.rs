@@ -93,8 +93,7 @@ async fn test_fmc650_odometer_reading_with_error_response() {
         .await;
 
     // Assert that all events requests were processed as failures
-    let failed_events = mysql_test_container.count_failed_events().await.unwrap();
-    assert_eq!(failed_events, 1);
+    assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 1);
 
     api_services_test_container
         .mock_create_odometer_reading(truck_id.clone(), 200)
