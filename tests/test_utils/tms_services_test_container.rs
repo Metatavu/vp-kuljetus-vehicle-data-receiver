@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::Utc;
 use log::info;
 use serde_json::json;
 use testcontainers::{
@@ -17,6 +18,7 @@ pub struct TmsServicesTestContainer {
     wiremock_container: Option<ContainerAsync<GenericImage>>,
     temperature_reading_mapping_id: Option<String>,
     drive_state_mapping_id: Option<String>,
+    driver_card_mapping_id: Option<String>,
     truck_location_mapping_id: Option<String>,
     odometer_reading_mapping_id: Option<String>,
     speed_mapping_id: Option<String>,
@@ -35,6 +37,7 @@ impl TmsServicesTestContainer {
             wiremock_container: None,
             temperature_reading_mapping_id: None,
             drive_state_mapping_id: None,
+            driver_card_mapping_id: None,
             truck_location_mapping_id: None,
             odometer_reading_mapping_id: None,
             speed_mapping_id: None,
@@ -129,6 +132,52 @@ impl TmsServicesTestContainer {
                     format!("/v1/trucks/{}/driveStates", truck_id.as_str()).as_str(),
                     status,
                     Some(json!({})),
+                    None,
+                )
+                .await
+                .unwrap(),
+        );
+    }
+
+    /// Mocks the creation of a driver card.
+    /// This method sets up a stub for the `/v1/trucks/{truckId}/driverCards` endpoint
+    /// that returns a response with given code and an empty JSON body.
+    ///
+    /// If the method `mock_create_driver_card` is called multiple times,
+    /// it will replace the previous stub with the new one.
+    ///
+    /// # Arguments
+    /// * `status` - The HTTP status code to return for the stubbed request.
+    /// # Errors
+    /// Returns an error if the stub setup fails.
+    /// # Panics
+    /// Panics if the Wiremock client fails to create the stub.
+    pub async fn mock_create_driver_card(&mut self, truck_id: String, status: u16) {
+        let wiremock_client = self.get_wiremock_client().await;
+
+        let body = if status == 200 {
+            json!({
+                "id": Uuid::new_v4().to_string(),
+                "timestamp": Utc::now().timestamp_millis(),
+            })
+        } else {
+            json!({})
+        };
+
+        if self.driver_card_mapping_id.is_some() {
+            wiremock_client
+                .reset_mapping(self.driver_card_mapping_id.as_ref().unwrap())
+                .await
+                .unwrap();
+        }
+
+        self.driver_card_mapping_id = Some(
+            wiremock_client
+                .stub(
+                    "POST",
+                    format!("/v1/trucks/{}/driverCards", truck_id.as_str()).as_str(),
+                    status,
+                    Some(body),
                     None,
                 )
                 .await
@@ -301,13 +350,13 @@ impl TmsServicesTestContainer {
         return reading_count;
     }
 
-    /// Waits for a specified number of driver card creation requets received.
+    /// Waits for a specified number of drive state creation requets received.
     ///
     /// # Arguments
-    /// * `count` - The number of driver card creation requests to wait for.
-    /// * `truck_id` - The ID of the truck for which to wait for driver card creation requests.
+    /// * `count` - The number of drive state creation requests to wait for.
+    /// * `truck_id` - The ID of the truck for which to wait for drive state creation requests.
     /// # Returns
-    /// The number of driver card creation requests received.
+    /// The number of drive state creation requests received.
     /// # Panics
     /// Panics if the Wiremock client fails to wait for the specified number of requests.
     pub async fn wait_for_drive_state_creation(&self, count: u64, truck_id: &str) -> u64 {
@@ -316,6 +365,33 @@ impl TmsServicesTestContainer {
             .wait_requests(
                 "POST",
                 format!("/v1/trucks/{}/driveStates", truck_id).as_str(),
+                count,
+                Duration::from_secs(30),
+            )
+            .await
+            .unwrap();
+
+        return reading_count;
+    }
+
+    /// Waits for a specified number of driver card creation requests received.
+    /// This method checks the Wiremock server for the number of POST requests made to the `/v1/trucks/{truckId}/driverCards` endpoint
+    /// and waits until the specified count is reached or the timeout is reached.
+    /// # Arguments
+    /// * `count` - The number of driver card creation requests to wait for.
+    /// * `truck_id` - The ID of the truck for which to wait for driver card creation requests.
+    /// # Returns
+    /// The number of driver card creation requests received.
+    /// # Errors
+    /// Returns an error if the request to wait for driver card creation fails.
+    /// # Panics
+    /// Panics if the Wiremock client fails to wait for the specified number of requests.
+    pub async fn wait_for_driver_card_creation(&self, count: u64, truck_id: &str) -> u64 {
+        let wiremock_client = self.get_wiremock_client().await;
+        let reading_count = wiremock_client
+            .wait_requests(
+                "POST",
+                format!("/v1/trucks/{}/driverCards", truck_id).as_str(),
                 count,
                 Duration::from_secs(30),
             )

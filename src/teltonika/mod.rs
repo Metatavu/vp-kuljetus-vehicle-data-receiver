@@ -1,7 +1,7 @@
 pub mod connection;
 pub mod events;
 pub mod records;
-use log::debug;
+use log::warn;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
 use serde::de::value;
 use vehicle_management_service::models::{TruckDriveStateEnum, TruckDriverCard};
@@ -78,12 +78,12 @@ fn driver_card_events_to_truck_driver_card(
         .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
 
     let Some(driver_card_msb_part) = driver_card_part_from_event(events, 195) else {
-        debug!(target: imei, "Driver card MSB part was 0");
+        warn!(target: imei, "Driver card MSB part was 0");
 
         return None;
     };
     let Some(driver_card_lsb_part) = driver_card_part_from_event(events, 196) else {
-        debug!(target: imei, "Driver card MSB part was 0");
+        warn!(target: imei, "Driver card LSB part was 0");
 
         return None;
     };

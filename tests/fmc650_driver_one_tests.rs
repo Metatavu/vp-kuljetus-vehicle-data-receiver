@@ -45,14 +45,14 @@ fn create_driver_one_card_present(timestamp: DateTime<Utc>) -> AVLFrame {
                 id: 196,
                 value: AVLEventIOValue::U64(3689908453225017393),
             })
-            .with_trigger_event_id(0)
+            .with_trigger_event_id(195)
             .build()])
         .build();
 }
 
-/// Tests for sending driver one with errorneous response from the server
+/// Tests for sending driver one with erroneous response from the server
 #[tokio::test]
-async fn test_fmc650_driver_one_with_error_response() {
+async fn test_fmc650_driver_one_card_present_with_error_response() {
     setup_logging();
 
     let imei = get_random_imei();
@@ -64,9 +64,12 @@ async fn test_fmc650_driver_one_with_error_response() {
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
 
-    // Mock the creation of a drive state as failure
+    // Mock the creation of a drive state and card as failures
     api_services_test_container
         .mock_create_drive_state(truck_id.clone(), 500)
+        .await;
+    api_services_test_container
+        .mock_create_driver_card(truck_id.clone(), 500)
         .await;
 
     // Add mocks for trackable and truck location
@@ -102,17 +105,33 @@ async fn test_fmc650_driver_one_with_error_response() {
         .wait_for_drive_state_creation(1, &truck_id)
         .await;
 
-    // Assert that all events requests were processed as failures
-    assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 1);
+    // Wait for driver card creation to be processed
+    api_services_test_container
+        .wait_for_driver_card_creation(1, &truck_id)
+        .await;
 
+    // Assert that all events requests were processed as failures
+    assert_eq!(mysql_test_container.count_failed_events().await.unwrap(), 2);
+
+    // Change drive state and driver card creation to be successful
     api_services_test_container
         .mock_create_drive_state(truck_id.clone(), 200)
         .await;
+
+    api_services_test_container
+        .mock_create_driver_card(truck_id.clone(), 200)
+        .await;
+
     api_services_test_container.reset_counts().await;
 
     // Wait until failed events are processed
+
     api_services_test_container
         .wait_for_drive_state_creation(1, &truck_id)
+        .await;
+
+    api_services_test_container
+        .wait_for_driver_card_creation(1, &truck_id)
         .await;
 
     // Assert that all readings were processed as successes
