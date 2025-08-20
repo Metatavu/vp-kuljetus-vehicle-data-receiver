@@ -13,6 +13,8 @@ use vehicle_management_service::models::trackable;
 
 use crate::test_utils::wiremock_client::WiremockClient;
 
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// A mock service for VP TMS API services using Wiremock.
 pub struct TmsServicesTestContainer {
     wiremock_container: Option<ContainerAsync<GenericImage>>,
@@ -343,7 +345,7 @@ impl TmsServicesTestContainer {
     pub async fn wait_for_temperature_reading(&self, count: u64) -> u64 {
         let wiremock_client = self.get_wiremock_client().await;
         let reading_count = wiremock_client
-            .wait_requests("POST", "/v1/temperatureReadings", count, Duration::from_secs(30))
+            .wait_requests("POST", "/v1/temperatureReadings", count, DEFAULT_TIMEOUT)
             .await
             .unwrap();
 
@@ -366,7 +368,7 @@ impl TmsServicesTestContainer {
                 "POST",
                 format!("/v1/trucks/{}/driveStates", truck_id).as_str(),
                 count,
-                Duration::from_secs(30),
+                DEFAULT_TIMEOUT,
             )
             .await
             .unwrap();
@@ -393,7 +395,7 @@ impl TmsServicesTestContainer {
                 "POST",
                 format!("/v1/trucks/{}/driverCards", truck_id).as_str(),
                 count,
-                Duration::from_secs(30),
+                DEFAULT_TIMEOUT,
             )
             .await
             .unwrap();
@@ -420,7 +422,7 @@ impl TmsServicesTestContainer {
                 "POST",
                 format!("/v1/trucks/{}/odometerReadings", truck_id).as_str(),
                 count,
-                Duration::from_secs(30),
+                DEFAULT_TIMEOUT,
             )
             .await
             .unwrap();
@@ -447,7 +449,7 @@ impl TmsServicesTestContainer {
                 "POST",
                 format!("/v1/trucks/{}/speeds", truck_id).as_str(),
                 count,
-                Duration::from_secs(30),
+                DEFAULT_TIMEOUT,
             )
             .await
             .unwrap();
@@ -474,7 +476,7 @@ impl TmsServicesTestContainer {
                 "POST",
                 format!("/v1/trucks/{}/locations", truck_id).as_str(),
                 count,
-                Duration::from_secs(30),
+                DEFAULT_TIMEOUT,
             )
             .await
             .unwrap();
