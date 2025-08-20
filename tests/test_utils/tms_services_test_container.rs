@@ -455,6 +455,33 @@ impl TmsServicesTestContainer {
         return reading_count;
     }
 
+    /// Waits for a specified number of location readings to be received.
+    /// This method checks the Wiremock server for the number of POST requests made to the `/v1/trucks/{truckId}/locations` endpoint
+    /// and waits until the specified count is reached or the timeout is reached.
+    /// # Arguments
+    /// * `count` - The number of location readings to wait for.
+    /// * `truck_id` - The ID of the truck for which to wait for location readings.
+    /// # Returns
+    /// The number of location readings received.
+    /// # Errors
+    /// Returns an error if the request to wait for readings fails.
+    /// # Panics
+    /// Panics if the Wiremock client fails to wait for the specified number of requests.
+    pub async fn wait_for_location(&self, count: u64, truck_id: &str) -> u64 {
+        let wiremock_client = self.get_wiremock_client().await;
+        let reading_count = wiremock_client
+            .wait_requests(
+                "POST",
+                format!("/v1/trucks/{}/locations", truck_id).as_str(),
+                count,
+                Duration::from_secs(30),
+            )
+            .await
+            .unwrap();
+
+        return reading_count;
+    }
+
     /// Gets the host and port of the Wiremock container.
     /// # Returns
     /// A tuple containing the host and port of the Wiremock container.

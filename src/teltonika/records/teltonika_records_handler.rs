@@ -54,30 +54,64 @@ impl TeltonikaRecordsHandler {
     pub async fn handle_failed_event(&self, failed_event: FailedEvent) -> Result<u64, FailedEventError> {
         let event_id = failed_event.id.ok_or(FailedEventError::MissingId)?;
 
-        // Find the one matching handler; error if none.
-        let handler = TeltonikaEventHandlers::event_handlers(&self.log_target)
-            .into_iter()
-            .find(|h| h.get_event_handler_name() == failed_event.handler_name)
-            .ok_or_else(|| FailedEventError::HandlerNotFound(failed_event.handler_name.clone()))?;
-
-        // Reprocess
-        match handler
-            .send_failed_event(
-                failed_event.event_data,                                    // avoid unnecessary clone if possible
-                self.trackable.clone().ok_or(FailedEventError::MissingId)?, // or pass Option upstream
-                &self.imei,
-            )
-            .await
-        {
-            Ok(()) => {
-                info!(target: &self.log_target, "reprocessed failed event: {}", event_id);
-                Ok(event_id)
+        if failed_event.handler_name == "location" {
+            match self.send_failed_location(failed_event).await {
+                Ok(()) => {
+                    info!(target: &self.log_target, "reprocessed failed location event: {}", event_id);
+                    Ok(event_id)
+                }
+                Err(e) => {
+                    warn!(target: &self.log_target, "Failed to resend failed location event");
+                    Err(FailedEventError::FailedToResend)
+                }
             }
-            Err(e) => {
-                warn!(target: &self.log_target, "Failed to resend failed event: {}", e);
-                Err(FailedEventError::FailedToResend)
+        } else {
+            // Find the one matching handler; error if none.
+            let handler = TeltonikaEventHandlers::event_handlers(&self.log_target)
+                .into_iter()
+                .find(|h| h.get_event_handler_name() == failed_event.handler_name)
+                .ok_or_else(|| FailedEventError::HandlerNotFound(failed_event.handler_name.clone()))?;
+
+            // Reprocess
+            match handler
+                .send_failed_event(
+                    failed_event.event_data,                                    // avoid unnecessary clone if possible
+                    self.trackable.clone().ok_or(FailedEventError::MissingId)?, // or pass Option upstream
+                    &self.imei,
+                )
+                .await
+            {
+                Ok(()) => {
+                    info!(target: &self.log_target, "reprocessed failed event: {}", event_id);
+                    Ok(event_id)
+                }
+                Err(e) => {
+                    warn!(target: &self.log_target, "Failed to resend failed event: {}", e);
+                    Err(FailedEventError::FailedToResend)
+                }
             }
         }
+    }
+
+    /// Sends a failed location event for reprocessing.
+    ///
+    /// # Arguments
+    /// * `failed_event` - The failed event to process.
+    async fn send_failed_location(&self, failed_event: FailedEvent) -> Result<(), String> {
+        let event_data = failed_event.event_data.as_str();
+        let trackable = self.trackable.clone().ok_or("Missing trackable")?;
+
+        let location_data: TruckLocation = serde_json::from_str(&event_data).map_err(|e| format!("{e:?}"))?;
+
+        vehicle_management_service::apis::trucks_api::create_truck_location(
+            &get_vehicle_management_api_config(),
+            CreateTruckLocationParams {
+                truck_id: trackable.id.to_string(),
+                truck_location: location_data.clone(),
+            },
+        )
+        .await
+        .map_err(|e| format!("{e:?}"))
     }
 
     /// Handles a single Teltonika [AVLRecord].

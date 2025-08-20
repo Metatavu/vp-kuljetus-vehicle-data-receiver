@@ -1,16 +1,14 @@
 mod test_utils;
 
-use chrono::{DateTime, Utc};
-use nom_teltonika::{AVLEventIO, AVLEventIOValue, AVLFrame, Priority};
+use chrono::DateTime;
 use tokio::io::AsyncWriteExt;
 
 use uuid::Uuid;
-use vp_kuljetus_vehicle_data_receiver::utils::avl_frame_builder::AVLFrameBuilder;
-use vp_kuljetus_vehicle_data_receiver::utils::avl_record_builder::avl_record_builder::AVLRecordBuilder;
 use vp_kuljetus_vehicle_data_receiver::utils::imei::get_random_imei;
 
 use test_utils::tms_services_test_container::TmsServicesTestContainer;
 
+use crate::test_utils::avl_test_utils::create_odometer_reading_frame;
 use crate::test_utils::data_receiver_test_container::DataReceiverTestContainer;
 use crate::test_utils::mysql_test_container::MySqlTestContainer;
 
@@ -19,23 +17,6 @@ fn setup_logging() {
         .is_test(true)
         .target(env_logger::Target::Stdout)
         .try_init();
-}
-
-fn create_odometer_reading(timestamp: DateTime<Utc>) -> AVLFrame {
-    return AVLFrameBuilder::new()
-        .with_records(vec![AVLRecordBuilder::new()
-            .with_priority(Priority::Low)
-            .with_timestamp(timestamp)
-            .with_angle(0)
-            .with_latitude(61.0)
-            .with_longitude(27.0)
-            .add_io_event(AVLEventIO {
-                id: 192,
-                value: AVLEventIOValue::U32(123456),
-            })
-            .with_trigger_event_id(0)
-            .build()])
-        .build();
 }
 
 /// Tests for sending odometer reading with erroneous response from the server
@@ -83,7 +64,7 @@ async fn test_fmc650_odometer_reading_with_error_response() {
     // Send a driver one frame with card present
 
     data_receiver_test_container
-        .send_avl_frame(&mut fmc650_tcp_stream, &create_odometer_reading(start_time))
+        .send_avl_frame(&mut fmc650_tcp_stream, &create_odometer_reading_frame(start_time))
         .await
         .unwrap();
 

@@ -1,17 +1,15 @@
 mod test_utils;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration};
 use log::info;
-use nom_teltonika::{AVLEventIO, AVLEventIOValue, AVLFrame, Priority};
 use tokio::io::AsyncWriteExt;
 
 use uuid::Uuid;
-use vp_kuljetus_vehicle_data_receiver::utils::avl_frame_builder::AVLFrameBuilder;
-use vp_kuljetus_vehicle_data_receiver::utils::avl_record_builder::avl_record_builder::AVLRecordBuilder;
 use vp_kuljetus_vehicle_data_receiver::utils::imei::get_random_imei;
 
 use test_utils::tms_services_test_container::TmsServicesTestContainer;
 
+use crate::test_utils::avl_test_utils::create_temperature_frame;
 use crate::test_utils::data_receiver_test_container::DataReceiverTestContainer;
 use crate::test_utils::mysql_test_container::MySqlTestContainer;
 
@@ -20,67 +18,6 @@ fn setup_logging() {
         .is_test(true)
         .target(env_logger::Target::Stdout)
         .try_init();
-}
-
-fn create_frame_with_temperature(timestamp: DateTime<Utc>) -> AVLFrame {
-    return AVLFrameBuilder::new()
-        .with_records(vec![AVLRecordBuilder::new()
-            .with_priority(Priority::Low)
-            .with_timestamp(timestamp)
-            .with_angle(0)
-            .with_latitude(61.0)
-            .with_longitude(27.0)
-            .add_io_event(AVLEventIO {
-                id: 240,
-                value: AVLEventIOValue::U8(0),
-            })
-            .add_io_event(AVLEventIO {
-                id: 21,
-                value: AVLEventIOValue::U8(5),
-            })
-            .add_io_event(AVLEventIO {
-                id: 69,
-                value: AVLEventIOValue::U8(2),
-            })
-            .add_io_event(AVLEventIO {
-                id: 66,
-                value: AVLEventIOValue::U16(11937),
-            })
-            .add_io_event(AVLEventIO {
-                id: 72,
-                value: AVLEventIOValue::U32(251),
-            })
-            .add_io_event(AVLEventIO {
-                id: 73,
-                value: AVLEventIOValue::U32(0),
-            })
-            .add_io_event(AVLEventIO {
-                id: 74,
-                value: AVLEventIOValue::U32(0),
-            })
-            .add_io_event(AVLEventIO {
-                id: 75,
-                value: AVLEventIOValue::U32(0),
-            })
-            .add_io_event(AVLEventIO {
-                id: 76,
-                value: AVLEventIOValue::U64(5044040395603323408),
-            })
-            .add_io_event(AVLEventIO {
-                id: 77,
-                value: AVLEventIOValue::U64(0),
-            })
-            .add_io_event(AVLEventIO {
-                id: 79,
-                value: AVLEventIOValue::U64(0),
-            })
-            .add_io_event(AVLEventIO {
-                id: 71,
-                value: AVLEventIOValue::U64(0),
-            })
-            .with_trigger_event_id(0)
-            .build()])
-        .build();
 }
 
 /// Test for single temperature reading from FMC 234
@@ -115,7 +52,7 @@ async fn test_fmc234_single_temperature() {
         .send_imei_packet(&mut fmc234_tcp_stream, &imei)
         .await;
 
-    let frame_with_temperature = create_frame_with_temperature(timestamp);
+    let frame_with_temperature = create_temperature_frame(timestamp);
 
     data_receiver_test_container
         .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
@@ -166,7 +103,7 @@ async fn test_fmc234_multiple_temperatures() {
 
     for i in 0..100 {
         let timestamp = start_time + Duration::seconds(i);
-        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        let frame_with_temperature = create_temperature_frame(timestamp);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
             .await
@@ -211,7 +148,7 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
 
     for i in 0..100 {
         let timestamp = start_time + Duration::seconds(i);
-        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        let frame_with_temperature = create_temperature_frame(timestamp);
 
         let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
 
@@ -274,7 +211,7 @@ async fn test_fmc234_multiple_devices_temperature() {
     for i in 0..100 {
         for stream in streams.iter_mut() {
             let timestamp = start_time + Duration::seconds(i);
-            let frame_with_temperature = create_frame_with_temperature(timestamp);
+            let frame_with_temperature = create_temperature_frame(timestamp);
 
             data_receiver_test_container
                 .send_avl_frame(stream, &frame_with_temperature)
@@ -333,7 +270,7 @@ async fn test_fmc234_temperature_with_error() {
 
     for i in 0..10 {
         let timestamp = start_time + Duration::seconds(i);
-        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        let frame_with_temperature = create_temperature_frame(timestamp);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
             .await
@@ -345,7 +282,7 @@ async fn test_fmc234_temperature_with_error() {
     let garbage_data = vec![0x01, 0x02, 0x03, 0x04, 0x05];
     fmc234_tcp_stream.write_all(&garbage_data).await.unwrap();
 
-    let failing_frame = create_frame_with_temperature(start_time + Duration::seconds(11));
+    let failing_frame = create_temperature_frame(start_time + Duration::seconds(11));
 
     let failing_frame_result = data_receiver_test_container
         .send_avl_frame(&mut fmc234_tcp_stream, &failing_frame)
@@ -358,7 +295,7 @@ async fn test_fmc234_temperature_with_error() {
 
     for i in 11..20 {
         let timestamp = start_time + Duration::seconds(i);
-        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        let frame_with_temperature = create_temperature_frame(timestamp);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
             .await
@@ -408,7 +345,7 @@ async fn test_fmc234_temperature_with_error_response() {
     // Send 10 frames with temperature readings
     for i in 0..10 {
         let timestamp = start_time + Duration::seconds(i);
-        let frame_with_temperature = create_frame_with_temperature(timestamp);
+        let frame_with_temperature = create_temperature_frame(timestamp);
         data_receiver_test_container
             .send_avl_frame(&mut fmc234_tcp_stream, &frame_with_temperature)
             .await
