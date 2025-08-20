@@ -12,6 +12,7 @@ use vp_kuljetus_vehicle_data_receiver::utils::imei::get_random_imei;
 use test_utils::tms_services_test_container::TmsServicesTestContainer;
 
 use crate::test_utils::data_receiver_test_container::DataReceiverTestContainer;
+use crate::test_utils::mysql_test_container::MySqlTestContainer;
 
 fn setup_logging() {
     let _ = env_logger::builder()
@@ -343,6 +344,9 @@ async fn test_fmc234_temperature_with_error_response() {
 
     let imei = get_random_imei();
 
+    let mut mysql_test_container = MySqlTestContainer::new();
+    mysql_test_container.start().await;
+
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
     api_services_test_container.mock_create_temperature_reading(500).await;
@@ -373,8 +377,36 @@ async fn test_fmc234_temperature_with_error_response() {
             .unwrap();
     }
 
+    // Wait until all temperature readings are processed
+    api_services_test_container.wait_for_temperature_reading(10).await;
+
+    // Assert that all readings were processed as failures
+    let failed_trackable_events = mysql_test_container.count_failed_events().await.unwrap();
+    assert_eq!(failed_trackable_events, 10);
+
+    api_services_test_container.mock_create_temperature_reading(200).await;
+    api_services_test_container.reset_counts().await;
+
+    // Send another frame to trigger processing for events
+    data_receiver_test_container
+        .send_avl_frame(
+            &mut fmc234_tcp_stream,
+            &create_frame_with_temperature(start_time + Duration::seconds(10)),
+        )
+        .await
+        .unwrap();
+
+    // Wait until new temperature readings and failed events are processed
+    api_services_test_container.wait_for_temperature_reading(11).await;
+
+    // Assert that all readings were processed as successes
+    let successful_trackable_events = mysql_test_container.count_failed_events().await.unwrap();
+    assert_eq!(successful_trackable_events, 0);
+
     fmc234_tcp_stream.shutdown().await.ok();
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;
+
+    mysql_test_container.stop().await;
 }

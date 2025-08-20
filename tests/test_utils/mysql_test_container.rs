@@ -51,10 +51,10 @@ impl MySqlTestContainer {
     ///
     /// # Returns
     /// The count of failed trackable events.
-    pub async fn count_failed_trackable_events(&self) -> Result<i64, Box<dyn std::error::Error>> {
+    pub async fn count_failed_events(&self) -> Result<i64, Box<dyn std::error::Error>> {
         // Replace the following with your actual connection logic
         let pool = self.get_connection_pool().await?;
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM failed_trackable_event")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM failed_event")
             .fetch_one(&pool)
             .await?;
         Ok(row.0)

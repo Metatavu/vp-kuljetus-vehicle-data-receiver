@@ -14,6 +14,7 @@ use crate::test_utils::wiremock_client::WiremockClient;
 /// A mock service for VP TMS API services using Wiremock.
 pub struct TmsServicesTestContainer {
     wiremock_container: Option<ContainerAsync<GenericImage>>,
+    temperature_reading_mapping_id: Option<String>,
 }
 
 /// Implementation of TmsServicesMock.
@@ -27,6 +28,7 @@ impl TmsServicesTestContainer {
     pub fn new() -> Self {
         Self {
             wiremock_container: None,
+            temperature_reading_mapping_id: None,
         }
     }
 
@@ -58,20 +60,39 @@ impl TmsServicesTestContainer {
 
     /// Mocks the creation of a temperature reading.
     /// This method sets up a stub for the `/v1/temperatureReadings` endpoint
-    /// that returns a 200 OK response with an empty JSON body.
+    /// that returns a response with given code and an empty JSON body.
+    ///
+    /// If the method `mock_create_temperature_reading` is called multiple times,
+    /// it will replace the previous stub with the new one.
+    ///
     /// # Arguments
     /// * `status` - The HTTP status code to return for the stubbed request.
     /// # Errors
     /// Returns an error if the stub setup fails.
     /// # Panics
     /// Panics if the Wiremock client fails to create the stub.
-    pub async fn mock_create_temperature_reading(&self, status: u16) {
+    pub async fn mock_create_temperature_reading(&mut self, status: u16) {
         let wiremock_client = self.get_wiremock_client().await;
 
-        wiremock_client
-            .stub("POST", "/v1/temperatureReadings", status, Some(json!({})), None)
-            .await
-            .unwrap();
+        if (self.temperature_reading_mapping_id.is_some()) {
+            wiremock_client
+                .reset_mapping(self.temperature_reading_mapping_id.as_ref().unwrap())
+                .await
+                .unwrap();
+        }
+
+        self.temperature_reading_mapping_id = Some(
+            wiremock_client
+                .stub("POST", "/v1/temperatureReadings", status, Some(json!({})), None)
+                .await
+                .unwrap(),
+        );
+    }
+
+    /// Resets the all request counts in Wiremock.
+    pub async fn reset_counts(&self) {
+        let wiremock_client = self.get_wiremock_client().await;
+        wiremock_client.reset_counts().await.unwrap();
     }
 
     /// Mocks the retrieval of a trackable by IMEI.
