@@ -1,15 +1,13 @@
-use std::{
-    error::{self, Error},
-    path::PathBuf,
-};
-
 use crate::{
-    telematics_cache::Cacheable, teltonika::events::TeltonikaEventHandlers, utils::get_vehicle_management_api_config,
+    failed_events::{FailedEvent, FailedEventError, FailedEventsHandler},
+    teltonika::events::TeltonikaEventHandlers,
+    utils::get_vehicle_management_api_config,
     Listener,
 };
 use futures::future::join_all;
-use log::debug;
+use log::{debug, info, warn};
 use nom_teltonika::{AVLEventIO, AVLRecord};
+use sqlx::{MySql, Pool};
 use vehicle_management_service::{
     apis::trucks_api::CreateTruckLocationParams,
     models::{Trackable, TruckLocation},
@@ -19,33 +17,67 @@ use vehicle_management_service::{
 pub struct TeltonikaRecordsHandler {
     log_target: String,
     trackable: Option<Trackable>,
-    base_cache_path: PathBuf,
+    imei: String,
 }
 
 impl TeltonikaRecordsHandler {
-    pub fn new(log_target: String, trackable: Option<Trackable>, base_cache_path: PathBuf) -> Self {
+    pub fn new(log_target: String, trackable: Option<Trackable>, imei: String) -> Self {
         TeltonikaRecordsHandler {
             log_target,
             trackable,
-            base_cache_path,
+            imei,
         }
-    }
-
-    /// Gets the base cache path.
-    #[cfg(test)]
-    pub fn base_cache_path(&self) -> &std::path::Path {
-        self.base_cache_path.as_path()
     }
 
     /// Handles a list of Teltonika [AVLRecord]s.
     ///
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
-    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener) {
+    pub async fn handle_records(
+        &self,
+        teltonika_records: Vec<AVLRecord>,
+        listener: &Listener,
+        database_pool: Pool<MySql>,
+    ) {
         let tasks = teltonika_records
             .iter()
-            .map(|record| self.handle_record(record, listener));
+            .map(|record| self.handle_record(record, listener, database_pool.clone()));
         join_all(tasks).await;
+    }
+
+    /// Resends failed events.
+    ///
+    /// This method will attempt to resend them using the appropriate event handlers.
+    ///
+    /// # Arguments
+    /// * `failed_event` - The failed event to handle.
+    pub async fn handle_failed_event(&self, failed_event: FailedEvent) -> Result<u64, FailedEventError> {
+        let event_id = failed_event.id.ok_or(FailedEventError::MissingId)?;
+
+        // Find the one matching handler; error if none.
+        let handler = TeltonikaEventHandlers::event_handlers(&self.log_target)
+            .into_iter()
+            .find(|h| h.get_event_handler_name() == failed_event.handler_name)
+            .ok_or_else(|| FailedEventError::HandlerNotFound(failed_event.handler_name.clone()))?;
+
+        // Reprocess
+        match handler
+            .send_failed_event(
+                failed_event.event_data,                                    // avoid unnecessary clone if possible
+                self.trackable.clone().ok_or(FailedEventError::MissingId)?, // or pass Option upstream
+                &self.imei,
+            )
+            .await
+        {
+            Ok(()) => {
+                info!(target: &self.log_target, "reprocessed failed event: {}", event_id);
+                Ok(event_id)
+            }
+            Err(e) => {
+                warn!(target: &self.log_target, "Failed to resend failed event: {}", e);
+                Err(FailedEventError::FailedToResend)
+            }
+        }
     }
 
     /// Handles a single Teltonika [AVLRecord].
@@ -54,11 +86,11 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
-    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) {
+    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener, database_pool: Pool<MySql>) {
         if *listener == Listener::TeltonikaFMC234 {
             debug!(target: &self.log_target, "Skipping location for {listener:?} listener as not yet implemented on backend")
         } else {
-            self.handle_record_location(record).await;
+            self.handle_record_location(record, database_pool.clone()).await;
         }
         let trigger_event = record
             .io_events
@@ -100,9 +132,10 @@ impl TeltonikaRecordsHandler {
                     record.trigger_event_id,
                     events,
                     record.timestamp.timestamp(),
+                    self.imei.clone(),
                     self.trackable.clone(),
-                    self.base_cache_path.clone(),
                     listener,
+                    database_pool.clone(),
                 )
                 .await;
             debug!(target: &self.log_target, "Handler {handler:?} processed events successfully")
@@ -116,8 +149,17 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle the location for.
-    async fn handle_record_location(&self, record: &AVLRecord) {
-        let location_data = TruckLocation::from_teltonika_record(record).unwrap();
+    async fn handle_record_location(&self, record: &AVLRecord, database_pool: Pool<MySql>) {
+        let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
+
+        let location_data = TruckLocation {
+            id: None,
+            latitude: record.latitude,
+            longitude: record.longitude,
+            heading: record.angle as f64,
+            timestamp: record.timestamp.timestamp(),
+        };
+
         if let Some(trackable) = &self.trackable {
             debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
             let result = vehicle_management_service::apis::trucks_api::create_truck_location(
@@ -130,51 +172,40 @@ impl TeltonikaRecordsHandler {
             .await;
             if let Err(e) = result {
                 debug!(target: &self.log_target,
-                    "Error sending location: {:?}. Caching it for further use.",
+                    "Failed to send location: {:?}. Persisting into database, so it can be retried later.",
                     e
                 );
-                location_data
-                    .write_to_file(self.base_cache_path.clone())
-                    .expect("Error caching location");
+
+                failed_events_handler
+                    .persist_event(
+                        self.imei.clone(),
+                        FailedEvent {
+                            id: None,
+                            handler_name: "location".to_string(),
+                            timestamp: record.timestamp.timestamp(),
+                            event_data: serde_json::to_string(&location_data).unwrap(),
+                            imei: self.imei.clone(),
+                        },
+                    )
+                    .await
+                    .expect("Failed to persist failed event");
             }
         } else {
-            debug!(target: &self.log_target, "Caching location for yet unknown truck");
-            location_data
-                .write_to_file(self.base_cache_path.clone())
-                .expect("Error caching location");
+            debug!(target: &self.log_target, "Could not find trackable for location: {:?}", location_data);
+
+            failed_events_handler
+                .persist_event(
+                    self.imei.clone(),
+                    FailedEvent {
+                        id: None,
+                        handler_name: "location".to_string(),
+                        timestamp: record.timestamp.timestamp(),
+                        event_data: serde_json::to_string(&location_data).unwrap(),
+                        imei: self.imei.clone(),
+                    },
+                )
+                .await
+                .expect("Failed to persist failed event");
         }
-    }
-}
-
-/// Implementation of [Cacheable] for [TruckLocation].
-impl Cacheable for TruckLocation {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_location_cache.json")
-    }
-
-    fn from_teltonika_record(record: &AVLRecord) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        Some(TruckLocation {
-            id: None,
-            latitude: record.latitude,
-            longitude: record.longitude,
-            heading: record.angle as f64,
-            timestamp: record.timestamp.timestamp(),
-        })
-    }
-}
-
-/// Implementation of [Cacheable] for [TruckLocation].
-impl Cacheable for Vec<TruckLocation> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_location_cache.json")
     }
 }

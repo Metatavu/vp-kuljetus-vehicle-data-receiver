@@ -23,6 +23,10 @@ impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadin
         vec![192]
     }
 
+    fn get_event_handler_name(&self) -> String {
+        return "odometer_reading".to_string();
+    }
+
     async fn send_event(
         &self,
         event_data: &TruckOdometerReading,

@@ -85,6 +85,10 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         false
     }
 
+    fn get_event_handler_name(&self) -> String {
+        return "temperature_sensors_reading".to_string();
+    }
+
     fn get_event_ids(&self, listener: &Listener) -> Vec<u16> {
         match listener {
             Listener::TeltonikaFMC650 => vec![

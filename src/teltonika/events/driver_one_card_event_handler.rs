@@ -123,6 +123,10 @@ impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> fo
         vec![187, 195]
     }
 
+    fn get_event_handler_name(&self) -> String {
+        return "driver_one_card".to_string();
+    }
+
     async fn send_event(
         &self,
         event_data: &TruckDriverCard,

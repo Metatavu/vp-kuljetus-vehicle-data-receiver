@@ -1,5 +1,5 @@
 use crate::{
-    telematics_cache::Cacheable,
+    failed_events::{FailedEvent, FailedEventsHandler},
     teltonika::events::{
         DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
         TemperatureSensorsReadingEventHandler,
@@ -9,8 +9,19 @@ use crate::{
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, path::PathBuf};
-use vehicle_management_service::models::Trackable;
+use sqlx::{MySql, Pool};
+use std::fmt::Debug;
+use vehicle_management_service::{
+    apis::{
+        temperature_readings_api::CreateTemperatureReadingError,
+        trucks_api::{CreateDriveStateError, CreateTruckOdometerReadingError},
+    },
+    models::{TemperatureReading, Trackable, TruckDriverCard, TruckOdometerReading, TruckSpeed},
+};
+use vehicle_management_service::{
+    apis::{trucks_api::CreateTruckSpeedError, Error as ApiError},
+    models::TruckDriveState,
+};
 
 /// Enumeration for Teltonika event handlers.
 ///
@@ -37,6 +48,63 @@ impl<'a> TeltonikaEventHandlers<'a> {
             )),
         ]
     }
+
+    /// Sends a failed event to the appropriate handler.
+    ///
+    /// # Arguments
+    /// * `event_data` - The event data to send
+    /// * `trackable` - The trackable object associated with the event
+    /// * `log_target` - The log target for the event
+    pub async fn send_failed_event(
+        &self,
+        event_data: String,
+        trackable: Trackable,
+        log_target: &str,
+    ) -> Result<(), String> {
+        match self {
+            TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => {
+                let data: TruckSpeed =
+                    serde_json::from_str(&event_data).map_err(|e| format!("Failed to deserialize TruckSpeed: {e}"))?;
+                handler
+                    .send_event(&data, trackable, log_target)
+                    .await
+                    .map_err(|e: ApiError<CreateTruckSpeedError>| format!("{e:?}"))
+            }
+            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => {
+                let data: TruckDriverCard = serde_json::from_str(&event_data)
+                    .map_err(|e| format!("Failed to deserialize TruckDriverCard: {e}"))?;
+                handler
+                    .send_event(&data, trackable, log_target)
+                    .await
+                    .map_err(|e| format!("{e:?}"))
+            }
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => {
+                let data: TruckDriveState = serde_json::from_str(&event_data)
+                    .map_err(|e| format!("Failed to deserialize TruckDriveState: {e}"))?;
+                handler
+                    .send_event(&data, trackable, log_target)
+                    .await
+                    .map_err(|e: ApiError<CreateDriveStateError>| format!("{e:?}"))
+            }
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => {
+                let data: TruckOdometerReading = serde_json::from_str(&event_data)
+                    .map_err(|e| format!("Failed to deserialize TruckOdometerReading: {e}"))?;
+                handler
+                    .send_event(&data, trackable, log_target)
+                    .await
+                    .map_err(|e: ApiError<CreateTruckOdometerReadingError>| format!("{e:?}"))
+            }
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => {
+                let data: Vec<TemperatureReading> = serde_json::from_str(&event_data)
+                    .map_err(|e| format!("Failed to deserialize TruckTemperatureSensorsReadings: {e}"))?;
+                handler
+                    .send_event(&data, trackable, log_target)
+                    .await
+                    .map_err(|e: ApiError<CreateTemperatureReadingError>| format!("{e:?}"))
+            }
+        }
+    }
+
     pub fn require_all_events(&self) -> bool {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.require_all_events(),
@@ -55,6 +123,22 @@ impl<'a> TeltonikaEventHandlers<'a> {
             TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_ids(listener),
             TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => {
                 handler.get_event_ids(listener)
+            }
+        }
+    }
+
+    /// Gets the name of the event handler.
+    ///
+    /// # Returns
+    /// The name of the event handler.
+    pub fn get_event_handler_name(&self) -> String {
+        match self {
+            TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => handler.get_event_handler_name(),
+            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => handler.get_event_handler_name(),
+            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => handler.get_event_handler_name(),
+            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => handler.get_event_handler_name(),
+            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => {
+                handler.get_event_handler_name()
             }
         }
     }
@@ -78,9 +162,10 @@ impl<'a> TeltonikaEventHandlers<'a> {
         trigger_event_id: u16,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
+        imei: String,
         trackable: Option<Trackable>,
-        base_cache_path: PathBuf,
         listener: &Listener,
+        database_pool: Pool<MySql>,
     ) {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
@@ -89,10 +174,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
+                        imei,
                         trackable,
-                        base_cache_path,
                         log_target,
                         listener,
+                        database_pool.clone(),
                     )
                     .await
             }
@@ -102,10 +188,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
+                        imei,
                         trackable,
-                        base_cache_path,
                         log_target,
                         listener,
+                        database_pool.clone(),
                     )
                     .await
             }
@@ -115,10 +202,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
+                        imei,
                         trackable,
-                        base_cache_path,
                         log_target,
                         listener,
+                        database_pool.clone(),
                     )
                     .await
             }
@@ -128,10 +216,11 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
+                        imei,
                         trackable,
-                        base_cache_path,
                         log_target,
                         listener,
+                        database_pool.clone(),
                     )
                     .await
             }
@@ -141,48 +230,12 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trigger_event_id,
                         events,
                         timestamp,
+                        imei,
                         trackable,
-                        base_cache_path,
                         log_target,
                         listener,
+                        database_pool.clone(),
                     )
-                    .await
-            }
-        }
-    }
-
-    /// Purges the cache.
-    pub async fn purge_cache(
-        &self,
-        trackable: &Trackable,
-        base_cache_path: PathBuf,
-        purge_cache_size: usize,
-        listener: &Listener,
-    ) {
-        match self {
-            TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
-                handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
-                    .await
-            }
-            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, log_target)) => {
-                handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
-                    .await
-            }
-            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, log_target)) => {
-                handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
-                    .await
-            }
-            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, log_target)) => {
-                handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
-                    .await
-            }
-            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, log_target)) => {
-                handler
-                    .purge_cache(trackable, base_cache_path, log_target, purge_cache_size, listener)
                     .await
             }
         }
@@ -198,9 +251,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
 /// * `E` - The type of the error that can occur when sending the event to the API.
 pub trait TeltonikaEventHandler<T, E>
 where
-    T: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
+    T: Serialize + for<'a> Deserialize<'a> + Clone + Debug,
     E: Debug,
-    Vec<T>: Cacheable + Serialize + for<'a> Deserialize<'a> + Clone + Debug,
+    Vec<T>: Serialize + for<'a> Deserialize<'a> + Clone + Debug,
     Self: std::fmt::Debug,
 {
     fn require_all_events(&self) -> bool {
@@ -233,41 +286,57 @@ where
         trigger_event_id: u16,
         events: Vec<&AVLEventIO>,
         timestamp: i64,
+        imei: String,
         trackable: Option<Trackable>,
-        base_cache_path: PathBuf,
         log_target: &str,
         listener: &Listener,
+        database_pool: Pool<MySql>,
     ) {
+        let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
+
         let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target, listener);
         if event_data.is_none() {
             debug!(target: &log_target, "No event data to handle for {self:?}");
             return;
         }
         let event_data = event_data.unwrap();
-        if let Some(trackable) = trackable {
+        if let Some(ref trackable) = trackable {
             debug!(target: log_target, "[{self:?}] handling  event for {}: {}", trackable.trackable_type, trackable.id);
-            let send_event_result = self.send_event(&event_data, trackable, log_target).await;
+            let send_event_result = self.send_event(&event_data, trackable.clone(), log_target).await;
             if let Err(err) = send_event_result {
-                error!(target: log_target, "Error sending event: {err:?}. Caching it for further use.");
-                self.cache_event_data(event_data, base_cache_path);
+                error!(target: log_target, "Failed to send event for trackable {}: {err:?}. Persisting so it can be retried later", trackable.id);
+
+                failed_events_handler
+                    .persist_event(
+                        imei.clone(),
+                        FailedEvent {
+                            id: None,
+                            handler_name: self.get_event_handler_name(),
+                            timestamp: timestamp,
+                            event_data: serde_json::to_string(&event_data).unwrap(),
+                            imei: imei.clone(),
+                        },
+                    )
+                    .await
+                    .expect("Failed to persist failed event");
             }
         } else {
-            debug!(target: log_target, "Caching event for yet unknown truck");
-            self.cache_event_data(event_data, base_cache_path);
-        };
-    }
+            debug!(target: log_target, "Failed to send event for unknown truck: {}. Persisting so it can be retried later", imei);
 
-    /// Caches the event data. e.g. writes to file.
-    ///
-    /// # Arguments
-    /// * `event` - The Teltonika event to cache.
-    /// * `timestamp` - The timestamp of the event.
-    /// * `base_cache_path` - The base path to the cache directory.
-    fn cache_event_data(&self, event: T, base_cache_path: PathBuf) {
-        let cache_result = event.write_to_file(base_cache_path);
-        if let Err(e) = cache_result {
-            panic!("Error caching event: {:?}", e);
-        }
+            failed_events_handler
+                .persist_event(
+                    imei.clone(),
+                    FailedEvent {
+                        id: None,
+                        handler_name: self.get_event_handler_name(),
+                        timestamp: timestamp,
+                        event_data: serde_json::to_string(&event_data).unwrap(),
+                        imei: imei.clone(),
+                    },
+                )
+                .await
+                .expect("Failed to persist event for unknown truck");
+        };
     }
 
     /// Sends the event data to the API.
@@ -277,6 +346,12 @@ where
     /// * `truck_id` - The truck ID of the event.
     /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
     async fn send_event(&self, event_data: &T, trackable: Trackable, log_target: &str) -> Result<(), E>;
+
+    /// Returns the name of the event handler.
+    ///
+    /// # Returns
+    /// * The name of the event handler.
+    fn get_event_handler_name(&self) -> String;
 
     /// Processes the event data.
     ///
@@ -298,51 +373,4 @@ where
         log_target: &str,
         listener: &Listener,
     ) -> Option<T>;
-
-    /// Purges the cache.
-    ///
-    /// # Arguments
-    /// * `truck_id` - The truck ID to purge the cache for.
-    /// * `base_cache_path` - The base path to the cache directory.
-    /// * `log_target` - The log target to use for logging in format `imei - worker_id`.
-    /// * `purge_cache_size` - The size of the cache to purge.
-    async fn purge_cache(
-        &self,
-        trackable: &Trackable,
-        base_cache_path: PathBuf,
-        log_target: &str,
-        purge_cache_size: usize,
-        listener: &Listener,
-    ) {
-        let (cache, cache_size) = T::take_from_file(base_cache_path.clone(), purge_cache_size);
-
-        let mut failed_events: Vec<T> = Vec::new();
-        let purge_cache_size = cache.len();
-
-        let event_ids = self
-            .get_event_ids(listener)
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<String>>()
-            .join(", ");
-        debug!(target: log_target,
-            "Purging cache of {purge_cache_size}/{cache_size} events for event ids: {event_ids}",
-        );
-
-        for cached_event in cache.iter() {
-            let sent_event = self.send_event(cached_event, trackable.clone(), log_target).await;
-            if let Err(err) = sent_event {
-                debug!(target: log_target,
-                    "Failed to send event: {err:#?}. Adding it to failed events.",
-                );
-                failed_events.push(cached_event.clone());
-            }
-        }
-        let successful_events_count = cache.len() - failed_events.len();
-        let failed_events_count = failed_events.len();
-        debug!(target: log_target,
-            "Purged {successful_events_count} events for event ids: {event_ids} from cache with {failed_events_count} failures",
-        );
-        T::write_vec_to_file(failed_events, base_cache_path).expect("Failed to write cache");
-    }
 }

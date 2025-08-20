@@ -1,12 +1,8 @@
-use base64::Engine;
-use chrono::{Datelike, Utc};
 use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
-use serde::Serialize;
+use sqlx::{MySql, Pool};
 use std::{
-    fs::{create_dir_all, File, OpenOptions},
-    io::{Error, ErrorKind, Write},
-    path::{Path, PathBuf},
+    io::{Error, ErrorKind},
     time::Duration,
 };
 use tokio::{
@@ -37,13 +33,13 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
     /// * `listener` - Listener
-    pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener) -> Self {
+    pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener, database_pool: Pool<MySql>) -> Self {
         let channel = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei: imei.clone(),
             trackable: None,
-            worker: worker::spawn_2(channel, imei),
+            worker: worker::spawn_2(channel, imei, database_pool.clone()),
             listener: listener,
         };
 
@@ -58,12 +54,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
     /// * `listener` - Listener
-    pub async fn handle_connection(stream: S, base_file_path: &Path, listener: &Listener) -> Result<(), Error> {
+    pub async fn handle_connection(stream: S, listener: &Listener, database_pool: Pool<MySql>) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream)).await {
             Ok((stream, imei)) => {
-                let file_path = base_file_path.join(&imei);
-                let mut connection = Self::new(stream, imei, *listener);
-                connection.run(&file_path).await.expect("Failed to run");
+                let mut connection = Self::new(stream, imei, *listener, database_pool);
+                connection.run().await.expect("Failed to run");
                 Ok(())
             }
             Err(err) => Err(err),
@@ -120,18 +115,10 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     ///
     /// # Arguments
     /// * `base_log_file_path` - Base path for the log files
-    async fn run(&mut self, base_log_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        let start_of_connection = Utc::now();
-        let mut file_handle = self.get_log_file_handle(base_log_file_path);
-
+    async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
             if self.trackable.is_none() {
                 self.trackable = get_trackable(&self.imei).await;
-            }
-
-            let start_of_loop = Utc::now();
-            if start_of_loop.day() != start_of_connection.day() {
-                file_handle = self.get_log_file_handle(base_log_file_path);
             }
 
             match self.teltonika_stream.read_frame_async().await {
@@ -143,8 +130,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         "Received frame with {records_count} records from"
 
                     );
-
-                    self.write_data_to_log_file(&mut file_handle, &frame);
 
                     let ack_result = timeout(
                         Duration::from_secs(60),
@@ -163,7 +148,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         .send(WorkerMessage::IncomingFrame {
                             frame: frame.clone(),
                             trackable: self.trackable.clone(),
-                            base_cache_path: base_log_file_path.clone(),
                             imei: self.imei.clone(),
                             listener: self.listener,
                         })
@@ -202,53 +186,5 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         }
 
         Ok(())
-    }
-
-    /// Write data to log file
-    ///
-    /// # Arguments
-    /// * `file_handle` - File handle
-    /// * `data` - Data to write to file
-    fn write_data_to_log_file<T>(&self, file_handle: &mut Option<File>, data: &T)
-    where
-        T: Sized + Serialize,
-    {
-        if cfg!(test) {
-            return;
-        }
-        let Ok(data) = serde_json::to_vec(data) else {
-            error!(target: self.log_target(), "Failed to serialize data");
-            return;
-        };
-        if let Some(file) = file_handle {
-            let encoded = base64::prelude::BASE64_STANDARD.encode(data) + "\\n";
-            file.write_all(encoded.as_bytes())
-                .expect("Failed to write data to file");
-        }
-    }
-
-    /// Gets file handle for log file
-    ///
-    /// # Arguments
-    /// * `log_file_path` - Path to log file
-    ///
-    /// # Returns
-    /// * `Option<File>` - File handle
-    fn get_log_file_handle(&self, log_file_path: &Path) -> Option<File> {
-        if cfg!(not(test)) && log_file_path.file_name().unwrap() != "" {
-            let today = Utc::now().format("%Y-%m-%d").to_string();
-            create_dir_all(&log_file_path)
-                .expect(&format!("Failed to create log file directory `{:#?}`", &log_file_path));
-            return Some(
-                OpenOptions::new()
-                    .read(true)
-                    .create(true)
-                    .append(true)
-                    .open(log_file_path.join(format!("{}.txt", today)))
-                    .expect("Failed to open file"),
-            );
-        }
-
-        return None;
     }
 }

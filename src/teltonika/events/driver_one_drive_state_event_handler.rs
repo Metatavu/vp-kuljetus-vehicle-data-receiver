@@ -24,6 +24,10 @@ impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for Dr
         vec![184, 195, 196]
     }
 
+    fn get_event_handler_name(&self) -> String {
+        return "driver_one_drive_state".to_string();
+    }
+
     async fn send_event(
         &self,
         event_data: &TruckDriveState,

@@ -18,6 +18,10 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
         vec![191]
     }
 
+    fn get_event_handler_name(&self) -> String {
+        return "speed".to_string();
+    }
+
     async fn send_event(
         &self,
         event_data: &TruckSpeed,
