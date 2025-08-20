@@ -102,43 +102,15 @@ pub fn read_imei(buffer: &Vec<u8>) -> (bool, Option<String>) {
     }
 }
 
-/// Gets a TeltonikaRecordsHandler for testing
-///
-/// Uses a temporary directory for the cache.
-///
-/// # Arguments
-/// * `truck_id` - Truck ID to be used for the handler
-/// * `imei` - IMEI to be used for the handler
-///
-/// # Returns
-/// * `TeltonikaRecordsHandler` - TeltonikaRecordsHandler instance
-pub fn get_teltonika_records_handler(
-    trackable_id: Option<Uuid>,
-    imei: Option<String>,
-    trackable_type: Option<TrackableType>,
-) -> TeltonikaRecordsHandler {
-    let test_cache_dir = tempdir().unwrap();
-    let test_cache_path = test_cache_dir.path().to_path_buf();
-    let imei = imei.unwrap_or(String::new());
-    let trackable = match trackable_id {
-        Some(id) => Some(Trackable::new(
-            id,
-            imei.clone(),
-            trackable_type.unwrap_or(TrackableType::Truck),
-        )),
-        None => None,
-    };
-
-    return TeltonikaRecordsHandler::new(imei, trackable, test_cache_path);
-}
-
 pub fn mock_server() -> MockServer {
     let mock_server = MockServer::start();
     let mut server_address = String::from("http://");
     server_address.push_str(mock_server.address().to_string().as_str());
 
-    std::env::set_var("API_BASE_URL", &server_address);
-    std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+    unsafe {
+        std::env::set_var("API_BASE_URL", &server_address);
+        std::env::set_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "API_KEY");
+    }
 
     mock_server
 }
