@@ -89,6 +89,8 @@ async fn test_fmc234_single_temperature() {
     setup_logging();
 
     let imei = get_random_imei();
+    let mut mysql_test_container = MySqlTestContainer::new();
+    mysql_test_container.start().await;
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
@@ -123,6 +125,7 @@ async fn test_fmc234_single_temperature() {
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;
+    mysql_test_container.stop().await;
 }
 
 /// Test for multiple temperature readings from FMC 234
@@ -132,6 +135,9 @@ async fn test_fmc234_multiple_temperatures() {
     setup_logging();
 
     let imei = get_random_imei();
+
+    let mut mysql_test_container = MySqlTestContainer::new();
+    mysql_test_container.start().await;
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
@@ -167,6 +173,7 @@ async fn test_fmc234_multiple_temperatures() {
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;
+    mysql_test_container.stop().await;
 }
 
 /// Test for multiple temperature readings from FMC 234 with poor connection.
@@ -176,6 +183,9 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
     setup_logging();
 
     let imei = get_random_imei();
+
+    let mut mysql_test_container = MySqlTestContainer::new();
+    mysql_test_container.start().await;
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
@@ -212,12 +222,16 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;
+    mysql_test_container.stop().await;
 }
 
 /// Tests for sending temperature readings from multiple FMC 234 devices simultaneously.
 #[tokio::test]
 async fn test_fmc234_multiple_devices_temperature() {
     setup_logging();
+
+    let mut mysql_test_container = MySqlTestContainer::new();
+    mysql_test_container.start().await;
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
@@ -266,6 +280,7 @@ async fn test_fmc234_multiple_devices_temperature() {
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;
+    mysql_test_container.stop().await;
 }
 
 /// Tests for sending temperature readings with erroneous data in stream
@@ -274,6 +289,9 @@ async fn test_fmc234_temperature_with_error() {
     setup_logging();
 
     let imei = get_random_imei();
+
+    let mut mysql_test_container = MySqlTestContainer::new();
+    mysql_test_container.start().await;
 
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
@@ -335,6 +353,7 @@ async fn test_fmc234_temperature_with_error() {
 
     api_services_test_container.stop().await;
     data_receiver_test_container.stop().await;
+    mysql_test_container.stop().await;
 }
 
 /// Tests for sending temperature readings with errorneous response from the server

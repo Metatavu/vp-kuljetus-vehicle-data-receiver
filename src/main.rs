@@ -141,10 +141,10 @@ async fn start_failed_events_worker(database_pool: Pool<MySql>) {
                         }
                     }
                 } else {
-                    info!("No trackable found for IMEI {}", imei);
+                    debug!("No trackable found for IMEI {}", imei);
                 }
             } else {
-                info!("No failed events found");
+                debug!("No failed events found");
             }
         }
     });
