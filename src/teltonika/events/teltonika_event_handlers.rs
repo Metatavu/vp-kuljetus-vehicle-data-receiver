@@ -299,19 +299,22 @@ where
             debug!(target: &log_target, "No event data to handle for {self:?}");
             return;
         }
+
         let event_data = event_data.unwrap();
+        let event_handler = self.get_event_handler_name();
+
         if let Some(ref trackable) = trackable {
             debug!(target: log_target, "[{self:?}] handling  event for {}: {}", trackable.trackable_type, trackable.id);
             let send_event_result = self.send_event(&event_data, trackable.clone(), log_target).await;
             if let Err(err) = send_event_result {
-                error!(target: log_target, "Failed to send event for trackable {}: {err:?}. Persisting so it can be retried later", trackable.id);
+                error!(target: log_target, "Failed to send {} event for trackable {}: {err:?}. Persisting so it can be retried later", event_handler, trackable.id);
 
                 failed_events_handler
                     .persist_event(
                         imei.clone(),
                         FailedEvent {
                             id: None,
-                            handler_name: self.get_event_handler_name(),
+                            handler_name: event_handler,
                             timestamp: timestamp,
                             event_data: serde_json::to_string(&event_data).unwrap(),
                             imei: imei.clone(),
@@ -321,7 +324,7 @@ where
                     .expect("Failed to persist failed event");
             }
         } else {
-            debug!(target: log_target, "Failed to send event for unknown truck: {}. Persisting so it can be retried later", imei);
+            debug!(target: log_target, "Failed to send {} event for unknown truck: {}. Persisting so it can be retried later", event_handler, imei);
 
             failed_events_handler
                 .persist_event(

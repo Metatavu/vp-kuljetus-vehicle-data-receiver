@@ -5,6 +5,7 @@ use log::info;
 use nom_teltonika::{AVLEventIO, AVLEventIOValue, AVLFrame, Priority};
 use tokio::io::AsyncWriteExt;
 
+use uuid::Uuid;
 use vp_kuljetus_vehicle_data_receiver::utils::avl_frame_builder::AVLFrameBuilder;
 use vp_kuljetus_vehicle_data_receiver::utils::avl_record_builder::avl_record_builder::AVLRecordBuilder;
 use vp_kuljetus_vehicle_data_receiver::utils::imei::get_random_imei;
@@ -88,6 +89,7 @@ fn create_frame_with_temperature(timestamp: DateTime<Utc>) -> AVLFrame {
 async fn test_fmc234_single_temperature() {
     setup_logging();
 
+    let towable_id = Uuid::new_v4().to_string();
     let imei = get_random_imei();
     let mut mysql_test_container = MySqlTestContainer::new();
     mysql_test_container.start().await;
@@ -96,7 +98,9 @@ async fn test_fmc234_single_temperature() {
     api_services_test_container.start().await;
 
     api_services_test_container.mock_create_temperature_reading(200).await;
-    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+    api_services_test_container
+        .mock_get_trackable(imei.as_str(), &towable_id, "TOWABLE")
+        .await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
     data_receiver_test_container.start().await;
@@ -135,6 +139,7 @@ async fn test_fmc234_multiple_temperatures() {
     setup_logging();
 
     let imei = get_random_imei();
+    let towable_id = Uuid::new_v4().to_string();
 
     let mut mysql_test_container = MySqlTestContainer::new();
     mysql_test_container.start().await;
@@ -142,7 +147,9 @@ async fn test_fmc234_multiple_temperatures() {
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
     api_services_test_container.mock_create_temperature_reading(200).await;
-    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+    api_services_test_container
+        .mock_get_trackable(imei.as_str(), &towable_id, "TOWABLE")
+        .await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
     data_receiver_test_container.start().await;
@@ -183,6 +190,7 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
     setup_logging();
 
     let imei = get_random_imei();
+    let towable_id = Uuid::new_v4().to_string();
 
     let mut mysql_test_container = MySqlTestContainer::new();
     mysql_test_container.start().await;
@@ -190,7 +198,9 @@ async fn test_fmc234_multiple_temperatures_with_poor_connection() {
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
     api_services_test_container.mock_create_temperature_reading(200).await;
-    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+    api_services_test_container
+        .mock_get_trackable(imei.as_str(), &towable_id, "TOWABLE")
+        .await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
     data_receiver_test_container.start().await;
@@ -248,7 +258,10 @@ async fn test_fmc234_multiple_devices_temperature() {
 
     for _i in 0..10 {
         let imei = get_random_imei();
-        api_services_test_container.mock_get_trackable(imei.as_str()).await;
+        let towable_id = Uuid::new_v4().to_string();
+        api_services_test_container
+            .mock_get_trackable(imei.as_str(), &towable_id, "TOWABLE")
+            .await;
         let mut fmc234_tcp_stream = data_receiver_test_container.get_tcp_stream_fmc234().await;
 
         data_receiver_test_container
@@ -289,6 +302,7 @@ async fn test_fmc234_temperature_with_error() {
     setup_logging();
 
     let imei = get_random_imei();
+    let towable_id = Uuid::new_v4().to_string();
 
     let mut mysql_test_container = MySqlTestContainer::new();
     mysql_test_container.start().await;
@@ -296,7 +310,9 @@ async fn test_fmc234_temperature_with_error() {
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
     api_services_test_container.mock_create_temperature_reading(200).await;
-    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+    api_services_test_container
+        .mock_get_trackable(imei.as_str(), &towable_id, "TOWABLE")
+        .await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
     data_receiver_test_container.start().await;
@@ -362,6 +378,7 @@ async fn test_fmc234_temperature_with_error_response() {
     setup_logging();
 
     let imei = get_random_imei();
+    let towable_id = Uuid::new_v4().to_string();
 
     let mut mysql_test_container = MySqlTestContainer::new();
     mysql_test_container.start().await;
@@ -369,7 +386,9 @@ async fn test_fmc234_temperature_with_error_response() {
     let mut api_services_test_container = TmsServicesTestContainer::new();
     api_services_test_container.start().await;
     api_services_test_container.mock_create_temperature_reading(500).await;
-    api_services_test_container.mock_get_trackable(imei.as_str()).await;
+    api_services_test_container
+        .mock_get_trackable(imei.as_str(), &towable_id, "TOWABLE")
+        .await;
 
     let mut data_receiver_test_container = DataReceiverTestContainer::new();
     data_receiver_test_container.start().await;
