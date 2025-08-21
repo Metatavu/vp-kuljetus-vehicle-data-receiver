@@ -90,7 +90,7 @@ async fn start_failed_events_worker(database_pool: Pool<MySql>) {
             read_env_variable_with_default_value(FAILED_EVENTS_BATCH_SIZE_ENV_KEY, DEFAULT_FAILED_EVENTS_BATCH_SIZE);
 
         loop {
-            sleep(Duration::from_secs(1));
+            let start_time = chrono::Utc::now().naive_utc();
 
             debug!("Checking for failed events to reprocess...");
 
@@ -145,6 +145,14 @@ async fn start_failed_events_worker(database_pool: Pool<MySql>) {
                 }
             } else {
                 debug!("No failed events found");
+            }
+
+            let elapsed_time = chrono::Utc::now().naive_utc() - start_time;
+            debug!("Elapsed time for processing failed events: {:?}", elapsed_time);
+            let sleep_time = Duration::from_secs(1).as_millis() as u64 - elapsed_time.num_milliseconds() as u64;
+
+            if sleep_time > 0 {
+                sleep(Duration::from_millis(sleep_time));
             }
         }
     });
