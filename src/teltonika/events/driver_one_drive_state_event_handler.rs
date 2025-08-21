@@ -9,7 +9,6 @@ use vehicle_management_service::{
 };
 
 use crate::{
-    telematics_cache::Cacheable,
     teltonika::{driver_card_events_to_truck_driver_card, FromAVLEventIoValue},
     utils::get_vehicle_management_api_config,
     Listener,
@@ -23,6 +22,10 @@ pub struct DriverOneDriveStateEventHandler;
 impl TeltonikaEventHandler<TruckDriveState, Error<CreateDriveStateError>> for DriverOneDriveStateEventHandler {
     fn get_event_ids(&self, _listener: &Listener) -> Vec<u16> {
         vec![184, 195, 196]
+    }
+
+    fn get_event_handler_name(&self) -> String {
+        return "driver_one_drive_state".to_string();
     }
 
     async fn send_event(
@@ -147,23 +150,5 @@ mod tests {
 
         // There is driver state event so the processed event should be Some
         assert!(event_without_card_present_event.is_some());
-    }
-}
-
-impl Cacheable for TruckDriveState {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_drive_state_cache.json")
-    }
-}
-
-impl Cacheable for Vec<TruckDriveState> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_drive_state_cache.json")
     }
 }

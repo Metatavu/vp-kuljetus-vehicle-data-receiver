@@ -54,7 +54,7 @@ impl WiremockClient {
         status: u16,
         body_json: Option<Value>,
         body_text: Option<&str>,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let mut response = json!({ "status": status });
 
         if let Some(v) = body_json {
@@ -77,6 +77,23 @@ impl WiremockClient {
         if !res.status().is_success() {
             return Err(anyhow!("wiremock stub failed: {} {}", res.status(), res.text().await?));
         }
+
+        let mapping_id = res.json::<Value>().await?["id"].as_str().unwrap().to_string();
+
+        Ok(mapping_id)
+    }
+
+    /// Resets single mapping from wiremock.
+    /// This method clears single stub from Wiremock
+    /// # Arguments
+    /// * `mapping_id` - The ID of the mapping to reset.
+    pub async fn reset_mapping(&self, mapping_id: &str) -> Result<()> {
+        let url = self.base.join(&format!("/__admin/mappings/{}", mapping_id))?;
+        let res = self.http.delete(url).send().await?;
+        if !res.status().is_success() {
+            return Err(anyhow!("reset mapping failed: {} {}", res.status(), res.text().await?));
+        }
+
         Ok(())
     }
 
@@ -110,6 +127,20 @@ impl WiremockClient {
         let res = self.http.post(url).send().await?;
         if !res.status().is_success() {
             return Err(anyhow!("reset all failed: {} {}", res.status(), res.text().await?));
+        }
+        Ok(())
+    }
+
+    /// Resets all request counts in Wiremock.
+    pub async fn reset_counts(&self) -> Result<()> {
+        let url = self.base.join("/__admin/requests")?;
+        let res = self.http.delete(url).send().await?;
+        if !res.status().is_success() {
+            return Err(anyhow!(
+                "reset wiremock counts failed: {} {}",
+                res.status(),
+                res.text().await?
+            ));
         }
         Ok(())
     }

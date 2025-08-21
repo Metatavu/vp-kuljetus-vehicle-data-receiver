@@ -9,10 +9,7 @@ use vehicle_management_service::{
     models::{Trackable, TrackableType, TruckOdometerReading},
 };
 
-use crate::{
-    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u32, utils::get_vehicle_management_api_config,
-    Listener,
-};
+use crate::{teltonika::avl_event_io_value_to_u32, utils::get_vehicle_management_api_config, Listener};
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
 
@@ -24,6 +21,10 @@ impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadin
 {
     fn get_event_ids(&self, _listener: &Listener) -> Vec<u16> {
         vec![192]
+    }
+
+    fn get_event_handler_name(&self) -> String {
+        return "odometer_reading".to_string();
     }
 
     async fn send_event(
@@ -58,23 +59,5 @@ impl TeltonikaEventHandler<TruckOdometerReading, Error<CreateTruckOdometerReadin
             timestamp,
             avl_event_io_value_to_u32(&event.value) as i32,
         ))
-    }
-}
-
-impl Cacheable for TruckOdometerReading {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_odometer_reading_cache.json")
-    }
-}
-
-impl Cacheable for Vec<TruckOdometerReading> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_speed_cache.json")
     }
 }

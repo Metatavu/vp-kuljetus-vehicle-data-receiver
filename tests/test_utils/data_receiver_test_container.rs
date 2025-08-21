@@ -1,11 +1,11 @@
-use log::{debug, info};
+use log::debug;
 use nom_teltonika::AVLFrame;
 use testcontainers::{
     core::{logs::consumer::logging_consumer::LoggingConsumer, WaitFor},
     runners::AsyncRunner,
     ContainerAsync, GenericImage, ImageExt,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use vp_kuljetus_vehicle_data_receiver::utils::avl_packet::AVLPacketToBytes;
 use vp_kuljetus_vehicle_data_receiver::utils::imei::build_valid_imei_packet;
 
@@ -38,15 +38,18 @@ impl DataReceiverTestContainer {
     /// # Panics
     /// Panics if the container cannot be started.
     pub async fn start(&mut self) -> &mut Self {
+        let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
         let data_receiver_container = GenericImage::new(TEST_APP_IMAGE, TEST_APP_TAG)
             .with_wait_for(WaitFor::millis(1000))
             .with_env_var("API_BASE_URL", "http://api-services:8080")
             .with_env_var("VEHICLE_MANAGEMENT_SERVICE_API_KEY", "fake")
-            .with_env_var("WRITE_TO_FILE", "true")
-            .with_env_var("RUST_LOG", "debug,reqwest=off,hyper=off")
-            .with_env_var("PURGE_CHUNK_SIZE", "1000")
-            .with_env_var("BASE_FILE_PATH", "/tmp/")
-            // .with_log_consumer(LoggingConsumer::new().with_prefix("app"))
+            .with_env_var("RUST_LOG", rust_log)
+            .with_env_var("DATABASE_HOST", "mysql")
+            .with_env_var("DATABASE_PORT", "3306")
+            .with_env_var("DATABASE_NAME", "db")
+            .with_env_var("DATABASE_USERNAME", "root")
+            .with_env_var("DATABASE_PASSWORD", "root")
+            .with_log_consumer(LoggingConsumer::new().with_prefix("app"))
             .with_network("tests")
             .with_container_name("data-receiver")
             .with_mapped_port(
@@ -97,13 +100,7 @@ impl DataReceiverTestContainer {
     /// # Panics
     /// Panics if the port cannot be retrieved.
     pub async fn get_fmc650_port(&self) -> u16 {
-        return self
-            .data_receiver_container
-            .as_ref()
-            .expect("Data receiver container not started")
-            .get_host_port_ipv4(FMC650_PORT_NUMBER)
-            .await
-            .unwrap();
+        return FMC650_PORT_NUMBER;
     }
 
     /// Returns TCP port number for FMC 234.
@@ -114,13 +111,7 @@ impl DataReceiverTestContainer {
     /// # Panics
     /// Panics if the port cannot be retrieved.
     pub async fn get_fmc234_port(&self) -> u16 {
-        return self
-            .data_receiver_container
-            .as_ref()
-            .expect("Data receiver container not started")
-            .get_host_port_ipv4(FMC234_PORT_NUMBER)
-            .await
-            .unwrap();
+        return FMC234_PORT_NUMBER;
     }
 
     /// Sends a IMEI packet to the data receiver container.

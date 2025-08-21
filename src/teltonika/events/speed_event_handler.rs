@@ -8,10 +8,7 @@ use vehicle_management_service::{
 };
 
 use super::teltonika_event_handlers::TeltonikaEventHandler;
-use crate::{
-    telematics_cache::Cacheable, teltonika::avl_event_io_value_to_u64, utils::get_vehicle_management_api_config,
-    Listener,
-};
+use crate::{teltonika::avl_event_io_value_to_u64, utils::get_vehicle_management_api_config, Listener};
 
 #[derive(Debug)]
 pub struct SpeedEventHandler;
@@ -19,6 +16,10 @@ pub struct SpeedEventHandler;
 impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEventHandler {
     fn get_event_ids(&self, _listener: &Listener) -> Vec<u16> {
         vec![191]
+    }
+
+    fn get_event_handler_name(&self) -> String {
+        return "speed".to_string();
     }
 
     async fn send_event(
@@ -53,23 +54,5 @@ impl TeltonikaEventHandler<TruckSpeed, Error<CreateTruckSpeedError>> for SpeedEv
             timestamp,
             avl_event_io_value_to_u64(&event.value) as f32,
         ))
-    }
-}
-
-impl Cacheable for TruckSpeed {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_speed_cache.json")
-    }
-}
-
-impl Cacheable for Vec<TruckSpeed> {
-    fn get_file_path() -> String
-    where
-        Self: Sized,
-    {
-        String::from("truck_speed_cache.json")
     }
 }
