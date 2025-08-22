@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - develop
+      - bugfix-82-failed-events-worker-stops-working
 
 env:
   REGISTRY: ghcr.io
