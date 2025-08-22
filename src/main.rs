@@ -11,8 +11,9 @@ use rand::{thread_rng, Rng};
 use sqlx::{migrate::Migrator, mysql::MySqlPoolOptions, MySql, Pool};
 use std::future::Future;
 use std::pin::Pin;
-use std::{io::ErrorKind, thread::sleep, time::Duration};
+use std::{io::ErrorKind, time::Duration};
 use tokio::net::TcpListener;
+use tokio::time::sleep;
 use vp_kuljetus_vehicle_data_receiver::failed_events::FailedEventsHandler;
 use vp_kuljetus_vehicle_data_receiver::listener::Listener;
 use vp_kuljetus_vehicle_data_receiver::teltonika::records::TeltonikaRecordsHandler;
@@ -77,6 +78,62 @@ async fn init_db(
     Ok(pool)
 }
 
+async fn send_failed_events(database_pool: Pool<MySql>, batch_size: u64) {
+    debug!("Checking for failed events to reprocess...");
+
+    let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
+    let failed_imei = failed_events_handler.next_failed_imei().await.unwrap();
+    if let Some(imei) = failed_imei {
+        if let Some(trackable) = get_trackable(&imei).await {
+            debug!("Found trackable for IMEI {}", imei);
+
+            let failed_events = failed_events_handler
+                .list_failed_events(&imei, batch_size)
+                .await
+                .unwrap();
+            let identifier: u32 = thread_rng().r#gen();
+            let log_target = imei.clone() + "-" + identifier.to_string().as_str();
+            let records_handler =
+                TeltonikaRecordsHandler::new(log_target.clone(), Some(trackable.clone()), imei.clone());
+
+            debug!("Processing {} failed events for IMEI {}", failed_events.len(), imei);
+
+            for failed_event in failed_events {
+                let failed_event_id = failed_event.id.unwrap();
+
+                let result = records_handler.handle_failed_event(failed_event).await;
+                if result.is_ok() {
+                    match failed_events_handler.delete_failed_event(failed_event_id).await {
+                        Ok(_) => debug!("Successfully processed failed event for IMEI {}", imei),
+                        Err(e) => warn!("Failed to delete failed event for IMEI {}: {:?}", imei, e),
+                    }
+                } else {
+                    warn!("Failed to process failed event for IMEI {}: {:?}", imei, result.err());
+
+                    match failed_events_handler
+                        .update_attempted_at(failed_event_id, chrono::Utc::now().naive_utc().and_utc().timestamp())
+                        .await
+                    {
+                        Ok(_) => {
+                            debug!("Successfully updated attempted_at for failed event {}", failed_event_id)
+                        }
+                        Err(e) => warn!(
+                            "Failed to update attempted_at for failed event {}: {:?}",
+                            failed_event_id, e
+                        ),
+                    };
+                }
+            }
+        } else {
+            debug!("No trackable found for IMEI {}", imei);
+        }
+    } else {
+        debug!("No failed events found");
+    }
+
+    debug!("End of failed events processing iteration");
+}
+
 /// Starts a periodic task for reprocessing failed events
 ///
 /// # Arguments
@@ -85,77 +142,31 @@ async fn init_db(
 /// # Returns
 /// A future that resolves when the worker is stopped
 async fn start_failed_events_worker(database_pool: Pool<MySql>) {
-    tokio::spawn(async move {
-        let batch_size =
-            read_env_variable_with_default_value(FAILED_EVENTS_BATCH_SIZE_ENV_KEY, DEFAULT_FAILED_EVENTS_BATCH_SIZE);
+    let batch_size =
+        read_env_variable_with_default_value(FAILED_EVENTS_BATCH_SIZE_ENV_KEY, DEFAULT_FAILED_EVENTS_BATCH_SIZE);
 
-        loop {
-            let start_time = chrono::Utc::now().naive_utc();
+    loop {
+        let start_time = chrono::Utc::now().naive_utc();
+        let pool_clone = database_pool.clone();
 
-            debug!("Checking for failed events to reprocess...");
-
-            let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
-            let failed_imei = failed_events_handler.next_failed_imei().await.unwrap();
-            if let Some(imei) = failed_imei {
-                if let Some(trackable) = get_trackable(&imei).await {
-                    debug!("Found trackable for IMEI {}", imei);
-
-                    let failed_events = failed_events_handler
-                        .list_failed_events(&imei, batch_size)
-                        .await
-                        .unwrap();
-                    let identifier: u32 = thread_rng().r#gen();
-                    let log_target = imei.clone() + "-" + identifier.to_string().as_str();
-                    let records_handler =
-                        TeltonikaRecordsHandler::new(log_target.clone(), Some(trackable.clone()), imei.clone());
-
-                    debug!("Processing {} failed events for IMEI {}", failed_events.len(), imei);
-
-                    for failed_event in failed_events {
-                        let failed_event_id = failed_event.id.unwrap();
-
-                        let result = records_handler.handle_failed_event(failed_event).await;
-                        if result.is_ok() {
-                            match failed_events_handler.delete_failed_event(failed_event_id).await {
-                                Ok(_) => debug!("Successfully processed failed event for IMEI {}", imei),
-                                Err(e) => warn!("Failed to delete failed event for IMEI {}: {:?}", imei, e),
-                            }
-                        } else {
-                            warn!("Failed to process failed event for IMEI {}: {:?}", imei, result.err());
-
-                            match failed_events_handler
-                                .update_attempted_at(
-                                    failed_event_id,
-                                    chrono::Utc::now().naive_utc().and_utc().timestamp(),
-                                )
-                                .await
-                            {
-                                Ok(_) => {
-                                    debug!("Successfully updated attempted_at for failed event {}", failed_event_id)
-                                }
-                                Err(e) => warn!(
-                                    "Failed to update attempted_at for failed event {}: {:?}",
-                                    failed_event_id, e
-                                ),
-                            };
-                        }
-                    }
-                } else {
-                    debug!("No trackable found for IMEI {}", imei);
-                }
-            } else {
-                debug!("No failed events found");
+        match tokio::spawn(async move { return send_failed_events(pool_clone, batch_size).await }).await {
+            Ok(_) => {
+                debug!("Successfully processed failed events");
             }
-
-            let elapsed_time = chrono::Utc::now().naive_utc() - start_time;
-            debug!("Elapsed time for processing failed events: {:?}", elapsed_time);
-            let sleep_time = Duration::from_secs(1).as_millis() as u64 - elapsed_time.num_milliseconds() as u64;
-
-            if sleep_time > 0 {
-                sleep(Duration::from_millis(sleep_time));
+            Err(e) => {
+                warn!("Failed to spawn failed events worker: {:?}", e);
             }
         }
-    });
+
+        let elapsed_time = chrono::Utc::now().naive_utc() - start_time;
+        debug!("Elapsed time for processing failed events: {:?}", elapsed_time);
+        let sleep_time = Duration::from_secs(1).as_millis() as u64 - elapsed_time.num_milliseconds() as u64;
+
+        if sleep_time > 0 {
+            debug!("Sleeping for {} milliseconds before next iteration", sleep_time);
+            sleep(Duration::from_millis(sleep_time)).await;
+        }
+    }
 }
 
 /// Starts a listener
