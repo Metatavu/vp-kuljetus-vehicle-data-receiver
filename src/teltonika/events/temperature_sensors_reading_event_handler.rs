@@ -44,7 +44,7 @@ impl TemperatureSensorsReadingEventHandler {
         {
             Some(hardware_sensor_id) => Some(avl_event_io_value_to_u64(&hardware_sensor_id.value)),
             None => {
-                warn!(target: log_target, "No hardware sensor ID found for {sensor:#?}");
+                debug!(target: log_target, "No hardware sensor ID found for {sensor:#?}");
                 return None;
             }
         };
@@ -54,7 +54,7 @@ impl TemperatureSensorsReadingEventHandler {
         {
             Some(temperature) => Some(avl_event_io_value_to_u16(&temperature.value)),
             None => {
-                warn!(target: log_target, "No temperature found for {sensor:#?}");
+                debug!(target: log_target, "No temperature found for {sensor:#?}");
                 return None;
             }
         };

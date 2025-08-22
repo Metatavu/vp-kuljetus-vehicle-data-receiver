@@ -151,7 +151,7 @@ async fn start_failed_events_worker(database_pool: Pool<MySql>) {
 
         match tokio::spawn(async move { return send_failed_events(pool_clone, batch_size).await }).await {
             Ok(_) => {
-                info!("Successfully processed failed events");
+                debug!("Successfully processed failed events");
             }
             Err(e) => {
                 warn!("Failed to spawn failed events worker: {:?}", e);
