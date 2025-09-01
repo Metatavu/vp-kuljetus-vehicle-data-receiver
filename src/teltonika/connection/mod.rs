@@ -97,11 +97,13 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                 match cache_trackable {
                     Some(item) => {
                         foundTrackable = Some(item.trackable.clone());
+                        info!(target: &imei, "Found trackable in cache");
                     }
                     None => {
                         let fetched_trackable = get_trackable(&imei).await;
                         match fetched_trackable {
                             Some(trackable) => {
+                                info!(target: &imei, "Fetched trackable from the API");
                                 foundTrackable = Some(trackable.clone());
                                 writable_cache.push(TrackableCacheItem::new(trackable.clone()));
                             }
