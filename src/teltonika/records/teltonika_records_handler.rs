@@ -16,12 +16,12 @@ use vehicle_management_service::{
 /// Handler for Teltonika records.
 pub struct TeltonikaRecordsHandler {
     log_target: String,
-    trackable: Option<Trackable>,
+    trackable: Trackable,
     imei: String,
 }
 
 impl TeltonikaRecordsHandler {
-    pub fn new(log_target: String, trackable: Option<Trackable>, imei: String) -> Self {
+    pub fn new(log_target: String, trackable: Trackable, imei: String) -> Self {
         TeltonikaRecordsHandler {
             log_target,
             trackable,
@@ -70,8 +70,8 @@ impl TeltonikaRecordsHandler {
             // Reprocess
             match handler
                 .send_failed_event(
-                    failed_event.event_data,                                    // avoid unnecessary clone if possible
-                    self.trackable.clone().ok_or(FailedEventError::MissingId)?, // or pass Option upstream
+                    failed_event.event_data, // avoid unnecessary clone if possible
+                    self.trackable.clone(),  // or pass Option upstream
                     &self.imei,
                 )
                 .await
@@ -94,7 +94,7 @@ impl TeltonikaRecordsHandler {
     /// * `failed_event` - The failed event to process.
     async fn send_failed_location(&self, failed_event: FailedEvent) -> Result<(), String> {
         let event_data = failed_event.event_data.as_str();
-        let trackable = self.trackable.clone().ok_or("Missing trackable")?;
+        let trackable = self.trackable.clone();
 
         let location_data: TruckLocation = serde_json::from_str(&event_data).map_err(|e| format!("{e:?}"))?;
 
@@ -176,24 +176,20 @@ impl TeltonikaRecordsHandler {
             timestamp: record.timestamp.timestamp(),
         };
 
-        if let Some(trackable) = &self.trackable {
-            debug!(target: &self.log_target, "Handling location for trackable: {}", trackable.id);
-            let result = vehicle_management_service::apis::trucks_api::create_truck_location(
-                &get_vehicle_management_api_config(),
-                CreateTruckLocationParams {
-                    truck_id: trackable.id.to_string(),
-                    truck_location: location_data.clone(),
-                },
-            )
-            .await;
-            if let Err(e) = result {
-                debug!(target: &self.log_target,
-                    "Failed to send location: {:?}. Persisting into database, so it can be retried later.",
-                    e
-                );
-            }
-        } else {
-            debug!(target: &self.log_target, "No trackable associated with this connection, skipping location handling");
+        debug!(target: &self.log_target, "Handling location for trackable: {}", self.trackable.id);
+        let result = vehicle_management_service::apis::trucks_api::create_truck_location(
+            &get_vehicle_management_api_config(),
+            CreateTruckLocationParams {
+                truck_id: self.trackable.id.to_string(),
+                truck_location: location_data.clone(),
+            },
+        )
+        .await;
+        if let Err(e) = result {
+            debug!(target: &self.log_target,
+                "Failed to send location: {:?}. Persisting into database, so it can be retried later.",
+                e
+            );
         }
     }
 }

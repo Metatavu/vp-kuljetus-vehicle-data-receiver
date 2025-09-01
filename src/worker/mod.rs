@@ -27,7 +27,7 @@ lazy_static! {
 pub enum WorkerMessage {
     IncomingFrame {
         frame: AVLFrame,
-        trackable: Option<Trackable>,
+        trackable: Trackable,
         imei: String,
         listener: Listener,
     },
@@ -76,7 +76,7 @@ pub fn spawn_2(channel: (Sender<WorkerMessage>, Receiver<WorkerMessage>), imei: 
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-pub fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, imei: String, listener: Listener) {
+pub fn handle_incoming_frame(frame: AVLFrame, trackable: Trackable, imei: String, listener: Listener) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().r#gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
@@ -87,10 +87,6 @@ pub fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, imei
         records_handler.handle_records(frame.records, &listener).await;
 
         debug!(target: &log_target, "Worker finished processing incoming frame");
-
-        if trackable.is_none() {
-            return;
-        }
 
         debug!(target: &log_target, "Processing trackable event for IMEI {}", imei);
     });

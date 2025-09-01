@@ -97,8 +97,7 @@ async fn send_failed_events(database_pool: Pool<MySql>, batch_size: u64) {
                 .unwrap();
             let identifier: u32 = thread_rng().r#gen();
             let log_target = imei.clone() + "-" + identifier.to_string().as_str();
-            let records_handler =
-                TeltonikaRecordsHandler::new(log_target.clone(), Some(trackable.clone()), imei.clone());
+            let records_handler = TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), imei.clone());
 
             debug!("Processing {} failed events for IMEI {}", failed_events.len(), imei);
 
