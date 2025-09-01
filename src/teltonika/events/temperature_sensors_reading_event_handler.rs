@@ -150,6 +150,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
                 Err(e) => {
                     debug!(target: log_target, "Failed to send temperature reading");
                     errors.push(e);
+                    break;
                 }
             }
         }
