@@ -11,6 +11,7 @@ pub mod avl_record_builder;
 pub mod imei;
 #[cfg(test)]
 pub mod test_utils;
+pub mod trackable_cache_item;
 
 lazy_static! {
     /// The default API configuration for VP-Kuljetus Vehicle Management Service

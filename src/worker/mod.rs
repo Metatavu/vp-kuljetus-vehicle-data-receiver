@@ -44,11 +44,7 @@ impl Worker {
     }
 }
 
-pub fn spawn_2(
-    channel: (Sender<WorkerMessage>, Receiver<WorkerMessage>),
-    imei: String,
-    database_pool: Pool<MySql>,
-) -> Worker {
+pub fn spawn_2(channel: (Sender<WorkerMessage>, Receiver<WorkerMessage>), imei: String) -> Worker {
     debug!(target: &imei, "Spawning worker");
     let (sender, mut receiver) = channel;
     let handle = WORKER_RUNTIME.spawn(async move {
@@ -63,7 +59,7 @@ pub fn spawn_2(
                             trackable,
                             imei,
                             listener,
-                        } => handle_incoming_frame(frame, trackable, imei, listener, database_pool.clone()),
+                        } => handle_incoming_frame(frame, trackable, imei, listener),
                     }
                 }
                 None => {
@@ -80,13 +76,7 @@ pub fn spawn_2(
 /// Handles an incoming frame, a callback for [WorkerMessage::IncomingFrame]
 ///
 /// This function spawns a new asynchronous Tokio task that processes the incoming frame and purges the cache if a truck_id is provided.
-pub fn handle_incoming_frame(
-    frame: AVLFrame,
-    trackable: Option<Trackable>,
-    imei: String,
-    listener: Listener,
-    database_pool: Pool<MySql>,
-) {
+pub fn handle_incoming_frame(frame: AVLFrame, trackable: Option<Trackable>, imei: String, listener: Listener) {
     tokio::spawn(async move {
         let identifier: u32 = thread_rng().r#gen();
         let log_target = imei.clone() + "-" + identifier.to_string().as_str();
@@ -94,9 +84,7 @@ pub fn handle_incoming_frame(
 
         debug!(target: &log_target, "Worker spawned for frame with {} records", frame.records.len());
 
-        records_handler
-            .handle_records(frame.records, &listener, database_pool.clone())
-            .await;
+        records_handler.handle_records(frame.records, &listener).await;
 
         debug!(target: &log_target, "Worker finished processing incoming frame");
 
