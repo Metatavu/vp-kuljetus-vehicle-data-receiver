@@ -168,7 +168,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     );
 
-                    let ack_result = timeout(
+                    /*let ack_result = timeout(
                         Duration::from_secs(60),
                         self.teltonika_stream.write_frame_ack_async(Some(&frame)),
                     )
@@ -178,7 +178,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         Ok(Ok(())) => debug!(target: self.log_target(),"ACK sent successfully"),
                         Ok(Err(e)) => error!(target: self.log_target(),"ACK write failed: {}", e),
                         Err(_) => warn!(target: self.log_target(),"ACK write timed out"),
-                    }
+                    }*/
 
                     let send_result = self
                         .worker
