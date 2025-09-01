@@ -1,5 +1,5 @@
 use crate::{
-    failed_events::{FailedEvent, FailedEventsHandler},
+    failed_events::{FailedEvent, FailedEventError, FailedEventsHandler},
     teltonika::events::{
         DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
         TemperatureSensorsReadingEventHandler,
@@ -163,10 +163,9 @@ impl<'a> TeltonikaEventHandlers<'a> {
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         imei: String,
-        trackable: Option<Trackable>,
+        trackable: Trackable,
         listener: &Listener,
-        database_pool: Pool<MySql>,
-    ) {
+    ) -> Result<(), FailedEventError> {
         match self {
             TeltonikaEventHandlers::SpeedEventHandler((handler, log_target)) => {
                 handler
@@ -178,7 +177,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         log_target,
                         listener,
-                        database_pool.clone(),
                     )
                     .await
             }
@@ -192,7 +190,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         log_target,
                         listener,
-                        database_pool.clone(),
                     )
                     .await
             }
@@ -206,7 +203,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         log_target,
                         listener,
-                        database_pool.clone(),
                     )
                     .await
             }
@@ -220,7 +216,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         log_target,
                         listener,
-                        database_pool.clone(),
                     )
                     .await
             }
@@ -234,7 +229,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                         trackable,
                         log_target,
                         listener,
-                        database_pool.clone(),
                     )
                     .await
             }
@@ -287,43 +281,43 @@ where
         events: Vec<&AVLEventIO>,
         timestamp: i64,
         imei: String,
-        trackable: Option<Trackable>,
+        trackable: Trackable,
         log_target: &str,
         listener: &Listener,
-        database_pool: Pool<MySql>,
-    ) {
-        let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
+    ) -> Result<(), FailedEventError> {
+        //let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
 
         let event_data = self.process_event_data(trigger_event_id, &events, timestamp, log_target, listener);
         if event_data.is_none() {
             debug!(target: &log_target, "No event data to handle for {self:?}");
-            return;
+            return Ok(());
         }
 
         let event_data = event_data.unwrap();
         let event_handler = self.get_event_handler_name();
 
-        if let Some(ref trackable) = trackable {
-            debug!(target: log_target, "[{self:?}] handling  event for {}: {}", trackable.trackable_type, trackable.id);
-            let send_event_result = self.send_event(&event_data, trackable.clone(), log_target).await;
-            if let Err(err) = send_event_result {
-                error!(target: log_target, "Failed to send {} event for trackable {}: {err:?}. Persisting so it can be retried later", event_handler, trackable.id);
+        debug!(target: log_target, "[{self:?}] handling  event for {}: {}", trackable.trackable_type, trackable.id);
+        let send_event_result = self.send_event(&event_data, trackable.clone(), log_target).await;
+        if let Err(err) = send_event_result {
+            error!(target: log_target, "Failed to send {} event for trackable {}: {err:?}", event_handler, trackable.id);
+            return Err(FailedEventError::FailedToSend);
+            /*failed_events_handler
+            .persist_event(
+                imei.clone(),
+                FailedEvent {
+                    id: None,
+                    handler_name: event_handler,
+                    timestamp: timestamp,
+                    event_data: serde_json::to_string(&event_data).unwrap(),
+                    imei: imei.clone(),
+                },
+            )
+            .await
+            .expect("Failed to persist failed event");*/
+        }
 
-                failed_events_handler
-                    .persist_event(
-                        imei.clone(),
-                        FailedEvent {
-                            id: None,
-                            handler_name: event_handler,
-                            timestamp: timestamp,
-                            event_data: serde_json::to_string(&event_data).unwrap(),
-                            imei: imei.clone(),
-                        },
-                    )
-                    .await
-                    .expect("Failed to persist failed event");
-            }
-        } else {
+        return Ok(());
+        /* else {
             debug!(target: log_target, "Failed to send {} event for unknown truck: {}. Persisting so it can be retried later", event_handler, imei);
 
             failed_events_handler
@@ -339,7 +333,7 @@ where
                 )
                 .await
                 .expect("Failed to persist event for unknown truck");
-        };
+        };*/
     }
 
     /// Sends the event data to the API.

@@ -21,6 +21,7 @@ pub enum FailedEventError {
     FailedToResend,
     MissingId,
     HandlerNotFound(String),
+    FailedToSend,
 }
 
 /// Handler implementation for failed events.
