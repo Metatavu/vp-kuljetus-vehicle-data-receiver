@@ -1,5 +1,6 @@
 use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
+use rand::{thread_rng, Rng};
 use sqlx::{MySql, Pool};
 use std::{
     io::{Error, ErrorKind},
@@ -17,6 +18,7 @@ use tokio::{
 use vehicle_management_service::models::{trackable, Trackable};
 
 use crate::{
+    teltonika::records::TeltonikaRecordsHandler,
     utils::{api::get_trackable, trackable_cache_item::TrackableCacheItem},
     worker::{self, Worker, WorkerMessage},
     Listener,
@@ -168,9 +170,19 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
 
                     );
 
-                    /*let ack_result = timeout(
+                    let identifier: u32 = thread_rng().r#gen();
+                    let log_target = self.imei.clone() + "-" + identifier.to_string().as_str();
+
+                    let result = TeltonikaRecordsHandler::new(log_target, self.trackable.clone(), self.imei.clone())
+                        .handle_records(frame.clone().records, &self.listener)
+                        .await;
+
+                    let ack_result = timeout(
                         Duration::from_secs(60),
-                        self.teltonika_stream.write_frame_ack_async(Some(&frame)),
+                        match result {
+                            Ok(_) => self.teltonika_stream.write_frame_ack_async(Some(&frame)),
+                            Err(_e) => self.teltonika_stream.write_frame_ack_async(None),
+                        },
                     )
                     .await;
 
@@ -178,9 +190,9 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         Ok(Ok(())) => debug!(target: self.log_target(),"ACK sent successfully"),
                         Ok(Err(e)) => error!(target: self.log_target(),"ACK write failed: {}", e),
                         Err(_) => warn!(target: self.log_target(),"ACK write timed out"),
-                    }*/
+                    }
 
-                    let send_result = self
+                    /*let send_result = self
                         .worker
                         .send(WorkerMessage::IncomingFrame {
                             frame: frame.clone(),
@@ -193,7 +205,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                     match send_result {
                         Ok(_) => debug!(target: self.log_target(), "Frame sent to worker successfully"),
                         Err(err) => error!(target: self.log_target(), "Failed to send frame to worker: {}", err),
-                    };
+                    };*/
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {

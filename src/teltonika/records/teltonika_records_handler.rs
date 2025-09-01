@@ -5,7 +5,7 @@ use crate::{
     Listener,
 };
 use futures::future::join_all;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use nom_teltonika::{AVLEventIO, AVLRecord};
 use sqlx::{MySql, Pool};
 use vehicle_management_service::{
@@ -33,11 +33,24 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
-    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener) {
-        let tasks = teltonika_records
-            .iter()
-            .map(|record| self.handle_record(record, listener));
-        join_all(tasks).await;
+    pub async fn handle_records(
+        &self,
+        teltonika_records: Vec<AVLRecord>,
+        listener: &Listener,
+    ) -> Result<(), FailedEventError> {
+        let mut failed_to_process = false;
+        for task in teltonika_records.iter() {
+            let result = self.handle_record(task, listener).await;
+            if result.is_err() {
+                failed_to_process = true;
+            }
+        }
+
+        if failed_to_process {
+            return Err(FailedEventError::FailedToSend);
+        }
+
+        Ok(())
     }
 
     /// Resends failed events.
@@ -115,7 +128,7 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
-    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) {
+    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) -> Result<(), FailedEventError> {
         if *listener == Listener::TeltonikaFMC234 {
             debug!(target: &self.log_target, "Skipping location for {listener:?} listener as not yet implemented on backend")
         } else {
@@ -128,6 +141,7 @@ impl TeltonikaRecordsHandler {
         debug!(target: &self.log_target, "Record trigger event: {:?}", trigger_event);
         debug!(target: &self.log_target, "Record trigger event id: {:?}", record.trigger_event_id);
 
+        let mut failed_to_process = false;
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
             let trigger_event_ids = handler.get_trigger_event_ids();
             if !trigger_event_ids.is_empty() && !trigger_event_ids.contains(&record.trigger_event_id) {
@@ -145,6 +159,7 @@ impl TeltonikaRecordsHandler {
                 })
                 .flatten()
                 .collect::<Vec<&AVLEventIO>>();
+
             // If we don't have any events we skip the handler
             //debug!(target: &self.log_target, "{record:#?}");
             if events.is_empty() {
@@ -156,8 +171,33 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
 
-            debug!(target: &self.log_target, "Handler {handler:?} processed events successfully")
+            match handler
+                .handle_events(
+                    record.trigger_event_id,
+                    events,
+                    record.timestamp.timestamp(),
+                    self.imei.clone(),
+                    self.trackable.clone(),
+                    listener,
+                )
+                .await
+            {
+                Ok(_) => {
+                    debug!(target: &self.log_target, "Handler {handler:?} processed events successfully");
+                }
+                Err(e) => {
+                    error!(target: &self.log_target, "Failed to handle events");
+                    failed_to_process = true;
+                    break;
+                }
+            };
         }
+
+        if failed_to_process {
+            return Err(FailedEventError::FailedToSend);
+        }
+
+        Ok(())
     }
 
     /// Handles a Teltonika [AVLRecord] location.
