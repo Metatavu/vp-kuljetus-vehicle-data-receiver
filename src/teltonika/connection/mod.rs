@@ -28,7 +28,6 @@ pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
     trackable: Trackable,
-    worker: Worker,
     listener: Listener,
 }
 
@@ -40,12 +39,11 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `imei` - IMEI of the device
     /// * `listener` - Listener
     pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener, trackable: Trackable) -> Self {
-        let channel = mpsc::channel::<WorkerMessage>(4000);
+        //let channel = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei: imei.clone(),
             trackable: trackable,
-            worker: worker::spawn_2(channel, imei),
             listener: listener,
         };
 
