@@ -151,9 +151,9 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `base_log_file_path` - Base path for the log files
     async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
-            if self.trackable.is_none() {
+            /*if self.trackable.is_none() {
                 self.trackable = get_trackable(&self.imei).await;
-            }
+            }*/
 
             match self.teltonika_stream.read_frame_async().await {
                 Ok(frame) => {
