@@ -25,7 +25,7 @@ use crate::{
 pub struct TeltonikaConnection<S> {
     teltonika_stream: TeltonikaStream<S>,
     imei: String,
-    trackable: Option<Trackable>,
+    trackable: Trackable,
     worker: Worker,
     listener: Listener,
 }
@@ -42,7 +42,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei: imei.clone(),
-            trackable: Some(trackable),
+            trackable: trackable,
             worker: worker::spawn_2(channel, imei),
             listener: listener,
         };
@@ -157,7 +157,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             /*if self.trackable.is_none() {
                 self.trackable = get_trackable(&self.imei).await;
             }*/
-
+            info!(target: self.log_target(), "Waiting for frame from client");
             match self.teltonika_stream.read_frame_async().await {
                 Ok(frame) => {
                     let records_count = frame.records.len();
