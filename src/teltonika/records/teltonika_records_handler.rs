@@ -33,15 +33,10 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `teltonika_records` - The list of [AVLRecord]s to handle.
-    pub async fn handle_records(
-        &self,
-        teltonika_records: Vec<AVLRecord>,
-        listener: &Listener,
-        database_pool: Pool<MySql>,
-    ) {
+    pub async fn handle_records(&self, teltonika_records: Vec<AVLRecord>, listener: &Listener) {
         let tasks = teltonika_records
             .iter()
-            .map(|record| self.handle_record(record, listener, database_pool.clone()));
+            .map(|record| self.handle_record(record, listener));
         join_all(tasks).await;
     }
 
@@ -120,11 +115,11 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle.
-    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener, database_pool: Pool<MySql>) {
+    pub async fn handle_record(&self, record: &AVLRecord, listener: &Listener) {
         if *listener == Listener::TeltonikaFMC234 {
             debug!(target: &self.log_target, "Skipping location for {listener:?} listener as not yet implemented on backend")
         } else {
-            self.handle_record_location(record, database_pool.clone()).await;
+            self.handle_record_location(record).await;
         }
         let trigger_event = record
             .io_events
@@ -161,17 +156,6 @@ impl TeltonikaRecordsHandler {
                 continue;
             }
 
-            handler
-                .handle_events(
-                    record.trigger_event_id,
-                    events,
-                    record.timestamp.timestamp(),
-                    self.imei.clone(),
-                    self.trackable.clone(),
-                    listener,
-                    database_pool.clone(),
-                )
-                .await;
             debug!(target: &self.log_target, "Handler {handler:?} processed events successfully")
         }
     }
@@ -183,9 +167,7 @@ impl TeltonikaRecordsHandler {
     ///
     /// # Arguments
     /// * `record` - The [AVLRecord] to handle the location for.
-    async fn handle_record_location(&self, record: &AVLRecord, database_pool: Pool<MySql>) {
-        let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
-
+    async fn handle_record_location(&self, record: &AVLRecord) {
         let location_data = TruckLocation {
             id: None,
             latitude: record.latitude,
@@ -209,37 +191,9 @@ impl TeltonikaRecordsHandler {
                     "Failed to send location: {:?}. Persisting into database, so it can be retried later.",
                     e
                 );
-
-                failed_events_handler
-                    .persist_event(
-                        self.imei.clone(),
-                        FailedEvent {
-                            id: None,
-                            handler_name: "location".to_string(),
-                            timestamp: record.timestamp.timestamp(),
-                            event_data: serde_json::to_string(&location_data).unwrap(),
-                            imei: self.imei.clone(),
-                        },
-                    )
-                    .await
-                    .expect("Failed to persist failed event");
             }
         } else {
-            debug!(target: &self.log_target, "Could not find trackable for location: {:?}", location_data);
-
-            failed_events_handler
-                .persist_event(
-                    self.imei.clone(),
-                    FailedEvent {
-                        id: None,
-                        handler_name: "location".to_string(),
-                        timestamp: record.timestamp.timestamp(),
-                        event_data: serde_json::to_string(&location_data).unwrap(),
-                        imei: self.imei.clone(),
-                    },
-                )
-                .await
-                .expect("Failed to persist failed event");
+            debug!(target: &self.log_target, "No trackable associated with this connection, skipping location handling");
         }
     }
 }

@@ -3,17 +3,21 @@ use nom_teltonika::TeltonikaStream;
 use sqlx::{MySql, Pool};
 use std::{
     io::{Error, ErrorKind},
+    sync::Arc,
     time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    sync::mpsc::{self},
+    sync::{
+        mpsc::{self},
+        RwLock,
+    },
     time::timeout,
 };
-use vehicle_management_service::models::Trackable;
+use vehicle_management_service::models::{trackable, Trackable};
 
 use crate::{
-    utils::api::get_trackable,
+    utils::{api::get_trackable, trackable_cache_item::TrackableCacheItem},
     worker::{self, Worker, WorkerMessage},
     Listener,
 };
@@ -33,13 +37,13 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `imei` - IMEI of the device
     /// * `listener` - Listener
-    pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener, database_pool: Pool<MySql>) -> Self {
+    pub fn new(stream: TeltonikaStream<S>, imei: String, listener: Listener, trackable: Trackable) -> Self {
         let channel = mpsc::channel::<WorkerMessage>(4000);
         let teltonika_connection = TeltonikaConnection {
             teltonika_stream: stream,
             imei: imei.clone(),
-            trackable: None,
-            worker: worker::spawn_2(channel, imei, database_pool.clone()),
+            trackable: Some(trackable),
+            worker: worker::spawn_2(channel, imei),
             listener: listener,
         };
 
@@ -54,10 +58,14 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `stream` - Stream to be passed for [`TeltonikaStream`]. Must implement [`AsyncWriteExt`] and [`AsyncReadExt`]
     /// * `base_file_path` - Base path for the log files
     /// * `listener` - Listener
-    pub async fn handle_connection(stream: S, listener: &Listener, database_pool: Pool<MySql>) -> Result<(), Error> {
-        match Self::handle_imei(TeltonikaStream::new(stream)).await {
-            Ok((stream, imei)) => {
-                let mut connection = Self::new(stream, imei, *listener, database_pool);
+    pub async fn handle_connection(
+        stream: S,
+        listener: &Listener,
+        trackables_cache: Arc<RwLock<Vec<TrackableCacheItem>>>,
+    ) -> Result<(), Error> {
+        match Self::handle_imei(TeltonikaStream::new(stream), trackables_cache).await {
+            Ok((stream, imei, trackable)) => {
+                let mut connection = Self::new(stream, imei, *listener, trackable);
                 connection.run().await.expect("Failed to run");
                 Ok(())
             }
@@ -71,11 +79,37 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     ///
     /// # Arguments
     /// * `stream` - Teltonika stream
-    async fn handle_imei(mut stream: TeltonikaStream<S>) -> Result<(TeltonikaStream<S>, String), Error> {
+    async fn handle_imei(
+        mut stream: TeltonikaStream<S>,
+        trackables_cache: Arc<RwLock<Vec<TrackableCacheItem>>>,
+    ) -> Result<(TeltonikaStream<S>, String, Trackable), Error> {
         match stream.read_imei_async().await {
             Ok(imei) => {
                 if !imei::valid(&imei) {
                     return Err(Error::new(ErrorKind::ConnectionAborted, "Invalid IMEI"));
+                }
+
+                let mut writable_cache = trackables_cache.write().await;
+                let time_threshold = chrono::Utc::now() - chrono::Duration::minutes(60);
+                writable_cache.retain(|item| item.updated_at >= time_threshold);
+                let cache_trackable = writable_cache.iter().find(|item| item.trackable.imei == imei);
+                let mut foundTrackable: Option<Trackable> = None;
+                match cache_trackable {
+                    Some(item) => {
+                        foundTrackable = Some(item.trackable.clone());
+                    }
+                    None => {
+                        let fetched_trackable = get_trackable(&imei).await;
+                        match fetched_trackable {
+                            Some(trackable) => {
+                                foundTrackable = Some(trackable.clone());
+                                writable_cache.push(TrackableCacheItem::new(trackable.clone()));
+                            }
+                            None => {
+                                return Err(Error::new(ErrorKind::ConnectionAborted, "Invalid IMEI"));
+                            }
+                        }
+                    }
                 }
 
                 info!(target: &imei, "New client connected");
@@ -84,7 +118,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                     .await
                     .expect("Failed to write IMEI approval");
 
-                return Ok((stream, imei.to_owned()));
+                return Ok((stream, imei.to_owned(), foundTrackable.unwrap()));
             }
             Err(err) => match err.kind() {
                 std::io::ErrorKind::InvalidData => {

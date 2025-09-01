@@ -3,6 +3,7 @@ mod teltonika;
 mod utils;
 mod worker;
 
+use crate::utils::trackable_cache_item::TrackableCacheItem;
 use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable};
 use futures::future::join_all;
 use lazy_static::lazy_static;
@@ -11,9 +12,12 @@ use rand::{thread_rng, Rng};
 use sqlx::{migrate::Migrator, mysql::MySqlPoolOptions, MySql, Pool};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::{io::ErrorKind, time::Duration};
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use tokio::time::sleep;
+use vehicle_management_service::models::trackable;
 use vp_kuljetus_vehicle_data_receiver::failed_events::FailedEventsHandler;
 use vp_kuljetus_vehicle_data_receiver::listener::Listener;
 use vp_kuljetus_vehicle_data_receiver::teltonika::records::TeltonikaRecordsHandler;
@@ -173,7 +177,7 @@ async fn start_failed_events_worker(database_pool: Pool<MySql>) {
 ///
 /// # Arguments
 /// * `listener` - Listener
-async fn start_listener(listener: Listener, database_pool: Pool<MySql>) {
+async fn start_listener(listener: Listener, trackables_cache: Arc<RwLock<Vec<TrackableCacheItem>>>) {
     let address = format!("0.0.0.0:{}", listener.port());
     let tcp_listener = match TcpListener::bind(&address).await {
         Ok(l) => l,
@@ -192,9 +196,10 @@ async fn start_listener(listener: Listener, database_pool: Pool<MySql>) {
             }
         };
 
-        let pool_clone = database_pool.clone();
+        // let pool_clone = database_pool.clone();
+        let cache = trackables_cache.clone();
         tokio::spawn(async move {
-            if let Err(error) = TeltonikaConnection::handle_connection(socket, &listener, pool_clone).await {
+            if let Err(error) = TeltonikaConnection::handle_connection(socket, &listener, cache).await {
                 match error.kind() {
                     ErrorKind::ConnectionAborted | ErrorKind::InvalidData => {
                         warn!("Connection aborted: {}", error);
@@ -236,16 +241,16 @@ async fn main() {
     .expect("Failed to run migrations");
 
     let mut futures: Vec<Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
-    let cron = start_failed_events_worker(database_pool.clone());
-    futures.push(Box::pin(cron));
-
+    //let cron = start_failed_events_worker(database_pool.clone());
+    //futures.push(Box::pin(cron));
+    let trackablesCache = Arc::new(RwLock::new(Vec::new()));
     for listener in LISTENERS.iter() {
-        futures.push(Box::pin(start_listener(*listener, database_pool.clone())));
+        futures.push(Box::pin(start_listener(*listener, trackablesCache.clone())));
     }
 
     join_all(futures).await;
 
-    database_pool.close().await;
+    //database_pool.close().await;
 }
 
 #[cfg(test)]
