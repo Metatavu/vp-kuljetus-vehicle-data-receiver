@@ -230,7 +230,7 @@ async fn main() {
     read_env_variable::<String>(API_BASE_URL_ENV_KEY);
 
     // Initialize database connection pool and run migrations
-    let database_pool = init_db(
+    /*let database_pool = init_db(
         read_env_variable::<String>(DATABASE_HOST),
         read_env_variable::<u16>(DATABASE_PORT),
         read_env_variable::<String>(DATABASE_NAME),
@@ -238,7 +238,7 @@ async fn main() {
         read_env_variable::<String>(DATABASE_PASSWORD),
     )
     .await
-    .expect("Failed to run migrations");
+    .expect("Failed to run migrations");*/
 
     let mut futures: Vec<Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
     //let cron = start_failed_events_worker(database_pool.clone());

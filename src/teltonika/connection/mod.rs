@@ -65,6 +65,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     ) -> Result<(), Error> {
         match Self::handle_imei(TeltonikaStream::new(stream), trackables_cache).await {
             Ok((stream, imei, trackable)) => {
+                info!(target: &imei, "Imei validated, starting connection handler");
                 let mut connection = Self::new(stream, imei, *listener, trackable);
                 connection.run().await.expect("Failed to run");
                 Ok(())
@@ -119,7 +120,7 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                     .write_imei_approval_async()
                     .await
                     .expect("Failed to write IMEI approval");
-
+                info!(target: &imei, "Imei acknowledged");
                 return Ok((stream, imei.to_owned(), foundTrackable.unwrap()));
             }
             Err(err) => match err.kind() {
