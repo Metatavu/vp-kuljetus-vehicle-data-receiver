@@ -157,7 +157,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
             /*if self.trackable.is_none() {
                 self.trackable = get_trackable(&self.imei).await;
             }*/
-            info!(target: self.log_target(), "Waiting for frame from client");
             match self.teltonika_stream.read_frame_async().await {
                 Ok(frame) => {
                     let records_count = frame.records.len();
