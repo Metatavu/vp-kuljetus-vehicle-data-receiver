@@ -1,7 +1,6 @@
 mod failed_events;
 mod teltonika;
 mod utils;
-mod worker;
 
 use crate::utils::trackable_cache_item::TrackableCacheItem;
 use crate::{teltonika::connection::TeltonikaConnection, utils::read_env_variable};
@@ -16,8 +15,6 @@ use std::sync::Arc;
 use std::{io::ErrorKind, time::Duration};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
-use tokio::time::sleep;
-use vehicle_management_service::models::trackable;
 use vp_kuljetus_vehicle_data_receiver::failed_events::FailedEventsHandler;
 use vp_kuljetus_vehicle_data_receiver::listener::Listener;
 use vp_kuljetus_vehicle_data_receiver::teltonika::records::TeltonikaRecordsHandler;
@@ -26,150 +23,9 @@ use vp_kuljetus_vehicle_data_receiver::utils::read_env_variable_with_default_val
 
 const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SERVICE_API_KEY";
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
-const DATABASE_HOST: &str = "DATABASE_HOST";
-const DATABASE_PORT: &str = "DATABASE_PORT";
-const DATABASE_USERNAME: &str = "DATABASE_USERNAME";
-const DATABASE_PASSWORD: &str = "DATABASE_PASSWORD";
-const DATABASE_NAME: &str = "DATABASE_NAME";
-
-const FAILED_EVENTS_BATCH_SIZE_ENV_KEY: &str = "FAILED_EVENTS_BATCH_SIZE";
-const DEFAULT_FAILED_EVENTS_BATCH_SIZE: u64 = 100;
 
 lazy_static! {
     static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC234, Listener::TeltonikaFMC650];
-}
-
-/// Initializes the database connection pool
-///
-/// # Arguments
-/// * `host` - The database host
-/// * `port` - The database port
-/// * `database_name` - The database name
-/// * `username` - The database username
-/// * `password` - The database password
-///
-/// # Returns
-/// A future that resolves to the database connection pool
-async fn init_db(
-    host: String,
-    port: u16,
-    database_name: String,
-    username: String,
-    password: String,
-) -> Result<Pool<MySql>, sqlx::Error> {
-    info!("Initializing database connection pool: {}", host);
-
-    let pool = MySqlPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(Duration::from_secs(10))
-        .connect_with(
-            sqlx::mysql::MySqlConnectOptions::new()
-                .host(host.as_str())
-                .port(port)
-                .username(username.as_str())
-                .password(password.as_str())
-                .ssl_mode(sqlx::mysql::MySqlSslMode::Disabled)
-                .database(database_name.as_str()),
-        )
-        .await?;
-
-    info!("Running database migrations...");
-    let migrations_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
-    let migrator = Migrator::new(migrations_dir).await?;
-    migrator.run(&pool).await?;
-
-    info!("Database migrations completed successfully.");
-    Ok(pool)
-}
-
-async fn send_failed_events(database_pool: Pool<MySql>, batch_size: u64) {
-    debug!("Checking for failed events to reprocess...");
-
-    let failed_events_handler = FailedEventsHandler::new(database_pool.clone());
-    let failed_imei = failed_events_handler.next_failed_imei().await.unwrap();
-    if let Some(imei) = failed_imei {
-        if let Some(trackable) = get_trackable(&imei).await {
-            debug!("Found trackable for IMEI {}", imei);
-
-            let failed_events = failed_events_handler
-                .list_failed_events(&imei, batch_size)
-                .await
-                .unwrap();
-            let identifier: u32 = thread_rng().r#gen();
-            let log_target = imei.clone() + "-" + identifier.to_string().as_str();
-            let records_handler = TeltonikaRecordsHandler::new(log_target.clone(), trackable.clone(), imei.clone());
-
-            debug!("Processing {} failed events for IMEI {}", failed_events.len(), imei);
-
-            for failed_event in failed_events {
-                let failed_event_id = failed_event.id.unwrap();
-
-                let result = records_handler.handle_failed_event(failed_event).await;
-                if result.is_ok() {
-                    match failed_events_handler.delete_failed_event(failed_event_id).await {
-                        Ok(_) => debug!("Successfully processed failed event for IMEI {}", imei),
-                        Err(e) => warn!("Failed to delete failed event for IMEI {}: {:?}", imei, e),
-                    }
-                } else {
-                    warn!("Failed to process failed event for IMEI {}: {:?}", imei, result.err());
-
-                    match failed_events_handler
-                        .update_attempted_at(failed_event_id, chrono::Utc::now().naive_utc().and_utc().timestamp())
-                        .await
-                    {
-                        Ok(_) => {
-                            debug!("Successfully updated attempted_at for failed event {}", failed_event_id)
-                        }
-                        Err(e) => warn!(
-                            "Failed to update attempted_at for failed event {}: {:?}",
-                            failed_event_id, e
-                        ),
-                    };
-                }
-            }
-        } else {
-            debug!("No trackable found for IMEI {}", imei);
-        }
-    } else {
-        debug!("No failed events found");
-    }
-
-    debug!("End of failed events processing iteration");
-}
-
-/// Starts a periodic task for reprocessing failed events
-///
-/// # Arguments
-/// * `database_pool` - Database connection pool
-///
-/// # Returns
-/// A future that resolves when the worker is stopped
-async fn start_failed_events_worker(database_pool: Pool<MySql>) {
-    let batch_size =
-        read_env_variable_with_default_value(FAILED_EVENTS_BATCH_SIZE_ENV_KEY, DEFAULT_FAILED_EVENTS_BATCH_SIZE);
-
-    loop {
-        let start_time = chrono::Utc::now().naive_utc();
-        let pool_clone = database_pool.clone();
-
-        match tokio::spawn(async move { return send_failed_events(pool_clone, batch_size).await }).await {
-            Ok(_) => {
-                debug!("Successfully processed failed events");
-            }
-            Err(e) => {
-                warn!("Failed to spawn failed events worker: {:?}", e);
-            }
-        }
-
-        let elapsed_time = chrono::Utc::now().naive_utc() - start_time;
-        debug!("Elapsed time for processing failed events: {:?}", elapsed_time);
-        let sleep_time = Duration::from_secs(1).as_millis() as u64 - elapsed_time.num_milliseconds() as u64;
-
-        if sleep_time > 0 {
-            debug!("Sleeping for {} milliseconds before next iteration", sleep_time);
-            sleep(Duration::from_millis(sleep_time)).await;
-        }
-    }
 }
 
 /// Starts a listener
@@ -195,7 +51,6 @@ async fn start_listener(listener: Listener, trackables_cache: Arc<RwLock<Vec<Tra
             }
         };
 
-        // let pool_clone = database_pool.clone();
         let cache = trackables_cache.clone();
         tokio::spawn(async move {
             if let Err(error) = TeltonikaConnection::handle_connection(socket, &listener, cache).await {
@@ -228,28 +83,14 @@ async fn main() {
     // // Generated client gets the base URL from the environment variable itself but we want to restrict starting the software if the environment variable is not set
     read_env_variable::<String>(API_BASE_URL_ENV_KEY);
 
-    // Initialize database connection pool and run migrations
-    /*let database_pool = init_db(
-        read_env_variable::<String>(DATABASE_HOST),
-        read_env_variable::<u16>(DATABASE_PORT),
-        read_env_variable::<String>(DATABASE_NAME),
-        read_env_variable::<String>(DATABASE_USERNAME),
-        read_env_variable::<String>(DATABASE_PASSWORD),
-    )
-    .await
-    .expect("Failed to run migrations");*/
-
     let mut futures: Vec<Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
-    //let cron = start_failed_events_worker(database_pool.clone());
-    //futures.push(Box::pin(cron));
+
     let trackablesCache = Arc::new(RwLock::new(Vec::new()));
     for listener in LISTENERS.iter() {
         futures.push(Box::pin(start_listener(*listener, trackablesCache.clone())));
     }
 
     join_all(futures).await;
-
-    //database_pool.close().await;
 }
 
 #[cfg(test)]

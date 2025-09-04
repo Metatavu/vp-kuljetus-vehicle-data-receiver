@@ -1,5 +1,5 @@
 use crate::{
-    failed_events::{FailedEvent, FailedEventError, FailedEventsHandler},
+    failed_events::FailedEventError,
     teltonika::events::{
         DriverOneCardEventHandler, DriverOneDriveStateEventHandler, OdometerReadingEventHandler, SpeedEventHandler,
         TemperatureSensorsReadingEventHandler,
@@ -9,19 +9,8 @@ use crate::{
 use log::{debug, error};
 use nom_teltonika::AVLEventIO;
 use serde::{Deserialize, Serialize};
-use sqlx::{MySql, Pool};
 use std::fmt::Debug;
-use vehicle_management_service::{
-    apis::{
-        temperature_readings_api::CreateTemperatureReadingError,
-        trucks_api::{CreateDriveStateError, CreateTruckOdometerReadingError},
-    },
-    models::{TemperatureReading, Trackable, TruckDriverCard, TruckOdometerReading, TruckSpeed},
-};
-use vehicle_management_service::{
-    apis::{trucks_api::CreateTruckSpeedError, Error as ApiError},
-    models::TruckDriveState,
-};
+use vehicle_management_service::models::Trackable;
 
 /// Enumeration for Teltonika event handlers.
 ///
@@ -47,62 +36,6 @@ impl<'a> TeltonikaEventHandlers<'a> {
                 log_target,
             )),
         ]
-    }
-
-    /// Sends a failed event to the appropriate handler.
-    ///
-    /// # Arguments
-    /// * `event_data` - The event data to send
-    /// * `trackable` - The trackable object associated with the event
-    /// * `log_target` - The log target for the event
-    pub async fn send_failed_event(
-        &self,
-        event_data: String,
-        trackable: Trackable,
-        log_target: &str,
-    ) -> Result<(), String> {
-        match self {
-            TeltonikaEventHandlers::SpeedEventHandler((handler, _)) => {
-                let data: TruckSpeed =
-                    serde_json::from_str(&event_data).map_err(|e| format!("Failed to deserialize TruckSpeed: {e}"))?;
-                handler
-                    .send_event(&data, trackable, log_target)
-                    .await
-                    .map_err(|e: ApiError<CreateTruckSpeedError>| format!("{e:?}"))
-            }
-            TeltonikaEventHandlers::DriverOneCardEventHandler((handler, _)) => {
-                let data: TruckDriverCard = serde_json::from_str(&event_data)
-                    .map_err(|e| format!("Failed to deserialize TruckDriverCard: {e}"))?;
-                handler
-                    .send_event(&data, trackable, log_target)
-                    .await
-                    .map_err(|e| format!("{e:?}"))
-            }
-            TeltonikaEventHandlers::DriverOneDriveStateEventHandler((handler, _)) => {
-                let data: TruckDriveState = serde_json::from_str(&event_data)
-                    .map_err(|e| format!("Failed to deserialize TruckDriveState: {e}"))?;
-                handler
-                    .send_event(&data, trackable, log_target)
-                    .await
-                    .map_err(|e: ApiError<CreateDriveStateError>| format!("{e:?}"))
-            }
-            TeltonikaEventHandlers::OdometerReadingEventHandler((handler, _)) => {
-                let data: TruckOdometerReading = serde_json::from_str(&event_data)
-                    .map_err(|e| format!("Failed to deserialize TruckOdometerReading: {e}"))?;
-                handler
-                    .send_event(&data, trackable, log_target)
-                    .await
-                    .map_err(|e: ApiError<CreateTruckOdometerReadingError>| format!("{e:?}"))
-            }
-            TeltonikaEventHandlers::TemperatureSensorsReadingEventHandler((handler, _)) => {
-                let data: Vec<TemperatureReading> = serde_json::from_str(&event_data)
-                    .map_err(|e| format!("Failed to deserialize TruckTemperatureSensorsReadings: {e}"))?;
-                handler
-                    .send_event(&data, trackable, log_target)
-                    .await
-                    .map_err(|e: ApiError<CreateTemperatureReadingError>| format!("{e:?}"))
-            }
-        }
     }
 
     pub fn require_all_events(&self) -> bool {
@@ -301,39 +234,9 @@ where
         if let Err(err) = send_event_result {
             error!(target: log_target, "Failed to send {} event for trackable {}: {err:?}", event_handler, trackable.id);
             return Err(FailedEventError::FailedToSend);
-            /*failed_events_handler
-            .persist_event(
-                imei.clone(),
-                FailedEvent {
-                    id: None,
-                    handler_name: event_handler,
-                    timestamp: timestamp,
-                    event_data: serde_json::to_string(&event_data).unwrap(),
-                    imei: imei.clone(),
-                },
-            )
-            .await
-            .expect("Failed to persist failed event");*/
         }
 
         return Ok(());
-        /* else {
-            debug!(target: log_target, "Failed to send {} event for unknown truck: {}. Persisting so it can be retried later", event_handler, imei);
-
-            failed_events_handler
-                .persist_event(
-                    imei.clone(),
-                    FailedEvent {
-                        id: None,
-                        handler_name: self.get_event_handler_name(),
-                        timestamp: timestamp,
-                        event_data: serde_json::to_string(&event_data).unwrap(),
-                        imei: imei.clone(),
-                    },
-                )
-                .await
-                .expect("Failed to persist event for unknown truck");
-        };*/
     }
 
     /// Sends the event data to the API.
