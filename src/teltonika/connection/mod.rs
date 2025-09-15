@@ -1,7 +1,6 @@
 use log::{debug, error, info, warn};
 use nom_teltonika::TeltonikaStream;
 use rand::{thread_rng, Rng};
-use sqlx::{MySql, Pool};
 use std::{
     io::{Error, ErrorKind},
     sync::Arc,
@@ -9,18 +8,14 @@ use std::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    sync::{
-        mpsc::{self},
-        RwLock,
-    },
+    sync::RwLock,
     time::timeout,
 };
-use vehicle_management_service::models::{trackable, Trackable};
+use vehicle_management_service::models::Trackable;
 
 use crate::{
     teltonika::records::TeltonikaRecordsHandler,
     utils::{api::get_trackable, trackable_cache_item::TrackableCacheItem},
-    worker::{self, Worker, WorkerMessage},
     Listener,
 };
 
@@ -154,9 +149,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
     /// * `base_log_file_path` - Base path for the log files
     async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
-            /*if self.trackable.is_none() {
-                self.trackable = get_trackable(&self.imei).await;
-            }*/
             match self.teltonika_stream.read_frame_async().await {
                 Ok(frame) => {
                     let records_count = frame.records.len();
@@ -188,21 +180,6 @@ impl<S: AsyncWriteExt + AsyncReadExt + Unpin + Sync> TeltonikaConnection<S> {
                         Ok(Err(e)) => error!(target: self.log_target(),"ACK write failed: {}", e),
                         Err(_) => warn!(target: self.log_target(),"ACK write timed out"),
                     }
-
-                    /*let send_result = self
-                        .worker
-                        .send(WorkerMessage::IncomingFrame {
-                            frame: frame.clone(),
-                            trackable: self.trackable.clone(),
-                            imei: self.imei.clone(),
-                            listener: self.listener,
-                        })
-                        .await;
-
-                    match send_result {
-                        Ok(_) => debug!(target: self.log_target(), "Frame sent to worker successfully"),
-                        Err(err) => error!(target: self.log_target(), "Failed to send frame to worker: {}", err),
-                    };*/
                 }
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::ConnectionReset => {
