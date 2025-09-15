@@ -1,4 +1,4 @@
-use log::{debug, warn};
+use log::{debug};
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
@@ -7,7 +7,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::{TemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType},
+    models::{TruckOrTowableTemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType},
 };
 
 use crate::{
@@ -29,7 +29,7 @@ impl TemperatureSensorsReadingEventHandler {
         sensor: &TeltonikaTemperatureSensors,
         timestamp: i64,
         listener: &Listener,
-    ) -> Option<TemperatureReading> {
+    ) -> Option<TruckOrTowableTemperatureReading> {
         let imei = log_target
             .split("-")
             .collect::<Vec<&str>>()
@@ -68,7 +68,7 @@ impl TemperatureSensorsReadingEventHandler {
             return None;
         }
 
-        return Some(TemperatureReading::new(
+        return Some(TruckOrTowableTemperatureReading::new(
             imei,
             hardware_sensor_id.to_string(),
             temperature as f32 * 0.1,
@@ -78,7 +78,7 @@ impl TemperatureSensorsReadingEventHandler {
     }
 }
 
-impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadingError>>
+impl TeltonikaEventHandler<Vec<TruckOrTowableTemperatureReading>, Error<CreateTemperatureReadingError>>
     for TemperatureSensorsReadingEventHandler
 {
     fn require_all_events(&self) -> bool {
@@ -120,7 +120,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
 
     async fn send_event(
         &self,
-        event_data: &Vec<TemperatureReading>,
+        event_data: &Vec<TruckOrTowableTemperatureReading>,
         trackable: Trackable,
         log_target: &str,
     ) -> Result<(), Error<CreateTemperatureReadingError>> {
@@ -139,7 +139,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
             match create_temperature_reading(
                 config,
                 CreateTemperatureReadingParams {
-                    temperature_reading: reading.clone(),
+                    truck_or_towable_temperature_reading: reading.clone(),
                 },
             )
             .await
@@ -173,7 +173,7 @@ impl TeltonikaEventHandler<Vec<TemperatureReading>, Error<CreateTemperatureReadi
         timestamp: i64,
         log_target: &str,
         listener: &Listener,
-    ) -> Option<Vec<TemperatureReading>> {
+    ) -> Option<Vec<TruckOrTowableTemperatureReading>> {
         let mut readings = Vec::new();
         for sensor in TeltonikaTemperatureSensors::iterator() {
             readings.push(self.parse_readings_from_events(log_target, events, sensor, timestamp, listener));

@@ -10,9 +10,9 @@
 
 
 use reqwest;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error as _};
 use crate::{apis::ResponseContent, models};
-use super::{Error, configuration};
+use super::{Error, configuration, ContentType};
 
 /// struct for passing parameters to the method [`list_public_trucks`]
 #[derive(Clone, Debug)]
@@ -37,47 +37,48 @@ pub enum ListPublicTrucksError {
 
 /// Lists public info about each truck.
 pub async fn list_public_trucks(configuration: &configuration::Configuration, params: ListPublicTrucksParams) -> Result<Vec<models::PublicTruck>, Error<ListPublicTrucksError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let vin = params.vin;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/publicTrucks", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/publicTrucks", local_var_configuration.base_path);
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = vin {
-        local_var_req_builder = local_var_req_builder.query(&[("vin", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.vin {
+        req_builder = req_builder.query(&[("vin", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::PublicTruck&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::PublicTruck&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListPublicTrucksError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListPublicTrucksError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 

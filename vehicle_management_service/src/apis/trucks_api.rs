@@ -10,9 +10,9 @@
 
 
 use reqwest;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error as _};
 use crate::{apis::ResponseContent, models};
-use super::{Error, configuration};
+use super::{Error, configuration, ContentType};
 
 /// struct for passing parameters to the method [`create_drive_state`]
 #[derive(Clone, Debug)]
@@ -186,6 +186,8 @@ pub struct ListTrucksParams {
     pub sort_by: Option<models::TruckSortByField>,
     /// Sort direction
     pub sort_direction: Option<models::SortOrder>,
+    /// Thermometer id
+    pub thermometer_id: Option<String>,
     /// First result.
     pub first: Option<i32>,
     /// Max results.
@@ -341,760 +343,714 @@ pub enum UpdateTruckError {
 
 /// Create new drive state for truck
 pub async fn create_drive_state(configuration: &configuration::Configuration, params: CreateDriveStateParams) -> Result<(), Error<CreateDriveStateError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_drive_state = params.truck_drive_state;
+    let uri_str = format!("{}/v1/trucks/{truckId}/driveStates", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driveStates", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+        req_builder = req_builder.header("X-DataReceiver-API-Key", value);
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_drive_state);
+    req_builder = req_builder.json(&params.truck_drive_state);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+    if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
-        let local_var_entity: Option<CreateDriveStateError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<CreateDriveStateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Create new truck
 pub async fn create_truck(configuration: &configuration::Configuration, params: CreateTruckParams) -> Result<models::Truck, Error<CreateTruckError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck = params.truck;
+    let uri_str = format!("{}/v1/trucks", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks", local_var_configuration.base_path);
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    local_var_req_builder = local_var_req_builder.json(&truck);
+    req_builder = req_builder.json(&params.truck);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Truck`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Truck`")))),
+        }
     } else {
-        let local_var_entity: Option<CreateTruckError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<CreateTruckError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Create new truck driver card.  If a card with same truck ID and card ID is already found with removedAt set, the existing card is restored. If a card with different truck ID and card ID is already found with removedAt set, the previous card is immediately deleted and the new card is created. If a card with the same truck ID and card ID is found with removedAt not set, the request is rejected with a 409 Conflict response. 
 pub async fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_driver_card = params.truck_driver_card;
+    let uri_str = format!("{}/v1/trucks/{truckId}/driverCards", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driverCards", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+        req_builder = req_builder.header("X-DataReceiver-API-Key", value);
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_driver_card);
+    req_builder = req_builder.json(&params.truck_driver_card);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TruckDriverCard`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TruckDriverCard`")))),
+        }
     } else {
-        let local_var_entity: Option<CreateTruckDriverCardError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<CreateTruckDriverCardError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Create new truck location. Used by vehicle data receiver to send truck location data.
 pub async fn create_truck_location(configuration: &configuration::Configuration, params: CreateTruckLocationParams) -> Result<(), Error<CreateTruckLocationError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_location = params.truck_location;
+    let uri_str = format!("{}/v1/trucks/{truckId}/locations", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/locations", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+        req_builder = req_builder.header("X-DataReceiver-API-Key", value);
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_location);
+    req_builder = req_builder.json(&params.truck_location);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+    if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
-        let local_var_entity: Option<CreateTruckLocationError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<CreateTruckLocationError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Create new truck odometer reading. Used by vehicle data receiver to send truck odometer reading data.
 pub async fn create_truck_odometer_reading(configuration: &configuration::Configuration, params: CreateTruckOdometerReadingParams) -> Result<(), Error<CreateTruckOdometerReadingError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_odometer_reading = params.truck_odometer_reading;
+    let uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+        req_builder = req_builder.header("X-DataReceiver-API-Key", value);
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_odometer_reading);
+    req_builder = req_builder.json(&params.truck_odometer_reading);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+    if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
-        let local_var_entity: Option<CreateTruckOdometerReadingError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<CreateTruckOdometerReadingError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Create new truck speed. Used by vehicle data receiver to send truck speed data.
 pub async fn create_truck_speed(configuration: &configuration::Configuration, params: CreateTruckSpeedParams) -> Result<(), Error<CreateTruckSpeedError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck_speed = params.truck_speed;
+    let uri_str = format!("{}/v1/trucks/{truckId}/speeds", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/speeds", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::POST, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+        req_builder = req_builder.header("X-DataReceiver-API-Key", value);
     };
-    local_var_req_builder = local_var_req_builder.json(&truck_speed);
+    req_builder = req_builder.json(&params.truck_speed);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+    if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
-        let local_var_entity: Option<CreateTruckSpeedError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<CreateTruckSpeedError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Deletes truck. For non-production use. Returns forbidden in production environment.
 pub async fn delete_truck(configuration: &configuration::Configuration, params: DeleteTruckParams) -> Result<(), Error<DeleteTruckError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
+    let uri_str = format!("{}/v1/trucks/{truckId}", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::DELETE, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::DELETE, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+    if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
-        let local_var_entity: Option<DeleteTruckError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<DeleteTruckError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Deletes single truck driver card. Driver cards are deleted when they are removed from the truck.  The card is first soft-deleted by setting removedAt to value sent in X-Removed-At header. A background process then checks frequently for driver cards removed over a configurable grace period ago and deletes them permanently. This is done to prevent false positive driver card states coming in from telematics device. 
 pub async fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let driver_card_id = params.driver_card_id;
-    let x_removed_at = params.x_removed_at;
+    let uri_str = format!("{}/v1/trucks/{truckId}/driverCards/{driverCardId}", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id), driverCardId=crate::apis::urlencode(params.driver_card_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::DELETE, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driverCards/{driverCardId}", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id), driverCardId=crate::apis::urlencode(driver_card_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::DELETE, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    local_var_req_builder = local_var_req_builder.header("X-Removed-At", x_removed_at.to_string());
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    req_builder = req_builder.header("X-Removed-At", params.x_removed_at.to_string());
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-DataReceiver-API-Key", local_var_value);
+        req_builder = req_builder.header("X-DataReceiver-API-Key", value);
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
+    if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
-        let local_var_entity: Option<DeleteTruckDriverCardError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<DeleteTruckDriverCardError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Finds a truck by id.
 pub async fn find_truck(configuration: &configuration::Configuration, params: FindTruckParams) -> Result<models::Truck, Error<FindTruckError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
+    let uri_str = format!("{}/v1/trucks/{truckId}", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Truck`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Truck`")))),
+        }
     } else {
-        let local_var_entity: Option<FindTruckError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<FindTruckError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Lists drive states for truck.
 pub async fn list_drive_states(configuration: &configuration::Configuration, params: ListDriveStatesParams) -> Result<Vec<models::TruckDriveState>, Error<ListDriveStatesError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let driver_id = params.driver_id;
-    let state = params.state;
-    let after = params.after;
-    let before = params.before;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/trucks/{truckId}/driveStates", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driveStates", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = driver_id {
-        local_var_req_builder = local_var_req_builder.query(&[("driverId", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.driver_id {
+        req_builder = req_builder.query(&[("driverId", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = state {
-        local_var_req_builder = match "multi" {
-            "multi" => local_var_req_builder.query(&local_var_str.into_iter().map(|p| ("state".to_owned(), p.to_string())).collect::<Vec<(std::string::String, std::string::String)>>()),
-            _ => local_var_req_builder.query(&[("state", &local_var_str.into_iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",").to_string())]),
+    if let Some(ref param_value) = params.state {
+        req_builder = match "multi" {
+            "multi" => req_builder.query(&param_value.into_iter().map(|p| ("state".to_owned(), p.to_string())).collect::<Vec<(std::string::String, std::string::String)>>()),
+            _ => req_builder.query(&[("state", &param_value.into_iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",").to_string())]),
         };
     }
-    if let Some(ref local_var_str) = after {
-        local_var_req_builder = local_var_req_builder.query(&[("after", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.after {
+        req_builder = req_builder.query(&[("after", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = before {
-        local_var_req_builder = local_var_req_builder.query(&[("before", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.before {
+        req_builder = req_builder.query(&[("before", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckDriveState&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckDriveState&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListDriveStatesError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListDriveStatesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Lists truck driver cards. Used to check if a truck has a driver card inserted.
 pub async fn list_truck_driver_cards(configuration: &configuration::Configuration, params: ListTruckDriverCardsParams) -> Result<Vec<models::TruckDriverCard>, Error<ListTruckDriverCardsError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
+    let uri_str = format!("{}/v1/trucks/{truckId}/driverCards", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/driverCards", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_apikey) = local_var_configuration.api_key {
-        let local_var_key = local_var_apikey.key.clone();
-        let local_var_value = match local_var_apikey.prefix {
-            Some(ref local_var_prefix) => format!("{} {}", local_var_prefix, local_var_key),
-            None => local_var_key,
+    if let Some(ref apikey) = configuration.api_key {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
         };
-        local_var_req_builder = local_var_req_builder.header("X-Keycloak-API-Key", local_var_value);
+        req_builder = req_builder.header("X-Keycloak-API-Key", value);
     };
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckDriverCard&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckDriverCard&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListTruckDriverCardsError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTruckDriverCardsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Lists Truck locations.
 pub async fn list_truck_locations(configuration: &configuration::Configuration, params: ListTruckLocationsParams) -> Result<Vec<models::TruckLocation>, Error<ListTruckLocationsError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let after = params.after;
-    let before = params.before;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/trucks/{truckId}/locations", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/locations", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = after {
-        local_var_req_builder = local_var_req_builder.query(&[("after", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.after {
+        req_builder = req_builder.query(&[("after", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = before {
-        local_var_req_builder = local_var_req_builder.query(&[("before", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.before {
+        req_builder = req_builder.query(&[("before", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckLocation&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckLocation&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListTruckLocationsError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTruckLocationsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Lists truck odometer readings.
 pub async fn list_truck_odometer_readings(configuration: &configuration::Configuration, params: ListTruckOdometerReadingsParams) -> Result<Vec<models::TruckOdometerReading>, Error<ListTruckOdometerReadingsError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let after = params.after;
-    let before = params.before;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = after {
-        local_var_req_builder = local_var_req_builder.query(&[("after", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.after {
+        req_builder = req_builder.query(&[("after", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = before {
-        local_var_req_builder = local_var_req_builder.query(&[("before", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.before {
+        req_builder = req_builder.query(&[("before", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckOdometerReading&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckOdometerReading&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListTruckOdometerReadingsError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTruckOdometerReadingsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Lists Truck speeds.
 pub async fn list_truck_speeds(configuration: &configuration::Configuration, params: ListTruckSpeedsParams) -> Result<Vec<models::TruckSpeed>, Error<ListTruckSpeedsError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let after = params.after;
-    let before = params.before;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/trucks/{truckId}/speeds", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/speeds", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = after {
-        local_var_req_builder = local_var_req_builder.query(&[("after", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.after {
+        req_builder = req_builder.query(&[("after", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = before {
-        local_var_req_builder = local_var_req_builder.query(&[("before", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.before {
+        req_builder = req_builder.query(&[("before", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckSpeed&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckSpeed&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListTruckSpeedsError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTruckSpeedsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Retrieve all temperatures from all thermometers related to a specific truck, possibly including data from archived thermometers.
-pub async fn list_truck_temperatures(configuration: &configuration::Configuration, params: ListTruckTemperaturesParams) -> Result<Vec<models::Temperature>, Error<ListTruckTemperaturesError>> {
-    let local_var_configuration = configuration;
+pub async fn list_truck_temperatures(configuration: &configuration::Configuration, params: ListTruckTemperaturesParams) -> Result<Vec<models::TruckOrTowableTemperature>, Error<ListTruckTemperaturesError>> {
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let include_archived = params.include_archived;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/trucks/{truckId}/temperatures", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}/temperatures", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = include_archived {
-        local_var_req_builder = local_var_req_builder.query(&[("includeArchived", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.include_archived {
+        req_builder = req_builder.query(&[("includeArchived", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckOrTowableTemperature&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckOrTowableTemperature&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListTruckTemperaturesError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTruckTemperaturesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Lists Trucks.
 pub async fn list_trucks(configuration: &configuration::Configuration, params: ListTrucksParams) -> Result<Vec<models::Truck>, Error<ListTrucksError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let plate_number = params.plate_number;
-    let archived = params.archived;
-    let sort_by = params.sort_by;
-    let sort_direction = params.sort_direction;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/trucks", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks", local_var_configuration.base_path);
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = plate_number {
-        local_var_req_builder = local_var_req_builder.query(&[("plateNumber", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.plate_number {
+        req_builder = req_builder.query(&[("plateNumber", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = archived {
-        local_var_req_builder = local_var_req_builder.query(&[("archived", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.archived {
+        req_builder = req_builder.query(&[("archived", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = sort_by {
-        local_var_req_builder = local_var_req_builder.query(&[("sortBy", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.sort_by {
+        req_builder = req_builder.query(&[("sortBy", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = sort_direction {
-        local_var_req_builder = local_var_req_builder.query(&[("sortDirection", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.sort_direction {
+        req_builder = req_builder.query(&[("sortDirection", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.thermometer_id {
+        req_builder = req_builder.query(&[("thermometerId", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::Truck&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::Truck&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListTrucksError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTrucksError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
 /// Updates single truck
 pub async fn update_truck(configuration: &configuration::Configuration, params: UpdateTruckParams) -> Result<models::Truck, Error<UpdateTruckError>> {
-    let local_var_configuration = configuration;
 
-    // unbox the parameters
-    let truck_id = params.truck_id;
-    let truck = params.truck;
+    let uri_str = format!("{}/v1/trucks/{truckId}", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/trucks/{truckId}", local_var_configuration.base_path, truckId=crate::apis::urlencode(truck_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::PUT, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    local_var_req_builder = local_var_req_builder.json(&truck);
+    req_builder = req_builder.json(&params.truck);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Truck`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Truck`")))),
+        }
     } else {
-        let local_var_entity: Option<UpdateTruckError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<UpdateTruckError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 

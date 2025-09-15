@@ -19,10 +19,7 @@ src/models/error.rs
 src/models/mod.rs
 src/models/public_truck.rs
 src/models/sort_order.rs
-src/models/temperature.rs
-src/models/temperature_reading.rs
 src/models/temperature_reading_source_type.rs
-src/models/thermometer.rs
 src/models/towable.rs
 src/models/trackable.rs
 src/models/trackable_type.rs
@@ -32,7 +29,10 @@ src/models/truck_drive_state_enum.rs
 src/models/truck_driver_card.rs
 src/models/truck_location.rs
 src/models/truck_odometer_reading.rs
+src/models/truck_or_towable_temperature.rs
+src/models/truck_or_towable_temperature_reading.rs
+src/models/truck_or_towable_thermometer.rs
 src/models/truck_sort_by_field.rs
 src/models/truck_speed.rs
-src/models/update_thermometer_request.rs
+src/models/update_truck_or_towable_thermometer_request.rs
 src/models/vehicle.rs

@@ -10,20 +10,20 @@
 
 
 use reqwest;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error as _};
 use crate::{apis::ResponseContent, models};
-use super::{Error, configuration};
+use super::{Error, configuration, ContentType};
 
-/// struct for passing parameters to the method [`find_thermometer`]
+/// struct for passing parameters to the method [`find_truck_or_towable_thermometer`]
 #[derive(Clone, Debug)]
-pub struct FindThermometerParams {
+pub struct FindTruckOrTowableThermometerParams {
     /// The unique ID of the thermometer
     pub thermometer_id: String
 }
 
-/// struct for passing parameters to the method [`list_thermometers`]
+/// struct for passing parameters to the method [`list_truck_or_towable_thermometers`]
 #[derive(Clone, Debug)]
-pub struct ListThermometersParams {
+pub struct ListTruckOrTowableThermometersParams {
     /// Filter thermometers by associated truck or towable ID. Should be used with entityType filter.
     pub entity_id: Option<String>,
     /// Filter thermometers by associated entity type (e.g., \"truck\", \"towable\")
@@ -36,164 +36,168 @@ pub struct ListThermometersParams {
     pub max: Option<i32>
 }
 
-/// struct for passing parameters to the method [`update_thermometer`]
+/// struct for passing parameters to the method [`update_truck_or_towable_thermometer`]
 #[derive(Clone, Debug)]
-pub struct UpdateThermometerParams {
+pub struct UpdateTruckOrTowableThermometerParams {
     /// The unique ID of the thermometer
     pub thermometer_id: String,
     /// Payload
-    pub update_thermometer_request: models::UpdateThermometerRequest
+    pub update_truck_or_towable_thermometer_request: models::UpdateTruckOrTowableThermometerRequest
 }
 
 
-/// struct for typed errors of method [`find_thermometer`]
+/// struct for typed errors of method [`find_truck_or_towable_thermometer`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum FindThermometerError {
+pub enum FindTruckOrTowableThermometerError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_thermometers`]
+/// struct for typed errors of method [`list_truck_or_towable_thermometers`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ListThermometersError {
+pub enum ListTruckOrTowableThermometersError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`update_thermometer`]
+/// struct for typed errors of method [`update_truck_or_towable_thermometer`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum UpdateThermometerError {
+pub enum UpdateTruckOrTowableThermometerError {
     DefaultResponse(models::Error),
     UnknownValue(serde_json::Value),
 }
 
 
-/// Retrieve the details of a specific thermometer
-pub async fn find_thermometer(configuration: &configuration::Configuration, params: FindThermometerParams) -> Result<models::Thermometer, Error<FindThermometerError>> {
-    let local_var_configuration = configuration;
+/// Retrieve the details of a specific truck or towable thermometer
+pub async fn find_truck_or_towable_thermometer(configuration: &configuration::Configuration, params: FindTruckOrTowableThermometerParams) -> Result<models::TruckOrTowableThermometer, Error<FindTruckOrTowableThermometerError>> {
 
-    // unbox the parameters
-    let thermometer_id = params.thermometer_id;
+    let uri_str = format!("{}/v1/thermometers/{thermometerId}", configuration.base_path, thermometerId=crate::apis::urlencode(params.thermometer_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/thermometers/{thermometerId}", local_var_configuration.base_path, thermometerId=crate::apis::urlencode(thermometer_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TruckOrTowableThermometer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TruckOrTowableThermometer`")))),
+        }
     } else {
-        let local_var_entity: Option<FindThermometerError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<FindTruckOrTowableThermometerError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
-/// Retrieve a list of all thermometers, optionally filtered by vehicle association or archived status
-pub async fn list_thermometers(configuration: &configuration::Configuration, params: ListThermometersParams) -> Result<Vec<models::Thermometer>, Error<ListThermometersError>> {
-    let local_var_configuration = configuration;
+/// Retrieve a list of all truck or towable thermometers.  Can optionally be filtered by vehicle association or archived status. 
+pub async fn list_truck_or_towable_thermometers(configuration: &configuration::Configuration, params: ListTruckOrTowableThermometersParams) -> Result<Vec<models::TruckOrTowableThermometer>, Error<ListTruckOrTowableThermometersError>> {
 
-    // unbox the parameters
-    let entity_id = params.entity_id;
-    let entity_type = params.entity_type;
-    let include_archived = params.include_archived;
-    let first = params.first;
-    let max = params.max;
+    let uri_str = format!("{}/v1/thermometers", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/thermometers", local_var_configuration.base_path);
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_str) = entity_id {
-        local_var_req_builder = local_var_req_builder.query(&[("entityId", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.entity_id {
+        req_builder = req_builder.query(&[("entityId", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = entity_type {
-        local_var_req_builder = local_var_req_builder.query(&[("entityType", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.entity_type {
+        req_builder = req_builder.query(&[("entityType", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = include_archived {
-        local_var_req_builder = local_var_req_builder.query(&[("includeArchived", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.include_archived {
+        req_builder = req_builder.query(&[("includeArchived", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = first {
-        local_var_req_builder = local_var_req_builder.query(&[("first", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.first {
+        req_builder = req_builder.query(&[("first", &param_value.to_string())]);
     }
-    if let Some(ref local_var_str) = max {
-        local_var_req_builder = local_var_req_builder.query(&[("max", &local_var_str.to_string())]);
+    if let Some(ref param_value) = params.max {
+        req_builder = req_builder.query(&[("max", &param_value.to_string())]);
     }
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TruckOrTowableThermometer&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TruckOrTowableThermometer&gt;`")))),
+        }
     } else {
-        let local_var_entity: Option<ListThermometersError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<ListTruckOrTowableThermometersError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
-/// Update the details of a specific thermometer. Currently only the name can be updated.
-pub async fn update_thermometer(configuration: &configuration::Configuration, params: UpdateThermometerParams) -> Result<models::Thermometer, Error<UpdateThermometerError>> {
-    let local_var_configuration = configuration;
+/// Update the details of specific truck or towable thermometer. Currently only the name can be updated.
+pub async fn update_truck_or_towable_thermometer(configuration: &configuration::Configuration, params: UpdateTruckOrTowableThermometerParams) -> Result<models::TruckOrTowableThermometer, Error<UpdateTruckOrTowableThermometerError>> {
 
-    // unbox the parameters
-    let thermometer_id = params.thermometer_id;
-    let update_thermometer_request = params.update_thermometer_request;
+    let uri_str = format!("{}/v1/thermometers/{thermometerId}", configuration.base_path, thermometerId=crate::apis::urlencode(params.thermometer_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
-
-    let local_var_client = &local_var_configuration.client;
-
-    let local_var_uri_str = format!("{}/v1/thermometers/{thermometerId}", local_var_configuration.base_path, thermometerId=crate::apis::urlencode(thermometer_id));
-    let mut local_var_req_builder = local_var_client.request(reqwest::Method::PUT, local_var_uri_str.as_str());
-
-    if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
-        local_var_req_builder = local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    if let Some(ref local_var_token) = local_var_configuration.bearer_access_token {
-        local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    local_var_req_builder = local_var_req_builder.json(&update_thermometer_request);
+    req_builder = req_builder.json(&params.update_truck_or_towable_thermometer_request);
 
-    let local_var_req = local_var_req_builder.build()?;
-    let local_var_resp = local_var_client.execute(local_var_req).await?;
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
 
-    let local_var_status = local_var_resp.status();
-    let local_var_content = local_var_resp.text().await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
-    if !local_var_status.is_client_error() && !local_var_status.is_server_error() {
-        serde_json::from_str(&local_var_content).map_err(Error::from)
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TruckOrTowableThermometer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TruckOrTowableThermometer`")))),
+        }
     } else {
-        let local_var_entity: Option<UpdateThermometerError> = serde_json::from_str(&local_var_content).ok();
-        let local_var_error = ResponseContent { status: local_var_status, content: local_var_content, entity: local_var_entity };
-        Err(Error::ResponseError(local_var_error))
+        let content = resp.text().await?;
+        let entity: Option<UpdateTruckOrTowableThermometerError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
