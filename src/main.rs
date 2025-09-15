@@ -25,7 +25,7 @@ const VEHICLE_MANAGEMENT_SERVICE_API_KEY_ENV_KEY: &str = "VEHICLE_MANAGEMENT_SER
 const API_BASE_URL_ENV_KEY: &str = "API_BASE_URL";
 
 lazy_static! {
-    static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC234, Listener::TeltonikaFMC650];
+    static ref LISTENERS: [Listener; 2] = [Listener::TeltonikaFMC650, Listener::TeltonikaFMC234];
 }
 
 /// Starts a listener
@@ -42,7 +42,7 @@ async fn start_listener(listener: Listener, trackables_cache: Arc<RwLock<Vec<Tra
     };
 
     info!("Listening on: {}", address);
-
+    let mut connections = Vec::new();
     loop {
         let socket = match tcp_listener.accept().await {
             Ok((sock, _)) => sock,
@@ -64,8 +64,36 @@ async fn start_listener(listener: Listener, trackables_cache: Arc<RwLock<Vec<Tra
                 }
             };
         });
+
+        connections.push(connection);
     }
 }
+
+async fn clean_up_workers() {
+    tokio::spawn(async move {
+        loop {
+            if let Ok(mut tasks) = WORKER_TASKS.lock() {
+                let len = tasks.len();
+                info!("Cleaning finished tasks in WORKER_TASKS");
+                tasks.retain(|id, task| {
+                    if task.is_finished() {
+                        info!("Removing finished task with identifier: {id}");
+                        false // Remove the task
+                    } else {
+                        true // Keep the task
+                    }
+                });
+                let new_len = tasks.len();
+                let removed = len - new_len;
+                info!("Removed {removed} finished tasks from WORKER_TASKS, {new_len} tasks remaining",);
+            } else {
+                warn!("Unable to achieve lock on WORKER_TASKS");
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+}
+
 /// VP-Kuljetus Vehicle Data Receiver
 ///
 /// This application handles incoming TCP connections from Teltonika Telematics devices,
@@ -90,7 +118,10 @@ async fn main() {
         futures.push(Box::pin(start_listener(*listener, trackablesCache.clone())));
     }
 
+    clean_up_workers().await;
     join_all(futures).await;
+
+    Ok(())
 }
 
 #[cfg(test)]

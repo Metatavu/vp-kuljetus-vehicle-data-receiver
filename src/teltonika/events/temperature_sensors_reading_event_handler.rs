@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{debug, warn};
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{

@@ -74,6 +74,7 @@ impl TeltonikaRecordsHandler {
 
         let mut failed_to_process = false;
         for handler in TeltonikaEventHandlers::event_handlers(&self.log_target).iter() {
+            debug!("Processing handler {handler:?}");
             let trigger_event_ids = handler.get_trigger_event_ids();
             if !trigger_event_ids.is_empty() && !trigger_event_ids.contains(&record.trigger_event_id) {
                 continue;

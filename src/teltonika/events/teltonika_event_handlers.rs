@@ -24,6 +24,12 @@ pub enum TeltonikaEventHandlers<'a> {
     TemperatureSensorsReadingEventHandler((TemperatureSensorsReadingEventHandler, &'a str)),
 }
 
+impl Drop for TeltonikaEventHandlers<'_> {
+    fn drop(&mut self) {
+        debug!("Dropping TeltonikaEventHandler: {:?}", self);
+    }
+}
+
 impl<'a> TeltonikaEventHandlers<'a> {
     pub fn event_handlers(log_target: &str) -> Vec<TeltonikaEventHandlers> {
         vec![
