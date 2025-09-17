@@ -34,7 +34,7 @@ pub enum GetTrackableByImeiError {
 /// Finds a trackable e.g. a truck or a towable by its IMEI.
 pub async fn get_trackable_by_imei(configuration: &configuration::Configuration, params: GetTrackableByImeiParams) -> Result<models::Trackable, Error<GetTrackableByImeiError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trackables/{imei}", configuration.base_path, imei=crate::apis::urlencode(params.imei));
+    let uri_str = format!("{}/v1/trackables/{imei}", configuration.base_path, imei=crate::apis::urlencode(params.imei));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {

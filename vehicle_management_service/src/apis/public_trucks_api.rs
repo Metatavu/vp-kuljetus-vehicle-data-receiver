@@ -38,7 +38,7 @@ pub enum ListPublicTrucksError {
 /// Lists public info about each truck.
 pub async fn list_public_trucks(configuration: &configuration::Configuration, params: ListPublicTrucksParams) -> Result<Vec<models::PublicTruck>, Error<ListPublicTrucksError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/publicTrucks", configuration.base_path);
+    let uri_str = format!("{}/v1/publicTrucks", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref param_value) = params.vin {
