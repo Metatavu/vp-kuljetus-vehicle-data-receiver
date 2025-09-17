@@ -34,7 +34,7 @@ pub enum CreateTemperatureReadingError {
 /// Create temperature reading
 pub async fn create_temperature_reading(configuration: &configuration::Configuration, params: CreateTemperatureReadingParams) -> Result<(), Error<CreateTemperatureReadingError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/temperatureReadings", configuration.base_path);
+    let uri_str = format!("{}/v1/temperatureReadings", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {

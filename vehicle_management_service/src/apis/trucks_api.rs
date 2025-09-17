@@ -138,7 +138,7 @@ pub enum ListTruckDriverCardsError {
 /// Create new drive state for truck
 pub async fn create_drive_state(configuration: &configuration::Configuration, params: CreateDriveStateParams) -> Result<(), Error<CreateDriveStateError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/driveStates", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/driveStates", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -171,7 +171,7 @@ pub async fn create_drive_state(configuration: &configuration::Configuration, pa
 /// Create new truck driver card.  If a card with same truck ID and card ID is already found with removedAt set, the existing card is restored. If a card with different truck ID and card ID is already found with removedAt set, the previous card is immediately deleted and the new card is created. If a card with the same truck ID and card ID is found with removedAt not set, the request is rejected with a 409 Conflict response. 
 pub async fn create_truck_driver_card(configuration: &configuration::Configuration, params: CreateTruckDriverCardParams) -> Result<models::TruckDriverCard, Error<CreateTruckDriverCardError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/driverCards", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/driverCards", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -215,7 +215,7 @@ pub async fn create_truck_driver_card(configuration: &configuration::Configurati
 /// Create new truck location. Used by vehicle data receiver to send truck location data.
 pub async fn create_truck_location(configuration: &configuration::Configuration, params: CreateTruckLocationParams) -> Result<(), Error<CreateTruckLocationError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/locations", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/locations", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -248,7 +248,7 @@ pub async fn create_truck_location(configuration: &configuration::Configuration,
 /// Create new truck odometer reading. Used by vehicle data receiver to send truck odometer reading data.
 pub async fn create_truck_odometer_reading(configuration: &configuration::Configuration, params: CreateTruckOdometerReadingParams) -> Result<(), Error<CreateTruckOdometerReadingError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/odometerReadings", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/odometerReadings", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -281,7 +281,7 @@ pub async fn create_truck_odometer_reading(configuration: &configuration::Config
 /// Create new truck speed. Used by vehicle data receiver to send truck speed data.
 pub async fn create_truck_speed(configuration: &configuration::Configuration, params: CreateTruckSpeedParams) -> Result<(), Error<CreateTruckSpeedError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/speeds", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/speeds", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -314,7 +314,7 @@ pub async fn create_truck_speed(configuration: &configuration::Configuration, pa
 /// Deletes single truck driver card. Driver cards are deleted when they are removed from the truck.  The card is first soft-deleted by setting removedAt to value sent in X-Removed-At header. A background process then checks frequently for driver cards removed over a configurable grace period ago and deletes them permanently. This is done to prevent false positive driver card states coming in from telematics device. 
 pub async fn delete_truck_driver_card(configuration: &configuration::Configuration, params: DeleteTruckDriverCardParams) -> Result<(), Error<DeleteTruckDriverCardError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/driverCards/{driverCardId}", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id), driverCardId=crate::apis::urlencode(params.driver_card_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/driverCards/{driverCardId}", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id), driverCardId=crate::apis::urlencode(params.driver_card_id));
     let mut req_builder = configuration.client.request(reqwest::Method::DELETE, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -347,7 +347,7 @@ pub async fn delete_truck_driver_card(configuration: &configuration::Configurati
 /// Lists truck driver cards. Used to check if a truck has a driver card inserted.
 pub async fn list_truck_driver_cards(configuration: &configuration::Configuration, params: ListTruckDriverCardsParams) -> Result<Vec<models::TruckDriverCard>, Error<ListTruckDriverCardsError>> {
 
-    let uri_str = format!("{}/vehicle-management/v1/trucks/{truckId}/driverCards", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
+    let uri_str = format!("{}/v1/trucks/{truckId}/driverCards", configuration.base_path, truckId=crate::apis::urlencode(params.truck_id));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
