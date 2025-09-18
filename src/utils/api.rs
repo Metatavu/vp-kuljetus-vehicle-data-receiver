@@ -6,7 +6,7 @@ use vehicle_management_service::{
         trackables_api::GetTrackableByImeiParams,
         trucks_api::{list_truck_driver_cards, ListTruckDriverCardsParams},
     },
-    models::Trackable,
+    models::{Trackable, TruckDriverCard},
 };
 
 use super::get_vehicle_management_api_config;
@@ -64,16 +64,7 @@ pub async fn get_truck_id_by_vin(vin: &Option<String>) -> Option<Uuid> {
     }
 }
 
-/// Gets truck driver card.
-///
-/// API returns a list, but in reality there should always be just one.
-///
-/// # Arguments
-/// * `truck_id` - Truck ID
-///
-/// # Returns
-/// * `Option<String>` - Driver card ID
-pub async fn get_truck_driver_card_id(truck_id: &str) -> Option<String> {
+pub async fn fetch_all_driver_cards_in_truck(truck_id: &str) -> Option<Vec<TruckDriverCard>> {
     let Ok(driver_cards) = list_truck_driver_cards(
         &get_vehicle_management_api_config(),
         ListTruckDriverCardsParams {
@@ -85,11 +76,5 @@ pub async fn get_truck_driver_card_id(truck_id: &str) -> Option<String> {
         info!("Failed to get driver cards for truck [{}]", truck_id);
         return None;
     };
-    assert!(driver_cards.len() <= 1, "Truck has more than one driver card");
-    let Some(driver_card) = driver_cards.first() else {
-        info!("Truck [{}] has no driver card", truck_id);
-        return None;
-    };
-
-    Some(driver_card.id.clone())
+    Some(driver_cards)
 }
