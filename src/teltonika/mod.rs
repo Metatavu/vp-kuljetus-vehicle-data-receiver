@@ -1,7 +1,7 @@
 pub mod connection;
 pub mod events;
 pub mod records;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use nom_teltonika::{AVLEventIO, AVLEventIOValue};
 use serde::de::value;
 use vehicle_management_service::models::{TruckDriveStateEnum, TruckDriverCard};
@@ -125,7 +125,7 @@ fn get_card_removal_time_from_event(event: &AVLEventIO, timestamp: i64) -> Optio
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
 fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
     let driver_one_card_part = avl_event_io_value_to_u64(&event.value).to_be_bytes().to_vec();
-    debug!("Driver one card part bytes: {:?}", driver_one_card_part);
+    info!("Driver one card part bytes: {:?}", driver_one_card_part);
     let Ok(part) = String::from_utf8(driver_one_card_part) else {
         panic!("Invalid driver one card part data");
     };
