@@ -1,4 +1,4 @@
-use log::{debug};
+use log::debug;
 use nom_teltonika::AVLEventIO;
 use vehicle_management_service::{
     apis::{
@@ -7,7 +7,7 @@ use vehicle_management_service::{
         },
         Error,
     },
-    models::{TruckOrTowableTemperatureReading, TemperatureReadingSourceType, Trackable, TrackableType},
+    models::{TemperatureReadingSourceType, Trackable, TrackableType, TruckOrTowableTemperatureReading},
 };
 
 use crate::{
