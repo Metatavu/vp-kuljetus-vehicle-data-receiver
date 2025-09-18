@@ -77,12 +77,12 @@ fn driver_card_events_to_truck_driver_card(
         .iter()
         .find(|event| event.id == DRIVER_ONE_CARD_PRESENCE_EVENT_ID);
 
-    let Some(driver_card_msb_part) = driver_card_part_from_event(events, 195) else {
+    let Some(driver_card_msb_part) = driver_card_part_from_event(imei, events, 195) else {
         warn!(target: imei, "Driver card MSB part was 0");
 
         return None;
     };
-    let Some(driver_card_lsb_part) = driver_card_part_from_event(events, 196) else {
+    let Some(driver_card_lsb_part) = driver_card_part_from_event(imei, events, 196) else {
         warn!(target: imei, "Driver card LSB part was 0");
 
         return None;
@@ -123,14 +123,14 @@ fn get_card_removal_time_from_event(event: &AVLEventIO, timestamp: i64) -> Optio
 /// Converts a Driver Card part [AVLEventIO] to a String.
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
+fn driver_card_part_event_to_string(imei: &str, event: &AVLEventIO) -> Option<String> {
     let driver_one_card_part = avl_event_io_value_to_u64(&event.value).to_be_bytes().to_vec();
-    info!("Driver one card part bytes: {:?}", driver_one_card_part);
     let Ok(part) = String::from_utf8(driver_one_card_part) else {
-        panic!("Invalid driver one card part data");
+        warn!(target: imei, "Invalid driver one card part data");
+        return None;
     };
 
-    return part;
+    return Some(part);
 }
 
 /// Returns a driver card part as String from a list of [AVLEventIO].
@@ -139,7 +139,7 @@ fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
 /// TODO: Investigate if in the case of valid driver card id the length of MSB and LSB fields are always same.
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_part_from_event(events: &Vec<&AVLEventIO>, event_id: u16) -> Option<String> {
+fn driver_card_part_from_event(imei: &str, events: &Vec<&AVLEventIO>, event_id: u16) -> Option<String> {
     let driver_card_part = events
         .iter()
         .find(|event| event.id == event_id)
@@ -149,7 +149,7 @@ fn driver_card_part_from_event(events: &Vec<&AVLEventIO>, event_id: u16) -> Opti
         return None;
     }
 
-    return Some(driver_card_part_event_to_string(driver_card_part));
+    return driver_card_part_event_to_string(imei, driver_card_part);
 }
 
 /// Trait for converting an [AVLEventIOValue] to a value used by Vehicle Management API.
