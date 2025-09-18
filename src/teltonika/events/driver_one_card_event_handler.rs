@@ -4,8 +4,9 @@ use uuid::Uuid;
 use vehicle_management_service::{
     apis::{
         trucks_api::{
-            create_truck_driver_card, delete_truck_driver_card, CreateTruckDriverCardError,
+            create_truck_driver_card, delete_truck_driver_card, list_truck_driver_cards, CreateTruckDriverCardError,
             CreateTruckDriverCardParams, DeleteTruckDriverCardError, DeleteTruckDriverCardParams,
+            ListTruckDriverCardsError, ListTruckDriverCardsParams,
         },
         Error,
     },
@@ -14,7 +15,10 @@ use vehicle_management_service::{
 
 use crate::{
     teltonika::{avl_event_io_value_to_u8, driver_card_events_to_truck_driver_card},
-    utils::{api::get_truck_driver_card_id, date_time_from_timestamp, VEHICLE_MANAGEMENT_API_CONFIG},
+    utils::{
+        api::fetch_all_driver_cards_in_truck, date_time_from_timestamp, get_vehicle_management_api_config,
+        VEHICLE_MANAGEMENT_API_CONFIG,
+    },
     Listener,
 };
 
@@ -80,30 +84,57 @@ impl DriverOneCardEventHandler {
         log_target: &str,
     ) -> Result<(), DriverOneCardIdEventHandlerError> {
         let truck_id = truck_id.clone().to_string();
-        let driver_card_id = get_truck_driver_card_id(&truck_id)
-            .await
-            .expect(&format!("Failed to get driver card id for truck {truck_id}"));
-        let params = DeleteTruckDriverCardParams {
-            truck_id,
-            driver_card_id,
-            x_removed_at,
-        };
-        let res = delete_truck_driver_card(&VEHICLE_MANAGEMENT_API_CONFIG, params).await;
 
-        return match res {
-            Ok(_) => {
-                info!(target: log_target, "Driver card removed successfully!");
-                Ok(())
-            }
-            Err(error) => match &error {
-                Error::ResponseError(err) => match err.status {
-                    reqwest::StatusCode::NOT_FOUND => Ok(()),
-                    _ => Err(error),
-                },
-                _ => Err(error),
+        let driver_cards_result = list_truck_driver_cards(
+            &get_vehicle_management_api_config(),
+            ListTruckDriverCardsParams {
+                truck_id: truck_id.to_string(),
             },
+        )
+        .await;
+
+        match driver_cards_result {
+            Ok(driver_cards) => {
+                let driver_cards = driver_cards
+                    .iter()
+                    .filter(|card| card.removed_at.is_none())
+                    .collect::<Vec<_>>();
+
+                let driver_card = driver_cards.first();
+                let driver_card_id = match driver_card {
+                    Some(card) => card.id.clone(),
+                    None => {
+                        info!(target: log_target, "No active driver card found for truck [{}], nothing to remove", truck_id);
+                        return Ok(());
+                    }
+                };
+                let params = DeleteTruckDriverCardParams {
+                    truck_id,
+                    driver_card_id,
+                    x_removed_at,
+                };
+                let res = delete_truck_driver_card(&VEHICLE_MANAGEMENT_API_CONFIG, params).await;
+
+                return match res {
+                    Ok(_) => {
+                        info!(target: log_target, "Driver card removed successfully!");
+                        Ok(())
+                    }
+                    Err(error) => match &error {
+                        Error::ResponseError(err) => match err.status {
+                            reqwest::StatusCode::NOT_FOUND => Ok(()),
+                            _ => Err(error),
+                        },
+                        _ => Err(error),
+                    },
+                }
+                .map_err(|err| DriverOneCardIdEventHandlerError::DeleteTruckDriverCardError(err));
+            }
+            Err(error) => {
+                warn!(target: log_target, "Failed to get driver cards for truck [{}]: {}", truck_id, error);
+                return Err(DriverOneCardIdEventHandlerError::ListTruckDriverCardsError(error));
+            }
         }
-        .map_err(|err| DriverOneCardIdEventHandlerError::DeleteTruckDriverCardError(err));
     }
 }
 
@@ -112,6 +143,7 @@ impl DriverOneCardEventHandler {
 pub enum DriverOneCardIdEventHandlerError {
     CreateTruckDriverCardError(Error<CreateTruckDriverCardError>),
     DeleteTruckDriverCardError(Error<DeleteTruckDriverCardError>),
+    ListTruckDriverCardsError(Error<ListTruckDriverCardsError>),
 }
 
 impl TeltonikaEventHandler<TruckDriverCard, DriverOneCardIdEventHandlerError> for DriverOneCardEventHandler {
