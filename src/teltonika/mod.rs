@@ -123,14 +123,14 @@ fn get_card_removal_time_from_event(event: &AVLEventIO, timestamp: i64) -> Optio
 /// Converts a Driver Card part [AVLEventIO] to a String.
 ///
 /// See [Teltonika Documentation](https://wiki.teltonika-gps.com/view/DriverID) for more detailed information.
-fn driver_card_part_event_to_string(event: &AVLEventIO) -> String {
+fn driver_card_part_event_to_string(event: &AVLEventIO) -> Option<String> {
     let driver_one_card_part = avl_event_io_value_to_u64(&event.value).to_be_bytes().to_vec();
-    info!("Driver one card part bytes: {:?}", driver_one_card_part);
     let Ok(part) = String::from_utf8(driver_one_card_part) else {
-        panic!("Invalid driver one card part data");
+        warn!("Invalid driver one card part data");
+        return None;
     };
 
-    return part;
+    return Some(part);
 }
 
 /// Returns a driver card part as String from a list of [AVLEventIO].
@@ -149,7 +149,7 @@ fn driver_card_part_from_event(events: &Vec<&AVLEventIO>, event_id: u16) -> Opti
         return None;
     }
 
-    return Some(driver_card_part_event_to_string(driver_card_part));
+    return driver_card_part_event_to_string(driver_card_part);
 }
 
 /// Trait for converting an [AVLEventIOValue] to a value used by Vehicle Management API.
